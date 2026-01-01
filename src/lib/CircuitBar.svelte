@@ -41,9 +41,13 @@
 
 <style>
   .circuit-bar {
-    margin: 15px 20px 10px 20px; 
+    /* Ajuste para centrar y despegar de los bordes */
+    max-width: 1400px;      /* Límite de ancho para pantallas grandes */
+    margin: 15px auto;      /* El 'auto' centra el panel horizontalmente */
+    width: 95%;             /* Margen de seguridad para pantallas medianas */
+    
     background: white; 
-    padding: 12px 20px;
+    padding: 12px 24px;     /* Más espacio interno a los lados */
     border-radius: 12px;
     border: 1px solid rgba(0, 0, 0, 0.05);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -55,7 +59,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between; 
-    gap: 20px; 
+    gap: 24px;              /* Espacio entre elementos internos */
     width: 100%;
   }
 
@@ -71,6 +75,12 @@
     color: #334155;
     white-space: nowrap;
     flex-shrink: 0;
+    transition: all 0.2s ease;
+  }
+
+  .chip-circuit:hover {
+    border-color: #c62828;
+    background: #fff5f5;
   }
 
   /* --- Buscador --- */
@@ -96,6 +106,7 @@
     border: 1px solid #fee2e2;
     background: #ffffff;
     outline: none;
+    transition: all 0.2s ease;
   }
 
   .search-wrapper input:focus {
@@ -103,15 +114,14 @@
     box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.1);
   }
 
-  /* --- Acciones (Lado derecho) --- */
+  /* --- Acciones --- */
   .actions {
     display: flex;
     align-items: center;
-    gap: 12px; /* Mantiene la separación entre los dos elementos */
+    gap: 12px;
     flex-shrink: 0;
   }
 
-  /* Contador de Congregaciones (Estático) */
   .btn-secondary {
     background: white;
     color: #c62828;
@@ -123,7 +133,6 @@
     align-items: center;
     gap: 10px;
     font-size: 0.85rem;
-    /* Eliminado el hover que invertía colores */
   }
 
   .badge {
@@ -134,7 +143,7 @@
     font-size: 0.75rem;
   }
 
-  /* Botón Gestionar Circuitos (Con Hover Rojo) */
+  /* Botón Principal */
   .btn-primary {
     background: #1e293b; 
     color: white;
