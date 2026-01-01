@@ -1,42 +1,45 @@
 <script lang="ts">
   import TopBar from '$lib/TopBar.svelte';
-  import CircuitBar from '$lib/CircuitBar.svelte'; // Importamos la nueva barra
+  import CircuitBar from '$lib/CircuitBar.svelte';
 </script>
 
 <div class="app-container">
   <TopBar />
-  
-  <CircuitBar /> 
-  
+
+  <CircuitBar />
+
   <main class="main-content">
     <slot />
   </main>
 </div>
 
 <style>
-  /* Mantenemos tus estilos globales intactos para no romper la fuente ni los márgenes */
+  /* --- AJUSTE CRÍTICO: permitir que los modales se muestren --- */
   :global(body, html) {
     margin: 0 !important;
     padding: 0 !important;
     width: 100%;
     height: 100%;
-    overflow: hidden;
+    overflow-x: hidden;   /* ← evita cortes horizontales */
+    overflow-y: auto;     /* ← permite que el modal se muestre */
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color: #1a1a1a;
   }
 
+  /* --- AJUSTE: permitir que el modal salga del contenedor --- */
   .app-container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    min-height: 100vh;   /* ← permite crecer si el modal lo necesita */
     width: 100%;
+    overflow: visible;   /* ← CLAVE: deja que el modal flote encima */
   }
 
   .main-content {
     flex: 1;
-    background: #f4f4f4; /* El fondo gris claro que ya tenías */
+    background: #f4f4f4;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
