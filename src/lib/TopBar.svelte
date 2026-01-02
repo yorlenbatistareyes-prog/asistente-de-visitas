@@ -94,8 +94,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.8rem;
-    font-weight: 800;
+    font-size: 2.8rem;
+    font-weight: 450;
     box-shadow: 2px 0 5px rgba(0,0,0,0.2);
   }
 
@@ -110,7 +110,7 @@
 
   .text-group h1 {
     margin: 0;
-    font-size: 1.3rem;
+    font-size: 1.8rem;
     color: #000000; /* Negro */
     font-weight: 700;
   }
