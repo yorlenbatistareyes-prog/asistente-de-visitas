@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Globe, Search, LayoutGrid, ChevronDown, X, Plus } from "lucide-svelte";
+  import { Globe, Search, LayoutGrid, ChevronDown, X, Plus, Divide } from "lucide-svelte";
   import { fade, scale, slide } from 'svelte/transition';
 
   // Cada circuito es un objeto completo
@@ -44,11 +44,17 @@
   <div class="container">
 
     <div class="selector-wrapper">
-      <button type="button" class="chip-circuit" on:click={() => (mostrarDropdown = !mostrarDropdown)}>
-        <Globe size={18} color="#c62828" />
-        <span>Circuito: <strong>{circuitoNombre}</strong></span>
-        <ChevronDown size={14} class="icon-chevron {mostrarDropdown ? 'rotate' : ''}" />
-      </button>
+  <button 
+    type="button" 
+    class="chip-circuit" 
+    on:click={() => (mostrarDropdown = !mostrarDropdown)}>
+    <Globe size={18} color="#c62828" />
+    <span>Circuito: <strong>{circuitoNombre}</strong></span>
+
+    <span class="icon-chevron" class:rotate={mostrarDropdown}>
+      <ChevronDown size={14} />
+    </span>
+  </button>
 
       {#if mostrarDropdown}
         <div class="dropdown-menu" transition:slide>
@@ -56,8 +62,7 @@
             <button 
               type="button" 
               class="dropdown-item" 
-              on:click={() => { circuitoNombre = c.nombre; mostrarDropdown = false; }}
-            >
+              on:click={() => { circuitoNombre = c.nombre; mostrarDropdown = false; }}>
               {c.nombre} — {c.idioma} — {c.pais}
             </button>
           {/each}
