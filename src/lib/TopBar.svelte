@@ -62,7 +62,8 @@
     display: flex;
     flex-direction: column;
     z-index: 1;
-  }
+    pointer-events: none; /* ← ESTA ES LA CLAVE */
+}
 
   .white-row {
     background: #ffffff;
