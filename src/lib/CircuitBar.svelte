@@ -4,7 +4,7 @@
 
   // Cada circuito es un objeto completo
   let listaCircuitos = [
-    { nombre: "Holguín-14", idioma: "Español", pais: "Cuba" }
+    { nombre: "HG-06", idioma: "S", pais: "Cuba" }
   ];
 
   export let circuitoNombre = listaCircuitos[0].nombre;
