@@ -1,14 +1,27 @@
 <script lang="ts">
   import { 
     MapPin, ChevronRight, Plus, Calendar, 
-    FileText, Users, Folder, Clock, Settings 
+    FileText, Users, Folder, Clock, Settings,
+    Pencil, Trash2
   } from "lucide-svelte";
 
   import NuevaCongregacionModal from "../modals/NuevaCongregacionModal.svelte";
 
+  // Ahora guardamos todos los campos que puede mandar el modal
   interface Congregacion { 
     nombre: string; 
     enVisita: boolean; 
+
+    ciudad?: string;
+    provincia?: string;
+    pais?: string;
+    idioma?: string;
+    esLenguaSenas?: boolean;
+    telefono?: string;
+    horaSemana?: string;
+    horaFinSemana?: string;
+    diaSemana?: string;
+    diaFinSemana?: string;
   }
 
   export let circuitoNombre: string = "Holguín-14";
@@ -25,11 +38,10 @@
 
   let seleccionado = "AEROPUERTO";
   let mostrarModal = false;
+  let mostrarMenuConfig = false;
 
-  function abrirModal() {
-    console.log("Dashboard: abrirModal()");
-    mostrarModal = true;
-  }
+  // Si es null → crear; si tiene datos → editar
+  let datosEdicion: Congregacion | null = null;
 
   const secciones = [
     { titulo: "Programación", icon: Calendar },
@@ -39,7 +51,33 @@
     { titulo: "Asuntos pendientes", icon: Clock }
   ];
 
+  // Lista de congregaciones del circuito actual
   $: lista = datos[circuitoNombre] || [];
+
+  function abrirModal() {
+    datosEdicion = null; // modo creación
+    mostrarModal = true;
+  }
+
+  function editarCongregacion() {
+    const actual = lista.find(c => c.nombre === seleccionado);
+    if (!actual) return;
+
+    // Pasamos TODOS los datos actuales al modal
+    datosEdicion = { ...actual };
+    mostrarModal = true;
+    mostrarMenuConfig = false;
+  }
+
+  function eliminarCongregacion() {
+    datos[circuitoNombre] = datos[circuitoNombre].filter(
+      c => c.nombre !== seleccionado
+    );
+
+    // Seleccionar otra si existe
+    seleccionado = datos[circuitoNombre][0]?.nombre || "";
+    mostrarMenuConfig = false;
+  }
 </script>
 
 <div class="dashboard">
@@ -74,9 +112,26 @@
         <span class="badge">EN VISITA</span>
       {/if}
 
-      <button class="config-btn">
-        <Settings size={14} /> Configuración
-      </button>
+      <div class="config-wrapper">
+        <button 
+          class="config-btn"
+          on:click={() => mostrarMenuConfig = !mostrarMenuConfig}
+        >
+          <Settings size={14} /> Configuración
+        </button>
+
+        {#if mostrarMenuConfig}
+          <div class="config-menu">
+            <button on:click={editarCongregacion}>
+              <Pencil size={14} /> Editar congregación
+            </button>
+
+            <button class="danger" on:click={eliminarCongregacion}>
+              <Trash2 size={14} /> Eliminar congregación
+            </button>
+          </div>
+        {/if}
+      </div>
     </div>
 
     <div class="grid">
@@ -98,23 +153,47 @@
 
 {#if mostrarModal}
   <NuevaCongregacionModal 
+    {datosEdicion}
     on:close={() => {
-      console.log("Dashboard: on:close recibido");
       mostrarModal = false;
+      datosEdicion = null;
     }}
+
     on:save={(e) => {
-      console.log("Dashboard: on:save recibido =>", e.detail);
       const nueva = e.detail;
 
+      // Guardamos TODOS los datos que vienen del modal
       datos[circuitoNombre] = [
         ...(datos[circuitoNombre] || []),
         {
+          ...nueva,
           nombre: nueva.nombre.toUpperCase(),
           enVisita: false
         }
       ];
 
+      seleccionado = nueva.nombre.toUpperCase();
       mostrarModal = false;
+      datosEdicion = null;
+    }}
+
+    on:update={(e) => {
+      const editada = e.detail;
+
+      // Actualizamos TODOS los campos de esa congregación
+      datos[circuitoNombre] = datos[circuitoNombre].map(c =>
+        c.nombre === (datosEdicion?.nombre ?? "")
+          ? { 
+              ...c, 
+              ...editada,
+              nombre: editada.nombre.toUpperCase()
+            }
+          : c
+      );
+
+      seleccionado = editada.nombre.toUpperCase();
+      mostrarModal = false;
+      datosEdicion = null;
     }}
   />
 {/if}
@@ -130,9 +209,51 @@
   .add-btn { width: 100%; margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #e11d48; background: none; border: 1px dashed #fecaca; padding: 10px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 13px; transition: 0.2s; }
   .add-btn:hover { background: #fff1f2; border-color: #e11d48; }
   .main-panel { flex: 1; }
-  .header-cong { display: flex; align-items: center; gap: 15px; margin: 25px 0; }
+  .header-cong { display: flex; align-items: center; gap: 15px; margin: 25px 0; position: relative; }
   .badge { background: #dcfce7; color: #16a34a; padding: 3px 10px; border-radius: 15px; font-size: 11px; font-weight: bold; }
   .config-btn { display: flex; align-items: center; gap: 5px; background: white; border: 1px solid #e2e8f0; padding: 5px 12px; border-radius: 8px; color: #64748b; font-size: 12px; cursor: pointer; }
+
+  .config-wrapper {
+    position: relative;
+  }
+
+  .config-menu {
+    position: absolute;
+    top: 35px;
+    right: 0;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 170px;
+    z-index: 1000;
+  }
+
+  .config-menu button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #475569;
+    border-radius: 6px;
+  }
+
+  .config-menu button:hover {
+    background: #f1f5f9;
+  }
+
+  .config-menu .danger {
+    color: #dc2626;
+  }
+
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
   .card { background: white; padding: 24px; border-radius: 16px; display: flex; align-items: center; gap: 15px; border: 1px solid #f1f5f9; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); cursor: pointer; transition: 0.2s; }
   .card:hover { border-color: #e11d48; transform: translateY(-2px); }

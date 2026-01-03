@@ -3,6 +3,8 @@
   import { X, Clock } from "lucide-svelte";
   import { createEventDispatcher } from 'svelte';
 
+  export let datosEdicion: any = null;
+
   const dispatch = createEventDispatcher();
 
   let nombre = "";
@@ -17,9 +19,24 @@
   let horaSemana = "";
   let horaFinSemana = "";
 
-  // Nuevos campos
   let diaSemana = "Miércoles";
   let diaFinSemana = "Domingo";
+
+  // Precargar si estamos editando
+  if (datosEdicion) {
+    nombre = datosEdicion.nombre ?? "";
+    numero = datosEdicion.numero ?? "";
+    ciudad = datosEdicion.ciudad ?? "";
+    provincia = datosEdicion.provincia ?? "";
+    pais = datosEdicion.pais ?? "Cuba";
+    idioma = datosEdicion.idioma ?? "Español";
+    esLenguaSenas = datosEdicion.esLenguaSenas ?? false;
+    telefono = datosEdicion.telefono ?? "";
+    horaSemana = datosEdicion.horaSemana ?? "";
+    horaFinSemana = datosEdicion.horaFinSemana ?? "";
+    diaSemana = datosEdicion.diaSemana ?? "Miércoles";
+    diaFinSemana = datosEdicion.diaFinSemana ?? "Domingo";
+  }
 
   function cerrar() {
     dispatch('close');
@@ -42,7 +59,12 @@
       diaFinSemana
     };
 
-    dispatch('save', nuevaCong);
+    if (datosEdicion) {
+      dispatch('update', nuevaCong);
+    } else {
+      dispatch('save', nuevaCong);
+    }
+
     cerrar();
   }
 </script>
@@ -56,7 +78,7 @@
 >
   <div class="modal-content">
     <header>
-      <h3>Nueva Congregación</h3>
+      <h3>{datosEdicion ? "Editar Congregación" : "Nueva Congregación"}</h3>
       <button class="close-btn" on:click={cerrar}><X size={20} /></button>
     </header>
 
@@ -101,7 +123,6 @@
         <label for="lenguaSenas">Lengua de señas</label>
       </div>
 
-      <!-- Día + hora entre semana -->
       <div class="field">
         <label for="diaSemana">Día de reunión entre semana</label>
         <select id="diaSemana" bind:value={diaSemana}>
@@ -121,7 +142,6 @@
         <input id="horaSemana" type="time" bind:value={horaSemana} />
       </div>
 
-      <!-- Día + hora fin de semana -->
       <div class="field">
         <label for="diaFinSemana">Día de reunión de fin de semana</label>
         <select id="diaFinSemana" bind:value={diaFinSemana}>
@@ -142,7 +162,9 @@
 
     <footer>
       <button class="btn-sec" on:click={cerrar}>Cancelar</button>
-      <button class="btn-pri" on:click={guardar}>Guardar Congregación</button>
+      <button class="btn-pri" on:click={guardar}>
+        {datosEdicion ? "Actualizar" : "Guardar"} Congregación
+      </button>
     </footer>
   </div>
 </div>
