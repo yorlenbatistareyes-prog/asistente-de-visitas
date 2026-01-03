@@ -24,24 +24,6 @@
 </header>
 
 <style>
-  .circuit-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    
-    /* Separación precisa: 8px debajo de la franja gris y separado de los lados */
-    margin: 8px 15px; 
-    padding: 10px 20px;
-    background: #ffffff;
-    
-    /* Bordes redondeados y sombra para que parezca un panel flotante */
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    
-    gap: 20px;
-    z-index: 10; /* Asegura que esté sobre el fondo gris claro */
-  }
   /* Contenedor raíz: nada de márgenes ni paddings */
   .header-fixed {
     position: relative;
@@ -94,8 +76,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.8rem;
-    font-weight: 800;
+    font-size: 2.8rem;
+    font-weight: 450;
     box-shadow: 2px 0 5px rgba(0,0,0,0.2);
   }
 
@@ -110,7 +92,7 @@
 
   .text-group h1 {
     margin: 0;
-    font-size: 1.3rem;
+    font-size: 1.8rem;
     color: #000000; /* Negro */
     font-weight: 700;
   }
