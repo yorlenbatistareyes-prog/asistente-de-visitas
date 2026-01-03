@@ -1,12 +1,13 @@
 <script lang="ts">
-  import TopBar from '$lib/TopBar.svelte';
-  import CircuitBar from '$lib/CircuitBar.svelte';
+  import { circuitoActivo } from '$lib/stores/appStore'; // Importamos el Store
+  import TopBar from '$lib/components/layout/TopBar.svelte';
+  import CircuitBar from '$lib/components/layout/CircuitBar.svelte';
 </script>
 
 <div class="app-container">
   <TopBar />
 
-  <CircuitBar />
+  <CircuitBar bind:circuitoNombre={$circuitoActivo} />
 
   <main class="main-content">
     <slot />
