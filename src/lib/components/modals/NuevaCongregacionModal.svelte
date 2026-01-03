@@ -13,11 +13,15 @@
   let idioma = "Español";
   let esLenguaSenas = false;
   let telefono = "";
+
   let horaSemana = "";
   let horaFinSemana = "";
 
+  // Nuevos campos
+  let diaSemana = "Miércoles";
+  let diaFinSemana = "Domingo";
+
   function cerrar() {
-    console.log("Modal: cerrar()");
     dispatch('close');
   }
 
@@ -33,16 +37,23 @@
       esLenguaSenas,
       telefono,
       horaSemana,
-      horaFinSemana
+      horaFinSemana,
+      diaSemana,
+      diaFinSemana
     };
 
-    console.log("Modal: dispatch save =>", nuevaCong);
     dispatch('save', nuevaCong);
     cerrar();
   }
 </script>
 
-<div class="modal-overlay" on:click|self={cerrar}>
+<div 
+  class="modal-overlay" 
+  on:click|self={cerrar}
+  role="dialog"
+  tabindex="0"
+  on:keydown={(e) => e.key === 'Escape' && cerrar()}
+>
   <div class="modal-content">
     <header>
       <h3>Nueva Congregación</h3>
@@ -50,61 +61,83 @@
     </header>
 
     <div class="form-grid">
+
       <div class="field full">
-        <label>Nombre de Congregación *</label>
-        <input type="text" bind:value={nombre} placeholder="Ej. Aeropuerto" />
-      </div>
-      
-      <div class="field">
-        <label>Número</label>
-        <input type="text" bind:value={numero} placeholder="Número de congregación" />
+        <label for="nombre">Nombre de Congregación *</label>
+        <input id="nombre" type="text" bind:value={nombre} placeholder="Ej. Aeropuerto" />
       </div>
 
       <div class="field">
-        <label>Ciudad *</label>
-        <input type="text" bind:value={ciudad} />
+        <label for="numero">Número</label>
+        <input id="numero" type="text" bind:value={numero} placeholder="Número de congregación" />
       </div>
 
       <div class="field">
-        <label>Estado/Provincia</label>
-        <input type="text" bind:value={provincia} />
+        <label for="ciudad">Ciudad *</label>
+        <input id="ciudad" type="text" bind:value={ciudad} />
       </div>
 
       <div class="field">
-        <label>País</label>
-        <select bind:value={pais}>
+        <label for="provincia">Estado/Provincia</label>
+        <input id="provincia" type="text" bind:value={provincia} />
+      </div>
+
+      <div class="field">
+        <label for="pais">País</label>
+        <select id="pais" bind:value={pais}>
           <option>Cuba</option>
         </select>
       </div>
 
       <div class="field">
-        <label>Idioma</label>
-        <select bind:value={idioma}>
+        <label for="idioma">Idioma</label>
+        <select id="idioma" bind:value={idioma}>
           <option>Español</option>
         </select>
       </div>
 
       <div class="field checkbox">
-        <label>
-          <input type="checkbox" bind:checked={esLenguaSenas} /> 
-          Lengua de señas
+        <input id="lenguaSenas" type="checkbox" bind:checked={esLenguaSenas} />
+        <label for="lenguaSenas">Lengua de señas</label>
+      </div>
+
+      <!-- Día + hora entre semana -->
+      <div class="field">
+        <label for="diaSemana">Día de reunión entre semana</label>
+        <select id="diaSemana" bind:value={diaSemana}>
+          <option>Lunes</option>
+          <option>Martes</option>
+          <option>Miércoles</option>
+          <option>Jueves</option>
+          <option>Viernes</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="horaSemana" class="with-icon">
+          <Clock size={14}/>
+          <span>Hora entre semana</span>
         </label>
+        <input id="horaSemana" type="time" bind:value={horaSemana} />
+      </div>
+
+      <!-- Día + hora fin de semana -->
+      <div class="field">
+        <label for="diaFinSemana">Día de reunión de fin de semana</label>
+        <select id="diaFinSemana" bind:value={diaFinSemana}>
+          <option>Sábado</option>
+          <option>Domingo</option>
+        </select>
       </div>
 
       <div class="field">
-        <label>Núm. de Teléfono Principal</label>
-        <input type="text" bind:value={telefono} />
+        <label for="horaFinSemana" class="with-icon">
+          <Clock size={14}/>
+          <span>Hora fin de semana</span>
+        </label>
+        <input id="horaFinSemana" type="time" bind:value={horaFinSemana} />
       </div>
 
-      <div class="field">
-        <label><Clock size={14}/> Reunión entre semana</label>
-        <input type="time" bind:value={horaSemana} />
-      </div>
-
-      <div class="field">
-        <label><Clock size={14}/> Reunión de fin de semana</label>
-        <input type="time" bind:value={horaFinSemana} />
-      </div>
     </div>
 
     <footer>
