@@ -24,7 +24,6 @@
 </header>
 
 <style>
-  /* Contenedor raíz: nada de márgenes ni paddings */
   .header-fixed {
     position: relative;
     width: 100%;
@@ -32,9 +31,10 @@
     margin: 0;
     padding: 0;
     overflow: hidden;
+    /* Fuente de sistema para recuperar el estilo anterior */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
 
-  /* CAPA DE FONDO: Aquí la franja gris llega al borde sí o sí */
   .background-layers {
     position: absolute;
     top: 0;
@@ -44,22 +44,12 @@
     display: flex;
     flex-direction: column;
     z-index: 1;
-    pointer-events: none; /* ← ESTA ES LA CLAVE */
-}
-
-  .white-row {
-    background: #ffffff;
-    height: 65px;
-    width: 100%;
+    pointer-events: none;
   }
 
-  .gray-row {
-    background: #373737; /* Gris oscuro extremo a extremo */
-    height: 35px;
-    width: 100%;
-  }
+  .white-row { background: #ffffff; height: 65px; width: 100%; }
+  .gray-row { background: #373737; height: 35px; width: 100%; }
 
-  /* CAPA DE CONTENIDO: Encima del fondo */
   .content-overlay {
     position: relative;
     display: flex;
@@ -72,7 +62,7 @@
     background: #c62828;
     color: white;
     width: 85px;
-    height: 82px; /* Mitad de la franja gris */
+    height: 82px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -83,17 +73,16 @@
 
   .info-area {
     flex: 1;
-    height: 65px; /* Solo la altura de la franja blanca */
+    height: 65px;
     display: flex;
     align-items: center;
-    padding-left: 20px;
-    padding-right: 20px;
+    padding: 0 20px;
   }
 
   .text-group h1 {
     margin: 0;
     font-size: 1.8rem;
-    color: #000000; /* Negro */
+    color: #000000;
     font-weight: 700;
   }
 

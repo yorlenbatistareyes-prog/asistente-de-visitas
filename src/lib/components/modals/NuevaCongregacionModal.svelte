@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { circuitoActivo } from '$lib/stores/appStore';
+  import { circuitoActivo, listaCongregaciones } from '$lib/stores/appStore';
   import { X, Clock } from "lucide-svelte";
   import { createEventDispatcher } from 'svelte';
 
@@ -44,6 +44,7 @@
 
   function guardar() {
     const nuevaCong = {
+      id: datosEdicion?.id || Date.now(), // Generamos un ID si es nueva
       circuito: $circuitoActivo,
       nombre,
       numero,
@@ -60,8 +61,14 @@
     };
 
     if (datosEdicion) {
+      // Lógica para actualizar una existente en el store
+      listaCongregaciones.update(lista => 
+        lista.map(c => c.id === datosEdicion.id ? nuevaCong : c)
+      );
       dispatch('update', nuevaCong);
     } else {
+      // ESTO ACTUALIZA EL CONTADOR: Añadimos la nueva al store global
+      listaCongregaciones.update(lista => [...lista, nuevaCong]);
       dispatch('save', nuevaCong);
     }
 
