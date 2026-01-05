@@ -1,13 +1,23 @@
 <script lang="ts">
-  import { Calendar } from "lucide-svelte";
-  import { observacionesStore, guardarDatos } from '$lib/persistencia'; // Conexión con el plugin-store de Tauri
+  import { Calendar, FileText, Table } from "lucide-svelte";
+  import { observacionesStore, guardarDatos } from '$lib/persistencia';
+  import { jsPDF } from "jspdf";
+  import autoTable from "jspdf-autotable";
+  import Papa from "papaparse";
+  import { save } from "@tauri-apps/plugin-dialog";
+  import { writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
   export let nombreCongregacion: string;
 
-  // 1. DEFINICIÓN DE TIPOS PARA EVITAR ERRORES (Mantenida intacta)
   interface RegistroCongregacion {
     fechaVisita: string;
     opinionGeneral: string;
+
+    ministerioAnalisis: string;
+    ministerioDias: string[];
+    territorioAnalisis: string;
+    precursorAnalisis: string;
+
     ministerio: string;
     territorio: string;
     atencionTerritorio: string;
@@ -28,80 +38,253 @@
     seguimiento: string;
   }
 
-  /**
-   * Sincronización con el Store persistente de Tauri.
-   * Cada vez que cambia 'nombreCongregacion', se busca su registro en el archivo JSON.
-   */
-  $: registro = ($observacionesStore[nombreCongregacion] || {
+  const valoresPorDefecto: RegistroCongregacion = {
     fechaVisita: "",
-    opinionGeneral: "", 
-    ministerio: "", 
+    opinionGeneral: "",
+    ministerioAnalisis: "",
+    ministerioDias: [],
+    territorioAnalisis: "",
+    precursorAnalisis: "",
+    ministerio: "",
     territorio: "",
-    atencionTerritorio: "", 
-    precursoresMetas: "", 
+    atencionTerritorio: "",
+    precursoresMetas: "",
     reuniones: "",
-    pastoreo: "", 
-    crecimiento: "", 
+    pastoreo: "",
+    crecimiento: "",
     superServicio: "",
-    publicaciones: "", 
-    metas: "", 
+    publicaciones: "",
+    metas: "",
     cuerpoAncianos: "",
-    local: "", 
-    miscelaneos: "", 
+    local: "",
+    miscelaneos: "",
     irregulares: "",
-    potencial: "", 
-    analisisPrecursores: "", 
+    potencial: "",
+    analisisPrecursores: "",
     contabilidad: "",
     seguimiento: ""
-  }) as RegistroCongregacion;
+  };
 
-  /**
-   * Guarda el contenido del módulo actual en el disco duro.
-   * Se activa cuando el usuario termina de rellenar un campo (evento blur).
-   */
+  $: registro = {
+    ...valoresPorDefecto,
+    ...$observacionesStore[nombreCongregacion]
+  };
+
   async function guardarModulo() {
-    if (!nombreCongregacion) return; // Seguridad: no guarda si no hay congregación seleccionada
-
-    // 1. Clonamos el estado actual del almacén
+    if (!nombreCongregacion) return;
     const copiaActualizada = { ...$observacionesStore };
-    
-    // 2. Sincronizamos los datos del registro actual en la copia [cite: 2026-01-01]
     copiaActualizada[nombreCongregacion] = { ...registro };
-    
-    // 3. Enviamos la copia al plugin de persistencia de Tauri
     try {
       await guardarDatos(copiaActualizada);
-      console.log(`Datos de ${nombreCongregacion} guardados con éxito.`);
     } catch (error) {
-      console.error("Error al guardar el módulo:", error);
+      console.error("Error al guardar:", error);
     }
   }
 
-  // 2. ESTADOS DE LAS GUÍAS (Todos presentes para evitar errores de referencia)
-  let mostrarGuiaOpinion = false;
-  let mostrarGuiaMinisterio = false;
-  let mostrarGuiaTerritorio = false;
-  let mostrarGuiaAtencionTerritorio = false;
-  let mostrarGuiaPrecursoresMetas = false;
-  let mostrarGuiaReuniones = false;
-  let mostrarGuiaPastoreo = false;
-  let mostrarGuiaCrecimiento = false;
-  let mostrarGuiaSuperServicio = false;
-  let mostrarGuiaPublicaciones = false;
-  let mostrarGuiaMetas = false;
-  let mostrarGuiaCuerpoAncianos = false;
-  let mostrarGuiaLocal = false;
-  let mostrarGuiaMiscelaneos = false;
-  let mostrarGuiaIrregulares = false;
-  let mostrarGuiaPotencial = false;
-  let mostrarGuiaAnalisisPrecursores = false;
-  let mostrarGuiaContabilidad = false;
-  let mostrarGuiaSeguimiento = false;
+ async function generarPDF() {
+  try {
+    console.log("=== INICIANDO GENERACIÓN DE PDF ===");
+    
+    const doc = new jsPDF();
+    
+    // Encabezado
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Análisis: ${nombreCongregacion}`, 14, 20);
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Fecha: ${registro.fechaVisita || 'No especificada'}`, 14, 28);
+    
+    // Preparar TODOS los datos
+    const filas = [
+      ["1. OPINIÓN DE LOS ANCIANOS", registro.opinionGeneral || ""],
+      ["2. MINISTERIO CRISTIANO", registro.ministerio || ""],
+      ["   - Análisis Ministerio", registro.ministerioAnalisis || ""],
+      ["   - Días", (registro.ministerioDias || []).join(", ") || ""],
+      ["3. CASA EN CASA", registro.territorio || ""],
+      ["   - Análisis Territorio", registro.territorioAnalisis || ""],
+      ["4. ATENCIÓN AL TERRITORIO", registro.atencionTerritorio || ""],
+      ["5. SERVICIO DE PRECURSOR", registro.precursoresMetas || ""],
+      ["   - Análisis Precursor", registro.precursorAnalisis || ""],
+      ["6. REUNIONES", registro.reuniones || ""],
+      ["7. PASTOREO", registro.pastoreo || ""],
+      ["8. CRECIMIENTO", registro.crecimiento || ""],
+      ["9. SUPERINTENDENTE DE SERVICIO", registro.superServicio || ""],
+      ["10. PUBLICACIONES", registro.publicaciones || ""],
+      ["11. METAS ESPIRITUALES", registro.metas || ""],
+      ["12. CUERPO DE ANCIANOS", registro.cuerpoAncianos || ""],
+      ["13. LOCAL", registro.local || ""],
+      ["14. MISCELÁNEOS", registro.miscelaneos || ""],
+      ["15. IRREGULARES", registro.irregulares || ""],
+      ["16. POTENCIAL", registro.potencial || ""],
+      ["17. ACTIVIDAD PRECURSORES", registro.analisisPrecursores || ""],
+      ["18. CONTABILIDAD", registro.contabilidad || ""],
+      ["19. SEGUIMIENTO", registro.seguimiento || ""]
+    ];
+
+    // Crear tabla simple
+    autoTable(doc, {
+      startY: 35,
+      head: [['Módulo', 'Observaciones']],
+      body: filas,
+      theme: 'striped',
+      headStyles: { 
+        fillColor: [41, 128, 185],
+        fontSize: 12,
+        fontStyle: 'bold'
+      },
+      styles: { 
+        fontSize: 10,
+        cellPadding: 5
+      },
+      columnStyles: {
+        0: { cellWidth: 60, fontStyle: 'bold' as const },
+        1: { cellWidth: 'auto' as const }
+      }
+    });
+
+    console.log("PDF generado");
+
+    // Guardar
+    const pdfOutput = doc.output('arraybuffer');
+    const uint8Array = new Uint8Array(pdfOutput);
+
+    const nombreSeguro = nombreCongregacion
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9\s]/g, "_")
+      .replace(/\s+/g, "_");
+
+    const filePath = await save({
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+      defaultPath: `Analisis_${nombreSeguro}.pdf`
+    });
+
+    if (!filePath) {
+      alert("Guardado cancelado");
+      return;
+    }
+
+    await writeFile(filePath, uint8Array);
+    alert(`✓ PDF guardado en:\n${filePath}`);
+
+  } catch (err) {
+    console.error("Error:", err);
+    const error = err as Error;
+    alert("❌ Error: " + (error?.message || "Error desconocido"));
+  }
+}
+
+  async function generarCSV() {
+  try {
+    console.log("=== INICIANDO GENERACIÓN DE CSV ===");
+    console.log("Congregación:", nombreCongregacion);
+
+    // Preparar datos
+    const datosCSV = {
+      Congregacion: nombreCongregacion,
+      Fecha: registro.fechaVisita || "",
+      OpinionAncianos: registro.opinionGeneral || "",
+      MinisterioAnalisis: registro.ministerioAnalisis || "",
+      MinisterioDias: (registro.ministerioDias || []).join("; "),
+      TerritorioAnalisis: registro.territorioAnalisis || "",
+      PrecursorAnalisis: registro.precursorAnalisis || "",
+      Ministerio: registro.ministerio || "",
+      CasaEnCasa: registro.territorio || "",
+      AtencionTerritorio: registro.atencionTerritorio || "",
+      MetasPrecursores: registro.precursoresMetas || "",
+      Reuniones: registro.reuniones || "",
+      Pastoreo: registro.pastoreo || "",
+      Crecimiento: registro.crecimiento || "",
+      SuperServicio: registro.superServicio || "",
+      Publicaciones: registro.publicaciones || "",
+      Metas: registro.metas || "",
+      CuerpoAncianos: registro.cuerpoAncianos || "",
+      Local: registro.local || "",
+      Miscelaneos: registro.miscelaneos || "",
+      Irregulares: registro.irregulares || "",
+      Potencial: registro.potencial || "",
+      AnalisisPrecursores: registro.analisisPrecursores || "",
+      Contabilidad: registro.contabilidad || "",
+      Seguimiento: registro.seguimiento || ""
+    };
+
+    // Generar CSV
+    const csv = Papa.unparse([datosCSV], {
+      quotes: true,
+      delimiter: ",",
+      header: true
+    });
+
+    console.log("CSV generado, tamaño:", csv.length, "caracteres");
+
+    // Nombre seguro
+    const nombreSeguro = nombreCongregacion
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9\s]/g, "_")
+      .replace(/\s+/g, "_");
+
+    console.log("Abriendo diálogo de guardado...");
+
+    // Abrir diálogo
+    const filePath = await save({
+      filters: [{ 
+        name: "CSV", 
+        extensions: ["csv"] 
+      }],
+      defaultPath: `Analisis_${nombreSeguro}.csv`
+    });
+
+    if (!filePath) {
+      console.log("Usuario canceló");
+      alert("Guardado cancelado");
+      return;
+    }
+
+    console.log("Ruta seleccionada:", filePath);
+    console.log("Escribiendo archivo...");
+
+    // Escribir archivo
+    await writeTextFile(filePath, csv);
+
+    console.log("=== CSV GUARDADO EXITOSAMENTE ===");
+    alert(`✓ Archivo CSV guardado en:\n${filePath}`);
+
+  } catch (err) {
+    console.error("=== ERROR AL GUARDAR CSV ===");
+    console.error("Error completo:", err);
+    
+    const error = err as Error;
+    const mensajeError = error?.message || "Error desconocido";
+    alert("❌ Error al guardar CSV:\n" + mensajeError + "\n\nRevisa la consola (F12) para más detalles");
+  }
+}
+
+  let mostrarGuiaOpinion = false, mostrarGuiaMinisterio = false, mostrarGuiaTerritorio = false,
+      mostrarGuiaAtencionTerritorio = false, mostrarGuiaPrecursoresMetas = false, mostrarGuiaReuniones = false,
+      mostrarGuiaPastoreo = false, mostrarGuiaCrecimiento = false, mostrarGuiaSuperServicio = false,
+      mostrarGuiaPublicaciones = false, mostrarGuiaMetas = false, mostrarGuiaCuerpoAncianos = false,
+      mostrarGuiaLocal = false, mostrarGuiaMiscelaneos = false, mostrarGuiaIrregulares = false,
+      mostrarGuiaPotencial = false, mostrarGuiaAnalisisPrecursores = false, mostrarGuiaContabilidad = false,
+      mostrarGuiaSeguimiento = false;
 </script>
 
 
 <div class="contenedor-analisis">
-  <h2>Análisis de la congregación: {nombreCongregacion}</h2>
+  <div class="cabecera-principal">
+    <h2>Análisis de la congregación: {nombreCongregacion}</h2>
+    
+    <div class="grupo-acciones">
+      <button class="btn-exportar pdf" on:click={generarPDF}>
+        <FileText size={18} /> Guardar Informe PDF
+      </button>
+      <button class="btn-exportar csv" on:click={generarCSV}>
+        <Table size={18} /> Exportar Excel (CSV)
+      </button>
+    </div>
+  </div>
   
   <div class="fecha-seccion">
     <div class="fecha-fila">
@@ -173,32 +356,32 @@
 
   <div class="modulo">
     <h2 class="modulo-titulo">4. DANDO LA DEBIDA ATENCIÓN AL TERRITORIO (Romanos 15:23 a)</h2>
-    <button class="guia-toggle" on:click={() => mostrarGuiaCrecimiento = !mostrarGuiaCrecimiento}>
-      {mostrarGuiaCrecimiento ? 'OCULTAR PREGUNTAS ▲' : 'VER PREGUNTAS ▼'}
+    <button class="guia-toggle" on:click={() => mostrarGuiaAtencionTerritorio = !mostrarGuiaAtencionTerritorio}>
+      {mostrarGuiaAtencionTerritorio ? 'OCULTAR PREGUNTAS ▲' : 'VER PREGUNTAS ▼'}
     </button>
-    {#if mostrarGuiaCrecimiento}
+    {#if mostrarGuiaAtencionTerritorio}
       <div class="guia-contenido">
         <p>¿Se están predicando los territorios de manera completa? (Frecuencia y cabalidad)</p>
         <p>¿Se están trabajando los NC antes de dar por terminado un territorio?</p>
         <p>¿Tiene la congregación un mapa grande de toda la zona, con los límites y los números de los territorios individuales claramente marcados? (sfg-S 3)</p>
       </div>
     {/if}
-    <textarea bind:value={registro.crecimiento} on:blur={guardarModulo} placeholder="Escriba aquí..."></textarea>
+    <textarea bind:value={registro.atencionTerritorio} on:blur={guardarModulo} placeholder="Escriba aquí..."></textarea>
   </div>
 
   <div class="modulo">
     <h2 class="modulo-titulo">5. SOBRE EL SERVICIO DE PRECURSOR REGULAR Y AUXILIAR</h2>
-    <button class="guia-toggle" on:click={() => mostrarGuiaPotencial = !mostrarGuiaPotencial}>
-      {mostrarGuiaPotencial ? 'OCULTAR PREGUNTAS ▲' : 'VER PREGUNTAS ▼'}
+    <button class="guia-toggle" on:click={() => mostrarGuiaPrecursoresMetas = !mostrarGuiaPrecursoresMetas}>
+      {mostrarGuiaPrecursoresMetas ? 'OCULTAR PREGUNTAS ▲' : 'VER PREGUNTAS ▼'}
     </button>
-    {#if mostrarGuiaPotencial}
+    {#if mostrarGuiaPrecursoresMetas}
       <div class="guia-contenido">
         <p>¿Qué actitud manifiestan los hermanos respecto al servicio de precursor?</p>
         <p>¿Están animando a quiénes tienen potencial para que sirvan como precursores auxiliares o regulares?</p>
         <p>¿Los nombrados y sus familias están dando un buen ejemplo al respecto? (Heb. 13:17)</p>
       </div>
     {/if}
-    <textarea bind:value={registro.potencial} on:blur={guardarModulo} placeholder="Escriba aquí..."></textarea>
+    <textarea bind:value={registro.precursoresMetas} on:blur={guardarModulo} placeholder="Escriba aquí..."></textarea>
   </div>
 
   <div class="modulo">
@@ -411,31 +594,70 @@
 </div>
 
 <style>
+  .contenedor-analisis {
+    padding: 20px;
+  }
 
+  /* Cabecera y Botones de Exportación */
+  .cabecera-principal {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #3498db;
+  }
+
+  .grupo-acciones {
+    display: flex;
+    gap: 12px;
+  }
+
+  .btn-exportar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+  }
+
+  .btn-exportar.pdf { background-color: #e74c3c; color: white; }
+  .btn-exportar.pdf:hover { background-color: #c0392b; }
+  .btn-exportar.csv { background-color: #27ae60; color: white; }
+  .btn-exportar.csv:hover { background-color: #1e8449; }
+
+  /* Sección de Fecha */
   .fecha-seccion {
     margin: 20px 0 30px 0;
     width: 100%;
+    display: flex;
+    justify-content: flex-start;
   }
 
-  /* Alineación en la misma línea */
   .fecha-fila {
     display: flex;
-    align-items: center; /* Centra verticalmente el texto y el input */
-    gap: 20px; /* Espacio entre el texto y el cuadro */
+    align-items: center;
+    gap: 15px;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
   }
 
-  /* Subtítulo "Fecha de la visita" */
   .fecha-label {
     font-size: 16px;
     font-weight: 700;
     color: #1e293b;
-    white-space: nowrap; /* Evita que el texto se rompa en dos líneas */
+    white-space: nowrap;
   }
 
-  /* Caja del Input */
   .fecha-input-box {
     position: relative;
-    width: 220px; /* Ancho controlado para el selector */
+    width: 220px;
     display: flex;
     align-items: center;
   }
@@ -455,13 +677,91 @@
     cursor: pointer;
   }
 
-  /* Efecto Focus */
   .fecha-input-box input:focus {
     border-color: #e11d48;
     box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.08);
   }
 
-  /* Limpieza del icono nativo para usar el de Lucide */
+  /* Módulos de Análisis */
+  .modulo {
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 24px;
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+
+  .modulo-titulo {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #111827;
+  }
+
+  .guia-toggle {
+    background-color: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    margin-bottom: 12px;
+    transition: background-color 0.2s ease;
+  }
+
+  .guia-toggle:hover {
+    background-color: #fde8e8;
+  }
+
+  /* Guía de Preguntas (Estilo unificado) */
+  .guia-contenido {
+    background-color: #fff1f2;
+    border-left: 4px solid #e11d48;
+    padding: 15px 20px;
+    margin-bottom: 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #4c0519;
+    line-height: 1.6;
+    box-shadow: inset 0 0 10px rgba(225, 29, 72, 0.03);
+  }
+
+  .guia-contenido p {
+    margin: 8px 0;
+    position: relative;
+    padding-left: 15px;
+  }
+
+  .guia-contenido p::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: #e11d48;
+    font-weight: bold;
+  }
+
+  /* Área de Texto */
+  textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+    resize: vertical;
+    margin-top: 6px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+
+  textarea:focus {
+    border-color: #3498db;
+    outline: none;
+  }
+
+  /* Limpieza del icono nativo para la fecha */
   input::-webkit-calendar-picker-indicator {
     position: absolute;
     top: 0;
@@ -471,112 +771,4 @@
     opacity: 0;
     cursor: pointer;
   }
-
-  /* Ajuste para los módulos que vienen debajo */
-  .modulo {
-    margin-top: 20px;
-  }
-
-  .contenedor-analisis {
-    padding: 20px;
-  }
-
-  .modulo {
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  margin-bottom: 20px;
-  background: #fff;
-  overflow: hidden;
-}
-
-textarea {
-  width: 100%;
-  min-height: 80px;
-  margin-top: 6px;
-  margin-bottom: 12px;
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  font-size: 13px;
-  resize: vertical;
-}
-
-.modulo {
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 24px;
-  background: #fff;
-}
-
-.modulo-titulo {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 10px;
-  color: #111827;
-}
-
-.guia-toggle {
-  background-color: #fef2f2;
-  color: #b91c1c;
-  border: 1px solid #fca5a5;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-  margin-bottom: 12px;
-  transition: background-color 0.2s ease;
-}
-
-.guia-toggle:hover {
-  background-color: #fde8e8;
-}
-
-.guia-contenido {
-  background-color: #fff;
-  border-left: 3px solid #e11d48;
-  padding: 12px 16px;
-  margin-bottom: 16px;
-  font-size: 14px;
-  color: #374151;
-}
-
-textarea {
-  width: 100%;
-  min-height: 100px;
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  font-size: 14px;
-  resize: vertical;
-  margin-top: 6px;
-}
-
-.guia-contenido {
-  background-color: #fff1f2; /* Fondo rojizo muy suave */
-  border-left: 4px solid #e11d48; /* Línea lateral roja intensa para combinar */
-  padding: 15px 20px;
-  margin-bottom: 16px;
-  border-radius: 8px; /* Bordes redondeados */
-  font-size: 14px;
-  color: #4c0519; /* Texto en un tono borgoña oscuro para lectura clara */
-  line-height: 1.6;
-  box-shadow: inset 0 0 10px rgba(225, 29, 72, 0.03); /* Sutil sombra rojiza */
-}
-
-/* Estilo para las preguntas dentro de la guía */
-.guia-contenido p {
-  margin: 8px 0;
-  position: relative;
-  padding-left: 15px;
-}
-
-/* Puntito (bullet) en color rojo */
-.guia-contenido p::before {
-  content: "•";
-  position: absolute;
-  left: 0;
-  color: #e11d48;
-  font-weight: bold;
-}
 </style>
