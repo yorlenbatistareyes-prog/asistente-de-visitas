@@ -10,10 +10,14 @@
     "sourceMap": true,
     "strict": true,
     "moduleResolution": "bundler",
-
+    /* Añadimos soporte para los tipos de Tauri y Papaparse */
+    "types": ["node", "@tauri-apps/api"], 
     "paths": {
       "$lib": ["./src/lib"],
-      "$lib/*": ["./src/lib/*"]
+      "$lib/*": ["./src/lib/*"],
+      /* Mapeo explícito para eliminar los errores rojos de la captura image_b67021 */
+      "@tauri-apps/plugin-dialog": ["./node_modules/@tauri-apps/plugin-dialog"],
+      "@tauri-apps/plugin-fs": ["./node_modules/@tauri-apps/plugin-fs"]
     }
   }
 }

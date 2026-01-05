@@ -1,7 +1,19 @@
 <script lang="ts">
+  import { onMount } from 'svelte'; // Importamos onMount para ejecutar al iniciar
   import { circuitoActivo, listaCongregaciones } from '$lib/stores/appStore';
+  import { cargarDatos } from '$lib/persistencia'; // Importamos la función de carga
   import TopBar from '$lib/components/layout/TopBar.svelte';
   import CircuitBar from '$lib/components/layout/CircuitBar.svelte';
+
+  // Al montar el layout (cuando se abre la app en Windows)
+  onMount(async () => {
+    try {
+      await cargarDatos(); // Leemos el archivo JSON del sistema
+      console.log("Datos de visitas cargados correctamente");
+    } catch (e) {
+      console.error("Error al cargar persistencia:", e);
+    }
+  });
 </script>
 
 <div class="app-container">
