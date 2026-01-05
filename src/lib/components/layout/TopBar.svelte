@@ -2,7 +2,7 @@
   import { Settings } from "lucide-svelte";
 </script>
 
-<header class="header-fixed" data-tauri-drag-region>
+<header class="topbar-container" data-tauri-drag-region>
   <div class="background-layers">
     <div class="white-row"></div>
     <div class="gray-row"></div>
@@ -24,15 +24,19 @@
 </header>
 
 <style>
-  .header-fixed {
+  .topbar-container {
     position: relative;
-    width: 100%;
+    width: calc(100% - 30px);
     height: 100px;
-    margin: 0;
-    padding: 0;
+    margin: 10px auto 5px auto;
+    
+    /* MODIFICACIÓN: Redondeo solo arriba (izq, der, abajo-der, abajo-izq) */
+    border-radius: 12px 12px 0 0; 
+    
     overflow: hidden;
-    /* Fuente de sistema para recuperar el estilo anterior */
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    z-index: 100;
   }
 
   .background-layers {
@@ -44,11 +48,17 @@
     display: flex;
     flex-direction: column;
     z-index: 1;
-    pointer-events: none;
   }
 
   .white-row { background: #ffffff; height: 65px; width: 100%; }
-  .gray-row { background: #373737; height: 35px; width: 100%; }
+
+  .gray-row { 
+    background: #373737; 
+    height: 35px; 
+    width: 100%;
+    /* Aseguramos que la franja gris no herede redondeos */
+    border-radius: 0; 
+  }
 
   .content-overlay {
     position: relative;
@@ -69,6 +79,8 @@
     font-size: 2.8rem;
     font-weight: 450;
     box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+    /* El logo también debe ser recto en su base inferior */
+    border-radius: 0; 
   }
 
   .info-area {
@@ -99,5 +111,10 @@
     cursor: pointer;
     color: #444;
     display: flex;
+    transition: transform 0.2s;
+  }
+
+  .settings-btn:hover {
+    transform: rotate(30deg);
   }
 </style>
