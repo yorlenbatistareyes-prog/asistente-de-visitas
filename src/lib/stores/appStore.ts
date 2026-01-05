@@ -1,7 +1,22 @@
 import { writable } from 'svelte/store';
 
-// Definimos el circuito por defecto
-export const circuitoActivo = writable("Holguín-14");
+// 1. Definimos la estructura para que TypeScript no dé error al buscar el 'id'
+export interface Congregacion {
+  id: number;
+  nombre: string;
+  circuito?: string;
+  numero?: string;
+  ciudad?: string;
+  provincia?: string;
+  pais?: string;
+  idioma?: string;
+  esLenguaSenas?: boolean;
+  telefono?: string;
+  horaSemana?: string;
+  horaFinSemana?: string;
+  diaSemana?: string;
+  diaFinSemana?: string;
+}
 
-// También podemos guardar la congregación seleccionada aquí
-export const congregacionSeleccionada = writable("AEROPUERTO");
+export const circuitoActivo = writable("HG-06");
+export const listaCongregaciones = writable<Congregacion[]>([]);

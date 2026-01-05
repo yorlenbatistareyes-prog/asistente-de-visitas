@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { listaCongregaciones } from '$lib/stores/appStore';
   import { Globe, Search, LayoutGrid, ChevronDown, X, Plus, Divide } from "lucide-svelte";
   import { fade, scale, slide } from 'svelte/transition';
 
@@ -8,7 +9,6 @@
   ];
 
   export let circuitoNombre = listaCircuitos[0].nombre;
-  export let totalCongregaciones = 2;
 
   let mostrarModal = false;
   let mostrarDropdown = false;
@@ -77,7 +77,7 @@
 
     <div class="actions">
       <div class="btn-secondary">
-        <span class="badge">{totalCongregaciones}</span>
+        <span class="badge">{$listaCongregaciones.length}</span>
         <span>Congregaciones</span>
       </div>
 
