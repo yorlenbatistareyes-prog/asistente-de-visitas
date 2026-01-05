@@ -5,7 +5,7 @@
   } from "lucide-svelte";
   import NuevaCongregacionModal from "../modals/NuevaCongregacionModal.svelte";
 
-  // 1. IMPORTAMOS EL STORE (Solo para enviar el número)
+  // 1. IMPORTAMOS EL STORE
   import { listaCongregaciones } from '$lib/stores/appStore';
   
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
@@ -40,8 +40,8 @@
   // --- LÓGICA DE NAVEGACIÓN Y PERSISTENCIA ---
   let seleccionado = "AEROPUERTO";
   let vistaActual: "dashboard" | "informes" = "dashboard";
+  let viendoFormulario = false; // Controla si se ve el botón inicial o el análisis
   
-  // Diccionario para que cada congregación tenga sus propias notas
   let observacionesPorCongregacion: Record<string, string> = {
     "AEROPUERTO": "",
     "CACOCUM": ""
@@ -49,19 +49,26 @@
 
   let textoAnalisis = "";
 
-  // Sincronizar el texto cuando cambia la congregación o se entra a informes
   $: {
     textoAnalisis = observacionesPorCongregacion[seleccionado] || "";
   }
 
   function guardarYVolver() {
     observacionesPorCongregacion[seleccionado] = textoAnalisis;
+    viendoFormulario = false;
     vistaActual = "dashboard";
   }
 
   function irAInformes() {
     vistaActual = "informes";
+    viendoFormulario = false; // Resetear para mostrar siempre el botón de "Nuevo Análisis" al entrar
   }
+
+  function volverAlDashboard() {
+    vistaActual = "dashboard";
+    viendoFormulario = false;
+  }
+
   // ------------------------------------------
 
   let mostrarModal = false;
@@ -116,7 +123,10 @@
         {#each lista as cong}
           <button 
             class="item {seleccionado === cong.nombre ? 'active' : ''}" 
-            on:click={() => { seleccionado = cong.nombre; if(vistaActual !== 'dashboard') vistaActual = 'dashboard'; }}
+            on:click={() => { 
+              seleccionado = cong.nombre; 
+              volverAlDashboard();
+            }}
           >
             {cong.nombre} 
             <ChevronRight size={14} />
@@ -174,7 +184,7 @@
     {:else if vistaActual === "informes"}
       <div class="report-view">
         <header class="report-header">
-          <button class="back-link" on:click={() => vistaActual = 'dashboard'}>
+          <button class="back-link" on:click={volverAlDashboard}>
             <ArrowLeft size={18} /> Volver al panel
           </button>
           
@@ -183,12 +193,41 @@
             <p>Registrando informe para <strong>{seleccionado}</strong></p>
           </div>
 
-          <button class="save-button" on:click={guardarYVolver}>
-            <Save size={18} /> Guardar cambios
-          </button>
+          {#if viendoFormulario}
+            <button class="save-button" on:click={guardarYVolver}>
+              <Save size={18} /> Guardar cambios
+            </button>
+          {:else}
+            <div style="width: 155px;"></div>
+          {/if}
         </header>
 
-        <AnalisisCongregacion nombreCongregacion={seleccionado} />
+        <div class="report-content-scroll">
+          {#if !viendoFormulario}
+            <div class="empty-state">
+              <div class="icon-wrapper">
+                <div class="icon-decoration"></div>
+    
+                <div class="empty-icon-container">
+                  <ClipboardList size={50} strokeWidth={1.5} />
+                </div>
+              </div>
+  
+              <h2>Nuevo Análisis de Congregación</h2>
+              <p>
+                Comienza a registrar los detalles de la visita para <strong>{seleccionado}</strong>. 
+                Podrás completar los 19 módulos de supervisión.
+              </p>
+
+              <button class="start-btn" on:click={() => viendoFormulario = true}>
+                <Plus size={20} /> 
+               <span>COMENZAR NUEVO ANÁLISIS</span>
+              </button>
+            </div>
+          {:else}
+            <AnalisisCongregacion nombreCongregacion={seleccionado} />
+          {/if}
+        </div>
 
         <footer class="report-footer">
           <div class="status-indicator">
@@ -255,22 +294,65 @@
   .text h3 { margin: 0; font-size: 18px; color: #1e293b; }
   .text span { font-size: 14px; color: #94a3b8; }
 
-  /* 5. VISTA DE INFORMES (Página Completa) */
-  .report-view { background: white; height: 100%; border-radius: 20px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; animation: fadeIn 0.2s ease-out; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-  .report-header { padding: 25px 30px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; }
+  /* 5. VISTA DE INFORMES */
+  .report-view { background: white; height: 100%; border-radius: 20px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; }
+  .report-header { padding: 25px 30px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
   .back-link { display: flex; align-items: center; gap: 8px; background: none; border: none; color: #64748b; font-weight: 600; cursor: pointer; font-size: 14px; }
-  .back-link:hover { color: #1e293b; }
   .report-title { text-align: center; }
   .report-title h1 { margin: 0; font-size: 1.25rem; color: #1e293b; }
   .report-title p { margin: 0; font-size: 0.85rem; color: #64748b; }
   .save-button { background: #e11d48; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
-  .save-button:hover { background: #be123c; transform: scale(1.02); }
+  
+  .report-content-scroll { flex: 1; overflow-y: auto; padding: 20px; background: #fdfdfd; }
+  
+  /* ESTADOS VACÍOS E ICONOS (FIJO Y CENTRADO) */
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 40px; animation: fadeIn 0.4s ease-out; }
+  
+  .icon-wrapper {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 25px;
+  }
 
-  .report-footer { padding: 15px 30px; border-top: 1px solid #f1f5f9; }
+  .empty-icon-container {
+    background: #fff1f2;
+    color: #e11d48;
+    width: 100px;
+    height: 100px;
+    border-radius: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+  }
+
+  .icon-decoration {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 2px dashed #fecaca; /* El borde que ahora es fijo */
+    border-radius: 42px;
+    z-index: 1;
+    /* Se eliminó la animación de rotación */
+  }
+
+  .empty-state h2 { color: #1e293b; font-size: 22px; font-weight: 800; margin: 0 0 10px 0; }
+  .empty-state p { color: #64748b; max-width: 360px; line-height: 1.6; margin-bottom: 30px; text-align: center; }
+  
+  .start-btn { background: #e11d48; color: white; border: none; padding: 15px 30px; border-radius: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: all 0.2s; box-shadow: 0 10px 15px -3px rgba(225, 29, 72, 0.2); }
+  .start-btn:hover { background: #be123c; transform: scale(1.03); }
+
+  .report-footer { padding: 15px 30px; border-top: 1px solid #f1f5f9; flex-shrink: 0; }
   .status-indicator { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; }
   .pulse-dot { width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite; }
+  
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
   /* Config Menu */
