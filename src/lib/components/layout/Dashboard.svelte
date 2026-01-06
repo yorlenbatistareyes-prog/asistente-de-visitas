@@ -1,7 +1,8 @@
 <script lang="ts">
   import { 
     MapPin, ChevronRight, Plus, FileText, Folder, ListChecks, 
-    Settings, Pencil, Trash2, ArrowLeft, Save, ClipboardList 
+    Settings, Pencil, Trash2, ArrowLeft, Save, ClipboardList,
+    History, Clock // <--- Nuevos iconos integrados
   } from "lucide-svelte";
   import NuevaCongregacionModal from "../modals/NuevaCongregacionModal.svelte";
 
@@ -9,6 +10,7 @@
   import { listaCongregaciones } from '$lib/stores/appStore';
   
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
+
   interface Congregacion { 
     nombre: string; 
     enVisita: boolean; 
@@ -40,7 +42,22 @@
   // --- LÓGICA DE NAVEGACIÓN Y PERSISTENCIA ---
   let seleccionado = "AEROPUERTO";
   let vistaActual: "dashboard" | "informes" = "dashboard";
-  let viendoFormulario = false; // Controla si se ve el botón inicial o el análisis
+  let viendoFormulario = false; 
+  
+  // --- LÓGICA DEL HISTORIAL (NUEVA) ---
+  let mostrarHistorial = false;
+  let historialVisitas = [
+    { id: 1, fecha: "2025-12-20", tipo: "Visita Ordinaria", completado: true },
+    { id: 2, fecha: "2025-06-15", tipo: "Visita Especial", completado: true }
+  ];
+
+  function toggleHistorial() {
+    console.log("Clic en historial. Estado anterior:", mostrarHistorial);
+    mostrarHistorial = !mostrarHistorial;
+    console.log("Nuevo estado:", mostrarHistorial);
+  }
+
+  // ------------------------------------------
   
   let observacionesPorCongregacion: Record<string, string> = {
     "AEROPUERTO": "",
@@ -61,15 +78,17 @@
 
   function irAInformes() {
     vistaActual = "informes";
-    viendoFormulario = false; // Resetear para mostrar siempre el botón de "Nuevo Análisis" al entrar
+    viendoFormulario = false; 
+    mostrarHistorial = false; // Cerramos el historial al entrar por defecto
   }
 
   function volverAlDashboard() {
     vistaActual = "dashboard";
     viendoFormulario = false;
+    mostrarHistorial = false;
   }
 
-  // ------------------------------------------
+  // --- LÓGICA DE MODALES Y CONFIGURACIÓN ---
 
   let mostrarModal = false;
   let mostrarMenuConfig = false;
@@ -219,10 +238,43 @@
                 Podrás completar los 19 módulos de supervisión.
               </p>
 
-              <button class="start-btn" on:click={() => viendoFormulario = true}>
-                <Plus size={20} /> 
-               <span>COMENZAR NUEVO ANÁLISIS</span>
-              </button>
+              <div class="actions-container" style="display: flex; flex-direction: column; align-items: center; gap: 15px; width: 100%;">
+                <button class="start-btn" on:click={() => viendoFormulario = true}>
+                  <Plus size={20} /> 
+                  <span>COMENZAR NUEVO ANÁLISIS</span>
+                </button>
+
+                <button 
+                  class="history-toggle-btn" 
+                  class:active={mostrarHistorial} 
+                  on:click={toggleHistorial}
+                >
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <History size={18} />
+                    <span>Historial de visitas</span>
+                  </div>
+                  <ChevronRight size={16} class="arrow {mostrarHistorial ? 'rotate' : ''}" />
+                </button>
+              </div>
+
+              {#if mostrarHistorial}
+                <div class="history-list">
+                  {#each historialVisitas as visita}
+                    <div class="history-item">
+                      <div class="history-icon">
+                        <Clock size={16} />
+                      </div>
+                      <div class="history-info">
+                        <span class="h-date">{visita.fecha}</span>
+                        <span class="h-type">{visita.tipo}</span>
+                      </div>
+                      <button class="h-view-btn">Ver PDF</button>
+                    </div>
+                  {:else}
+                    <p class="history-empty">No hay visitas registradas para {seleccionado}.</p>
+                  {/each}
+                </div>
+              {/if}
             </div>
           {:else}
             <AnalisisCongregacion nombreCongregacion={seleccionado} />
@@ -362,4 +414,139 @@
   .config-menu button { display: flex; align-items: center; gap: 10px; background: none; border: none; padding: 8px 12px; cursor: pointer; font-size: 13px; color: #475569; border-radius: 6px; text-align: left; }
   .config-menu button:hover { background: #f1f5f9; }
   .config-menu .danger { color: #dc2626; }
+
+  /* Contenedor para centrar ambos botones */
+  .actions-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+
+  /* Estilo del Botón Historial */
+  .history-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 320px;
+    padding: 12px 20px;
+    background: white;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    font-weight: 600;
+    position: relative;
+    z-index: 10;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .history-toggle-btn:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+  }
+
+  /* Estado activo cuando la lista está abierta */
+  .history-toggle-btn.active {
+    border-color: #e11d48;
+    color: #e11d48;
+    background: #fff1f2;
+  }
+
+  /* Animación de la flecha */
+  .arrow { 
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+  }
+  .arrow.rotate { 
+    transform: rotate(90deg); 
+  }
+
+  /* Contenedor de la lista de visitas */
+  .history-list {
+    display: block !important; /* Fuerza el renderizado */
+    width: 320px;
+    margin-top: 10px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 50; /* Lo pone por encima de decoraciones */
+    position: relative;
+    overflow: hidden;
+    /* Eliminamos animaciones complejas por ahora para descartar fallos */
+  }
+
+  .history-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    gap: 12px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .history-item:hover {
+    background: #fdfdfd;
+  }
+
+  .history-item:last-child { 
+    border-bottom: none; 
+  }
+
+  .history-icon {
+    background: #f1f5f9;
+    color: #64748b;
+    padding: 8px;
+    border-radius: 8px;
+  }
+
+  .history-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  .h-date { 
+    font-size: 13px; 
+    font-weight: 700; 
+    color: #1e293b; 
+  }
+  
+  .h-type { 
+    font-size: 11px; 
+    color: #94a3b8; 
+  }
+
+  /* Botón Ver PDF dentro de la lista */
+  .h-view-btn {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #475569;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  .h-view-btn:hover {
+    background: #e11d48;
+    color: white;
+    border-color: #e11d48;
+  }
+
+  .history-empty {
+    padding: 20px;
+    font-size: 12px;
+    color: #94a3b8;
+    text-align: center;
+  }
+
+  /* Animación suave de aparición */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 </style>
