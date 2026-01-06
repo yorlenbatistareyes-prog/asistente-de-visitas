@@ -468,7 +468,6 @@
   
   /* ESTADOS VACÍOS E ICONOS (FIJO Y CENTRADO) */
   .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 40px; animation: fadeIn 0.4s ease-out; }
-  
   .icon-wrapper {
     position: relative;
     width: 120px;
@@ -478,7 +477,6 @@
     justify-content: center;
     margin-bottom: 25px;
   }
-
   .empty-icon-container {
     background: #fff1f2;
     color: #e11d48;
@@ -490,7 +488,6 @@
     justify-content: center;
     z-index: 2;
   }
-
   .icon-decoration {
     position: absolute;
     top: 0;
@@ -533,108 +530,10 @@
     width: 100%;
   }
 
-  /* Estilo del Botón Historial */
-  .history-toggle-btn {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 320px;
-    padding: 12px 20px;
-    background: white;
-    color: #475569;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    font-weight: 600;
-    position: relative;
-    z-index: 10;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .history-toggle-btn:hover {
-    background: #f8fafc;
-    border-color: #cbd5e1;
-    transform: translateY(-1px);
-  }
-
-  /* Estado activo cuando la lista está abierta */
-  .history-toggle-btn.active {
-    border-color: #e11d48;
-    color: #e11d48;
-    background: #fff1f2;
-  }
-
-  /* Animación de la flecha */
-  .arrow { 
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
-  }
-  .arrow.rotate { 
-    transform: rotate(90deg); 
-  }
-
-  /* Contenedor de la lista de visitas */
-  .history-list {
-    display: block !important; /* Obligatorio para que se vea */
-    visibility: visible !important;
-    opacity: 1 !important;
-    
-    margin-top: 15px;
-    width: 320px;
-    background-color: white; /* Fondo blanco sólido */
-    border: 2px solid #e11d48; /* Borde rojo temporal para localizarla */
-    border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2); /* Sombra fuerte */
-    
-    position: relative; 
-    z-index: 9999; /* Traer al frente de todo */
-    overflow: visible;
-  }
-
-  .history-item {
-    display: flex;
-    align-items: center;
-    padding: 12px;
-    gap: 12px;
-    border-bottom: 1px solid #f1f5f9;
-    color: #334155; /* Texto oscuro */
-  }
-
   /* Aseguramos que el contenedor padre permita el flujo */
   .actions-container {
     overflow: visible !important; 
     height: auto !important;
-  }
-
-  .history-item:hover {
-    background: #fdfdfd;
-  }
-
-  .history-item:last-child { 
-    border-bottom: none; 
-  }
-
-  .history-icon {
-    background: #f1f5f9;
-    color: #64748b;
-    padding: 8px;
-    border-radius: 8px;
-  }
-
-  .history-info {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-  }
-
-  .h-date { 
-    font-size: 13px; 
-    font-weight: 700; 
-    color: #1e293b; 
-  }
-  
-  .h-type { 
-    font-size: 11px; 
-    color: #94a3b8; 
   }
 
   /* Botón Ver PDF dentro de la lista */
@@ -655,20 +554,11 @@
     color: white;
     border-color: #e11d48;
   }
-
-  .history-empty {
-    padding: 20px;
-    font-size: 12px;
-    color: #94a3b8;
-    text-align: center;
-  }
-
   /* Animación suave de aparición */
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-5px); }
     to { opacity: 1; transform: translateY(0); }
   }
-
   /* --- CONTENEDOR DE LA PÁGINA DE HISTORIAL --- */
   .history-page-container {
     padding: 24px;
@@ -677,7 +567,6 @@
     flex-direction: column;
     gap: 24px;
   }
-
   /* CABECERA: Botón volver y Título */
   .history-header {
     display: flex;
@@ -686,7 +575,6 @@
     padding-bottom: 16px;
     border-bottom: 1px solid #e2e8f0;
   }
-
   .back-btn {
     display: flex;
     align-items: center;
@@ -700,26 +588,22 @@
     cursor: pointer;
     transition: all 0.2s;
   }
-
   .back-btn:hover {
     background: #e2e8f0;
     color: #1e293b;
   }
-
   .history-header h2 {
     font-size: 1.25rem;
     color: #1e293b;
     margin: 0;
     font-weight: 700;
   }
-
   /* LISTA DE FILAS ANCHAS */
   .full-history-list {
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
-
   .history-row {
     display: flex;
     align-items: center;
@@ -730,19 +614,16 @@
     border: 1px solid #e2e8f0;
     transition: transform 0.2s, box-shadow 0.2s;
   }
-
   .history-row:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     border-color: #cbd5e1;
   }
-
   .row-left {
     display: flex;
     align-items: center;
     gap: 16px;
   }
-
   .icon-circle {
     background: #f8fafc;
     color: #64748b;
@@ -752,31 +633,26 @@
     align-items: center;
     justify-content: center;
   }
-
   .row-info {
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
-
   .row-date {
     font-weight: 700;
     color: #1e293b;
     font-size: 14px;
   }
-
   .row-type {
     font-size: 12px;
     color: #64748b;
   }
-
   /* ACCIONES Y BADGES */
   .row-actions {
     display: flex;
     align-items: center;
     gap: 16px;
   }
-
   .badge-success {
     background: #dcfce7;
     color: #166534;
@@ -786,7 +662,6 @@
     border-radius: 6px;
     text-transform: uppercase;
   }
-
   .h-view-btn {
     background: white;
     border: 1px solid #e2e8f0;
@@ -798,13 +673,11 @@
     cursor: pointer;
     transition: all 0.2s;
   }
-
   .h-view-btn:hover {
     background: #e11d48;
     color: white;
     border-color: #e11d48;
   }
-
   /* BOTÓN DE NAVEGACIÓN (En la página principal) */
   .history-nav-btn {
     display: flex;
@@ -820,7 +693,6 @@
     cursor: pointer;
     transition: all 0.2s;
   }
-
   .history-nav-btn:hover {
     background: #f8fafc;
     border-color: #cbd5e1;
@@ -841,13 +713,11 @@
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
   }
-
   .item-text {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
 }
-
 .fecha {
   font-size: 11px;
   opacity: 0.7;
