@@ -2,13 +2,12 @@
   import { 
     MapPin, ChevronRight, Plus, FileText, Folder, ListChecks, 
     Settings, Pencil, Trash2, ArrowLeft, Save, ClipboardList,
-    History, Clock // <--- Nuevos iconos integrados
+    History, Clock 
   } from "lucide-svelte";
   import NuevaCongregacionModal from "../modals/NuevaCongregacionModal.svelte";
 
   // 1. IMPORTAMOS EL STORE
   import { listaCongregaciones } from '$lib/stores/appStore';
-  
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
 
   interface Congregacion { 
@@ -26,9 +25,35 @@
     diaFinSemana?: string;
   }
 
-  export let circuitoNombre: string = "Holguín-14";
+  import { open } from '@tauri-apps/plugin-shell';
+  import { documentDir, join } from '@tauri-apps/api/path';
+  import { readDir, BaseDirectory } from '@tauri-apps/plugin-fs';
+  import { fechaPorCongregacion } from '$lib/stores/appStore';
 
-  // TUS DATOS ORIGINALES
+  interface VisitaHistorial {
+    id: number;
+    fecha: string;
+    tipo: string;
+    completado: boolean;
+  }
+
+  // --- VARIABLES DE ESTADO ---
+  export let circuitoNombre: string = "Holguín-14";
+  let seleccionado = "AEROPUERTO";
+  let vistaActual: "dashboard" | "informes" = "dashboard";
+  let viendoFormulario = false; 
+  let mostrarHistorial = false;
+  
+  // Mantenemos las visitas de la sesión actual separadas de los archivos físicos
+  let historialSesion: Record<string, VisitaHistorial[]> = {};
+  let historialVisitas: VisitaHistorial[] = [];
+  let textoAnalisis = "";
+
+  let observacionesPorCongregacion: Record<string, string> = {
+    "AEROPUERTO": "",
+    "CACOCUM": ""
+  };
+
   let datos: Record<string, Congregacion[]> = {
     "Holguín-14": [
       { nombre: "AEROPUERTO", enVisita: true }, 
@@ -39,47 +64,98 @@
     ]
   };
 
-  // --- LÓGICA DE NAVEGACIÓN Y PERSISTENCIA ---
-  let seleccionado = "AEROPUERTO";
-  let vistaActual: "dashboard" | "informes" = "dashboard";
-  let viendoFormulario = false; 
-  
-  // --- LÓGICA DEL HISTORIAL (NUEVA) ---
-  let mostrarHistorial = false;
-  let historialVisitas = [
-    { id: 1, fecha: "2025-12-20", tipo: "Visita Ordinaria", completado: true },
-    { id: 2, fecha: "2025-06-15", tipo: "Visita Especial", completado: true }
-  ];
-
-  function toggleHistorial() {
-    console.log("Clic en historial. Estado anterior:", mostrarHistorial);
-    mostrarHistorial = !mostrarHistorial;
-    console.log("Nuevo estado:", mostrarHistorial);
-  }
-
-  // ------------------------------------------
-  
-  let observacionesPorCongregacion: Record<string, string> = {
-    "AEROPUERTO": "",
-    "CACOCUM": ""
-  };
-
-  let textoAnalisis = "";
-
-  $: {
-    textoAnalisis = observacionesPorCongregacion[seleccionado] || "";
-  }
-
-  function guardarYVolver() {
+  // --- LÓGICA DE SELECCIÓN CORE ---
+  function seleccionarCongregacion(nombre: string) {
+    // 1. Guardar el texto actual en la congregación anterior
     observacionesPorCongregacion[seleccionado] = textoAnalisis;
+
+    // 2. Cambiar selección
+    seleccionado = nombre;
+
+    // 3. Inicializar texto si no existe
+    if (!(nombre in observacionesPorCongregacion)) {
+      observacionesPorCongregacion[nombre] = "";
+    }
+
+    // 4. Cargar texto de la nueva congregación
+    textoAnalisis = observacionesPorCongregacion[nombre];
+
+    // 5. Inicializar historial si no existe
+    if (!historialSesion[nombre]) {
+      historialSesion[nombre] = [];
+    }
+
+    // 6. Actualizar historial combinado
+    cargarHistorialReal();
+
+    mostrarMenuConfig = false;
+  }
+
+  // --- ARCHIVOS Y PERSISTENCIA ---
+  async function cargarHistorialReal() {
+    let visitasFisicas: VisitaHistorial[] = [];
+    try {
+      const archivos = await readDir('AsistenteVisitas', { baseDir: BaseDirectory.Document });
+      visitasFisicas = archivos
+        .filter(f => f.name?.includes(seleccionado) && f.name?.endsWith('.pdf'))
+        .map((f, index) => ({
+          id: index,
+          fecha: f.name?.split('_')[2]?.replace('.pdf', '') || 'Fecha desconocida',
+          tipo: "Informe Guardado (PDF)",
+          completado: true
+        }));
+    } catch (err) {
+      console.log("Sin carpeta física.");
+    }
+
+    // Combinamos lo que hay en memoria de esta sesión + lo que hay en disco
+    const visitasEnMemoria = historialSesion[seleccionado] || [];
+    historialVisitas = [...visitasEnMemoria, ...visitasFisicas];
+  }
+
+  async function abrirReportePDF(fecha: string): Promise<void> {
+    try {
+      if (!seleccionado) return;
+      const baseDir = await documentDir();
+      const filePath = await join(baseDir, 'AsistenteVisitas', `Reporte_${seleccionado}_${fecha}.pdf`);
+      await open(filePath);
+    } catch (err) {
+      alert(`No se encontró el reporte físico.`);
+    }
+  }
+
+  // --- GUARDADO ---
+  function guardarYVolver() {
+    // Guardar el texto actual de la congregación (textoAnalisis local)
+    observacionesPorCongregacion[seleccionado] = textoAnalisis;
+
+    // Crear la nueva visita usando la fecha que tengas registrada para esta congregación
+    const nuevaVisita: VisitaHistorial = {
+      id: Date.now(),
+      // Usamos la fecha asociada a la congregación; si no hay, queda vacío
+      fecha: $fechaPorCongregacion[seleccionado] || "",
+      tipo: "Análisis de Congregación",
+      completado: true
+    };
+
+    // Guardar específicamente para ESTA congregación en la sesión
+    if (!historialSesion[seleccionado]) historialSesion[seleccionado] = [];
+    historialSesion[seleccionado] = [nuevaVisita, ...historialSesion[seleccionado]];
+
+    // Refrescar la lista visual
+    cargarHistorialReal();
+
+    // Volver al panel
     viendoFormulario = false;
     vistaActual = "dashboard";
   }
 
+  // --- NAVEGACIÓN ---
   function irAInformes() {
     vistaActual = "informes";
     viendoFormulario = false; 
-    mostrarHistorial = false; // Cerramos el historial al entrar por defecto
+    mostrarHistorial = false;
+    cargarHistorialReal();
   }
 
   function volverAlDashboard() {
@@ -88,8 +164,17 @@
     mostrarHistorial = false;
   }
 
-  // --- LÓGICA DE MODALES Y CONFIGURACIÓN ---
+  function abrirHistorial() {
+    mostrarHistorial = true;
+    viendoFormulario = false;
+    cargarHistorialReal();
+  }
 
+  function cerrarHistorial() {
+    mostrarHistorial = false;
+  }
+
+  // --- MODALES AND CONFIG ---
   let mostrarModal = false;
   let mostrarMenuConfig = false;
   let datosEdicion: Congregacion | null = null;
@@ -102,10 +187,8 @@
 
   $: lista = datos[circuitoNombre] || [];
 
-  $: {
-    if (lista) {
-      listaCongregaciones.set(new Array(lista.length).fill({}));
-    }
+  $: if (lista) {
+    listaCongregaciones.set(new Array(lista.length).fill({}));
   }
 
   function abrirModal() {
@@ -122,10 +205,11 @@
   }
 
   function eliminarCongregacion() {
-    datos[circuitoNombre] = datos[circuitoNombre].filter(
-      c => c.nombre !== seleccionado
+    datos[circuitoNombre] = datos[circuitoNombre].filter(c =>
+      c.nombre !== seleccionado
     );
     seleccionado = datos[circuitoNombre][0]?.nombre || "";
+    textoAnalisis = observacionesPorCongregacion[seleccionado] || "";
     mostrarMenuConfig = false;
   }
 </script>
@@ -141,15 +225,19 @@
       <div class="items">
         {#each lista as cong}
           <button 
-            class="item {seleccionado === cong.nombre ? 'active' : ''}" 
-            on:click={() => { 
-              seleccionado = cong.nombre; 
-              volverAlDashboard();
-            }}
-          >
-            {cong.nombre} 
-            <ChevronRight size={14} />
-          </button>
+  class="item {seleccionado === cong.nombre ? 'active' : ''}" 
+  on:click={() => { 
+    seleccionado = cong.nombre; 
+    volverAlDashboard();
+  }}
+>
+  <div class="item-text">
+    <strong>{cong.nombre}</strong>
+    <p class="fecha">Última visita: {$fechaPorCongregacion[cong.nombre] || "—"}</p>
+  </div>
+
+  <ChevronRight size={14} />
+</button>
         {/each}
       </div>
     </div>
@@ -222,64 +310,85 @@
         </header>
 
         <div class="report-content-scroll">
-          {#if !viendoFormulario}
-            <div class="empty-state">
-              <div class="icon-wrapper">
-                <div class="icon-decoration"></div>
-    
-                <div class="empty-icon-container">
-                  <ClipboardList size={50} strokeWidth={1.5} />
-                </div>
+  {#if viendoFormulario}
+    <AnalisisCongregacion nombreCongregacion={seleccionado} />
+
+  {:else if mostrarHistorial}
+    <div class="history-page-container">
+      <div class="history-header">
+        <button class="back-btn" on:click={cerrarHistorial}>
+          <ArrowLeft size={20} />
+          <span>Volver al panel</span>
+        </button>
+        <h2>Historial de Visitas: {seleccionado}</h2>
+      </div>
+
+      <div class="full-history-list">
+        {#each historialVisitas as visita}
+          <div class="history-row">
+            <div class="row-left">
+              <div class="icon-circle">
+                <Clock size={20} />
               </div>
-  
-              <h2>Nuevo Análisis de Congregación</h2>
-              <p>
-                Comienza a registrar los detalles de la visita para <strong>{seleccionado}</strong>. 
-                Podrás completar los 19 módulos de supervisión.
-              </p>
-
-              <div class="actions-container" style="display: flex; flex-direction: column; align-items: center; gap: 15px; width: 100%;">
-                <button class="start-btn" on:click={() => viendoFormulario = true}>
-                  <Plus size={20} /> 
-                  <span>COMENZAR NUEVO ANÁLISIS</span>
-                </button>
-
-                <button 
-                  class="history-toggle-btn" 
-                  class:active={mostrarHistorial} 
-                  on:click={toggleHistorial}
-                >
-                  <div style="display: flex; align-items: center; gap: 10px;">
-                    <History size={18} />
-                    <span>Historial de visitas</span>
-                  </div>
-                  <ChevronRight size={16} class="arrow {mostrarHistorial ? 'rotate' : ''}" />
-                </button>
+              <div class="row-info">
+                <span class="row-date">{visita.fecha}</span>
+                <span class="row-type">{visita.tipo}</span>
               </div>
-
-              {#if mostrarHistorial}
-                <div class="history-list">
-                  {#each historialVisitas as visita}
-                    <div class="history-item">
-                      <div class="history-icon">
-                        <Clock size={16} />
-                      </div>
-                      <div class="history-info">
-                        <span class="h-date">{visita.fecha}</span>
-                        <span class="h-type">{visita.tipo}</span>
-                      </div>
-                      <button class="h-view-btn">Ver PDF</button>
-                    </div>
-                  {:else}
-                    <p class="history-empty">No hay visitas registradas para {seleccionado}.</p>
-                  {/each}
-                </div>
-              {/if}
             </div>
-          {:else}
-            <AnalisisCongregacion nombreCongregacion={seleccionado} />
-          {/if}
+            
+            <div class="row-actions">
+              {#if visita.completado}
+                <span class="badge-success">Completado</span>
+              {/if}
+              <button class="h-view-btn" on:click={() => abrirReportePDF(visita.fecha)}>
+                <FileText size={14} style="margin-right: 4px;" />
+                <span>Ver PDF</span>
+              </button>
+            </div>
+          </div>
+        {:else}
+          <div class="history-empty-state">
+            <History size={48} strokeWidth={1} />
+            <p>No hay registros previos para esta congregación.</p>
+          </div>
+        {/each}
+      </div>
+    </div>
+
+  {:else}
+    <div class="empty-state">
+      <div class="icon-wrapper">
+        <div class="icon-decoration"></div>
+        <div class="empty-icon-container">
+          <ClipboardList size={50} strokeWidth={1.5} />
         </div>
+      </div>
+
+      <h2>Nuevo Análisis de Congregación</h2>
+      <p>
+        Comienza a registrar los detalles de la visita para <strong>{seleccionado}</strong>. 
+      </p>
+
+      <div class="actions-container" style="display: flex; flex-direction: column; align-items: center; gap: 15px; width: 100%;">
+        <button class="start-btn" on:click={() => viendoFormulario = true}>
+          <Plus size={20} /> 
+          <span>COMENZAR NUEVO ANÁLISIS</span>
+        </button>
+
+        <button 
+          class="history-nav-btn" 
+          on:click={abrirHistorial}
+        >
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <History size={18} />
+            <span>VER HISTORIAL COMPLETO</span>
+          </div>
+          <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  {/if}
+</div>
 
         <footer class="report-footer">
           <div class="status-indicator">
@@ -465,17 +574,20 @@
 
   /* Contenedor de la lista de visitas */
   .history-list {
-    display: block !important; /* Fuerza el renderizado */
+    display: block !important; /* Obligatorio para que se vea */
+    visibility: visible !important;
+    opacity: 1 !important;
+    
+    margin-top: 15px;
     width: 320px;
-    margin-top: 10px;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background-color: white; /* Fondo blanco sólido */
+    border: 2px solid #e11d48; /* Borde rojo temporal para localizarla */
     border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    z-index: 50; /* Lo pone por encima de decoraciones */
-    position: relative;
-    overflow: hidden;
-    /* Eliminamos animaciones complejas por ahora para descartar fallos */
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2); /* Sombra fuerte */
+    
+    position: relative; 
+    z-index: 9999; /* Traer al frente de todo */
+    overflow: visible;
   }
 
   .history-item {
@@ -484,6 +596,13 @@
     padding: 12px;
     gap: 12px;
     border-bottom: 1px solid #f1f5f9;
+    color: #334155; /* Texto oscuro */
+  }
+
+  /* Aseguramos que el contenedor padre permita el flujo */
+  .actions-container {
+    overflow: visible !important; 
+    height: auto !important;
   }
 
   .history-item:hover {
@@ -549,4 +668,189 @@
     from { opacity: 0; transform: translateY(-5px); }
     to { opacity: 1; transform: translateY(0); }
   }
+
+  /* --- CONTENEDOR DE LA PÁGINA DE HISTORIAL --- */
+  .history-page-container {
+    padding: 24px;
+    animation: fadeIn 0.3s ease-out;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* CABECERA: Botón volver y Título */
+  .history-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .back-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f1f5f9;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    color: #475569;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .back-btn:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+  }
+
+  .history-header h2 {
+    font-size: 1.25rem;
+    color: #1e293b;
+    margin: 0;
+    font-weight: 700;
+  }
+
+  /* LISTA DE FILAS ANCHAS */
+  .full-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .history-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: white;
+    padding: 16px 20px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .history-row:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border-color: #cbd5e1;
+  }
+
+  .row-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .icon-circle {
+    background: #f8fafc;
+    color: #64748b;
+    padding: 10px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .row-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .row-date {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 14px;
+  }
+
+  .row-type {
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  /* ACCIONES Y BADGES */
+  .row-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .badge-success {
+    background: #dcfce7;
+    color: #166534;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    text-transform: uppercase;
+  }
+
+  .h-view-btn {
+    background: white;
+    border: 1px solid #e2e8f0;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .h-view-btn:hover {
+    background: #e11d48;
+    color: white;
+    border-color: #e11d48;
+  }
+
+  /* BOTÓN DE NAVEGACIÓN (En la página principal) */
+  .history-nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 320px;
+    padding: 14px 20px;
+    background: white;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .history-nav-btn:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+  }
+
+  /* ESTADO VACÍO */
+  .history-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+    color: #94a3b8;
+    gap: 12px;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .item-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.fecha {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-top: 2px;
+}
 </style>

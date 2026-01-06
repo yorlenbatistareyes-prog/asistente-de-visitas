@@ -20,3 +20,6 @@ export interface Congregacion {
 
 export const circuitoActivo = writable("HG-06");
 export const listaCongregaciones = writable<Congregacion[]>([]);
+export const fechaPorCongregacion = writable<Record<string, string>>({});
+
+

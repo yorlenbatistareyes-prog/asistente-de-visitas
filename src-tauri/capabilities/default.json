@@ -17,6 +17,9 @@
     "fs:allow-read-text-file",
     "fs:allow-exists",
     "fs:allow-create",
+    "shell:allow-open",
+    "store:allow-load",
+    "store:allow-save",
     {
       "identifier": "fs:scope",
       "allow": [

@@ -6,6 +6,7 @@
   import Papa from "papaparse";
   import { save } from "@tauri-apps/plugin-dialog";
   import { writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
+  import { fechaPorCongregacion } from '$lib/stores/appStore';
 
   export let nombreCongregacion: string;
 
@@ -65,202 +66,214 @@
     seguimiento: ""
   };
 
+  // Construimos el registro a partir de los valores por defecto + lo guardado en el store
   $: registro = {
     ...valoresPorDefecto,
-    ...$observacionesStore[nombreCongregacion]
+    ...($observacionesStore[nombreCongregacion] || {})
   };
 
   async function guardarModulo() {
     if (!nombreCongregacion) return;
+
     const copiaActualizada = { ...$observacionesStore };
     copiaActualizada[nombreCongregacion] = { ...registro };
+
     try {
+      // Guardar todo el registro (incluyendo fechaVisita) en el JSON
       await guardarDatos(copiaActualizada);
+
+      // Sincronizar la fecha con el store usado por el Dashboard/historial
+      fechaPorCongregacion.update((f) => {
+        return {
+          ...f,
+          [nombreCongregacion]: registro.fechaVisita
+        };
+      });
     } catch (error) {
       console.error("Error al guardar:", error);
     }
   }
 
- async function generarPDF() {
-  try {
-    console.log("=== INICIANDO GENERACIÓN DE PDF ===");
-    
-    const doc = new jsPDF();
-    
-    // Encabezado
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Análisis: ${nombreCongregacion}`, 14, 20);
-    
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Fecha: ${registro.fechaVisita || 'No especificada'}`, 14, 28);
-    
-    // Preparar TODOS los datos
-    const filas = [
-      ["1. OPINIÓN DE LOS ANCIANOS", registro.opinionGeneral || ""],
-      ["2. MINISTERIO CRISTIANO", registro.ministerio || ""],
-      ["   - Análisis Ministerio", registro.ministerioAnalisis || ""],
-      ["   - Días", (registro.ministerioDias || []).join(", ") || ""],
-      ["3. CASA EN CASA", registro.territorio || ""],
-      ["   - Análisis Territorio", registro.territorioAnalisis || ""],
-      ["4. ATENCIÓN AL TERRITORIO", registro.atencionTerritorio || ""],
-      ["5. SERVICIO DE PRECURSOR", registro.precursoresMetas || ""],
-      ["   - Análisis Precursor", registro.precursorAnalisis || ""],
-      ["6. REUNIONES", registro.reuniones || ""],
-      ["7. PASTOREO", registro.pastoreo || ""],
-      ["8. CRECIMIENTO", registro.crecimiento || ""],
-      ["9. SUPERINTENDENTE DE SERVICIO", registro.superServicio || ""],
-      ["10. PUBLICACIONES", registro.publicaciones || ""],
-      ["11. METAS ESPIRITUALES", registro.metas || ""],
-      ["12. CUERPO DE ANCIANOS", registro.cuerpoAncianos || ""],
-      ["13. LOCAL", registro.local || ""],
-      ["14. MISCELÁNEOS", registro.miscelaneos || ""],
-      ["15. IRREGULARES", registro.irregulares || ""],
-      ["16. POTENCIAL", registro.potencial || ""],
-      ["17. ACTIVIDAD PRECURSORES", registro.analisisPrecursores || ""],
-      ["18. CONTABILIDAD", registro.contabilidad || ""],
-      ["19. SEGUIMIENTO", registro.seguimiento || ""]
-    ];
+  async function generarPDF() {
+    try {
+      console.log("=== INICIANDO GENERACIÓN DE PDF ===");
+      
+      const doc = new jsPDF();
+      
+      // Encabezado
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Análisis: ${nombreCongregacion}`, 14, 20);
+      
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Fecha: ${registro.fechaVisita || 'No especificada'}`, 14, 28);
+      
+      // Preparar TODOS los datos
+      const filas = [
+        ["1. OPINIÓN DE LOS ANCIANOS", registro.opinionGeneral || ""],
+        ["2. MINISTERIO CRISTIANO", registro.ministerio || ""],
+        ["   - Análisis Ministerio", registro.ministerioAnalisis || ""],
+        ["   - Días", (registro.ministerioDias || []).join(", ") || ""],
+        ["3. CASA EN CASA", registro.territorio || ""],
+        ["   - Análisis Territorio", registro.territorioAnalisis || ""],
+        ["4. ATENCIÓN AL TERRITORIO", registro.atencionTerritorio || ""],
+        ["5. SERVICIO DE PRECURSOR", registro.precursoresMetas || ""],
+        ["   - Análisis Precursor", registro.precursorAnalisis || ""],
+        ["6. REUNIONES", registro.reuniones || ""],
+        ["7. PASTOREO", registro.pastoreo || ""],
+        ["8. CRECIMIENTO", registro.crecimiento || ""],
+        ["9. SUPERINTENDENTE DE SERVICIO", registro.superServicio || ""],
+        ["10. PUBLICACIONES", registro.publicaciones || ""],
+        ["11. METAS ESPIRITUALES", registro.metas || ""],
+        ["12. CUERPO DE ANCIANOS", registro.cuerpoAncianos || ""],
+        ["13. LOCAL", registro.local || ""],
+        ["14. MISCELÁNEOS", registro.miscelaneos || ""],
+        ["15. IRREGULARES", registro.irregulares || ""],
+        ["16. POTENCIAL", registro.potencial || ""],
+        ["17. ACTIVIDAD PRECURSORES", registro.analisisPrecursores || ""],
+        ["18. CONTABILIDAD", registro.contabilidad || ""],
+        ["19. SEGUIMIENTO", registro.seguimiento || ""]
+      ];
 
-    // Crear tabla simple
-    autoTable(doc, {
-      startY: 35,
-      head: [['Módulo', 'Observaciones']],
-      body: filas,
-      theme: 'striped',
-      headStyles: { 
-        fillColor: [41, 128, 185],
-        fontSize: 12,
-        fontStyle: 'bold'
-      },
-      styles: { 
-        fontSize: 10,
-        cellPadding: 5
-      },
-      columnStyles: {
-        0: { cellWidth: 60, fontStyle: 'bold' as const },
-        1: { cellWidth: 'auto' as const }
+      // Crear tabla simple
+      autoTable(doc, {
+        startY: 35,
+        head: [['Módulo', 'Observaciones']],
+        body: filas,
+        theme: 'striped',
+        headStyles: { 
+          fillColor: [41, 128, 185],
+          fontSize: 12,
+          fontStyle: 'bold'
+        },
+        styles: { 
+          fontSize: 10,
+          cellPadding: 5
+        },
+        columnStyles: {
+          0: { cellWidth: 60, fontStyle: 'bold' as const },
+          1: { cellWidth: 'auto' as const }
+        }
+      });
+
+      console.log("PDF generado");
+
+      // Guardar
+      const pdfOutput = doc.output('arraybuffer');
+      const uint8Array = new Uint8Array(pdfOutput);
+
+      const nombreSeguro = nombreCongregacion
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9\s]/g, "_")
+        .replace(/\s+/g, "_");
+
+      const filePath = await save({
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+        defaultPath: `Analisis_${nombreSeguro}.pdf`
+      });
+
+     	if (!filePath) {
+        alert("Guardado cancelado");
+        return;
       }
-    });
 
-    console.log("PDF generado");
+      await writeFile(filePath, uint8Array);
+      alert(`✓ PDF guardado en:\n${filePath}`);
 
-    // Guardar
-    const pdfOutput = doc.output('arraybuffer');
-    const uint8Array = new Uint8Array(pdfOutput);
-
-    const nombreSeguro = nombreCongregacion
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9\s]/g, "_")
-      .replace(/\s+/g, "_");
-
-    const filePath = await save({
-      filters: [{ name: "PDF", extensions: ["pdf"] }],
-      defaultPath: `Analisis_${nombreSeguro}.pdf`
-    });
-
-    if (!filePath) {
-      alert("Guardado cancelado");
-      return;
+    } catch (err) {
+      console.error("Error:", err);
+      const error = err as Error;
+      alert("❌ Error: " + (error?.message || "Error desconocido"));
     }
-
-    await writeFile(filePath, uint8Array);
-    alert(`✓ PDF guardado en:\n${filePath}`);
-
-  } catch (err) {
-    console.error("Error:", err);
-    const error = err as Error;
-    alert("❌ Error: " + (error?.message || "Error desconocido"));
   }
-}
 
   async function generarCSV() {
-  try {
-    console.log("=== INICIANDO GENERACIÓN DE CSV ===");
-    console.log("Congregación:", nombreCongregacion);
+    try {
+      console.log("=== INICIANDO GENERACIÓN DE CSV ===");
+      console.log("Congregación:", nombreCongregacion);
 
-    // Preparar datos
-    const datosCSV = {
-      Congregacion: nombreCongregacion,
-      Fecha: registro.fechaVisita || "",
-      OpinionAncianos: registro.opinionGeneral || "",
-      MinisterioAnalisis: registro.ministerioAnalisis || "",
-      MinisterioDias: (registro.ministerioDias || []).join("; "),
-      TerritorioAnalisis: registro.territorioAnalisis || "",
-      PrecursorAnalisis: registro.precursorAnalisis || "",
-      Ministerio: registro.ministerio || "",
-      CasaEnCasa: registro.territorio || "",
-      AtencionTerritorio: registro.atencionTerritorio || "",
-      MetasPrecursores: registro.precursoresMetas || "",
-      Reuniones: registro.reuniones || "",
-      Pastoreo: registro.pastoreo || "",
-      Crecimiento: registro.crecimiento || "",
-      SuperServicio: registro.superServicio || "",
-      Publicaciones: registro.publicaciones || "",
-      Metas: registro.metas || "",
-      CuerpoAncianos: registro.cuerpoAncianos || "",
-      Local: registro.local || "",
-      Miscelaneos: registro.miscelaneos || "",
-      Irregulares: registro.irregulares || "",
-      Potencial: registro.potencial || "",
-      AnalisisPrecursores: registro.analisisPrecursores || "",
-      Contabilidad: registro.contabilidad || "",
-      Seguimiento: registro.seguimiento || ""
-    };
+      // Preparar datos
+      const datosCSV = {
+        Congregacion: nombreCongregacion,
+        Fecha: registro.fechaVisita || "",
+        OpinionAncianos: registro.opinionGeneral || "",
+        MinisterioAnalisis: registro.ministerioAnalisis || "",
+        MinisterioDias: (registro.ministerioDias || []).join("; "),
+        TerritorioAnalisis: registro.territorioAnalisis || "",
+        PrecursorAnalisis: registro.precursorAnalisis || "",
+        Ministerio: registro.ministerio || "",
+        CasaEnCasa: registro.territorio || "",
+        AtencionTerritorio: registro.atencionTerritorio || "",
+        MetasPrecursores: registro.precursoresMetas || "",
+        Reuniones: registro.reuniones || "",
+        Pastoreo: registro.pastoreo || "",
+        Crecimiento: registro.crecimiento || "",
+        SuperServicio: registro.superServicio || "",
+        Publicaciones: registro.publicaciones || "",
+        Metas: registro.metas || "",
+        CuerpoAncianos: registro.cuerpoAncianos || "",
+        Local: registro.local || "",
+        Miscelaneos: registro.miscelaneos || "",
+        Irregulares: registro.irregulares || "",
+        Potencial: registro.potencial || "",
+        AnalisisPrecursores: registro.analisisPrecursores || "",
+        Contabilidad: registro.contabilidad || "",
+        Seguimiento: registro.seguimiento || ""
+      };
 
-    // Generar CSV
-    const csv = Papa.unparse([datosCSV], {
-      quotes: true,
-      delimiter: ",",
-      header: true
-    });
+      // Generar CSV
+      const csv = Papa.unparse([datosCSV], {
+        quotes: true,
+        delimiter: ",",
+        header: true
+      });
 
-    console.log("CSV generado, tamaño:", csv.length, "caracteres");
+      console.log("CSV generado, tamaño:", csv.length, "caracteres");
 
-    // Nombre seguro
-    const nombreSeguro = nombreCongregacion
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9\s]/g, "_")
-      .replace(/\s+/g, "_");
+      // Nombre seguro
+      const nombreSeguro = nombreCongregacion
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9\s]/g, "_")
+        .replace(/\s+/g, "_");
 
-    console.log("Abriendo diálogo de guardado...");
+      console.log("Abriendo diálogo de guardado...");
 
-    // Abrir diálogo
-    const filePath = await save({
-      filters: [{ 
-        name: "CSV", 
-        extensions: ["csv"] 
-      }],
-      defaultPath: `Analisis_${nombreSeguro}.csv`
-    });
+      // Abrir diálogo
+      const filePath = await save({
+        filters: [{ 
+          name: "CSV", 
+          extensions: ["csv"] 
+        }],
+        defaultPath: `Analisis_${nombreSeguro}.csv`
+      });
 
-    if (!filePath) {
-      console.log("Usuario canceló");
-      alert("Guardado cancelado");
-      return;
+      if (!filePath) {
+        console.log("Usuario canceló");
+        alert("Guardado cancelado");
+        return;
+      }
+
+      console.log("Ruta seleccionada:", filePath);
+      console.log("Escribiendo archivo...");
+
+      // Escribir archivo
+      await writeTextFile(filePath, csv);
+
+      console.log("=== CSV GUARDADO EXITOSAMENTE ===");
+      alert(`✓ Archivo CSV guardado en:\n${filePath}`);
+
+    } catch (err) {
+      console.error("=== ERROR AL GUARDAR CSV ===");
+      console.error("Error completo:", err);
+      
+      const error = err as Error;
+      const mensajeError = error?.message || "Error desconocido";
+      alert("❌ Error al guardar CSV:\n" + mensajeError + "\n\nRevisa la consola (F12) para más detalles");
     }
-
-    console.log("Ruta seleccionada:", filePath);
-    console.log("Escribiendo archivo...");
-
-    // Escribir archivo
-    await writeTextFile(filePath, csv);
-
-    console.log("=== CSV GUARDADO EXITOSAMENTE ===");
-    alert(`✓ Archivo CSV guardado en:\n${filePath}`);
-
-  } catch (err) {
-    console.error("=== ERROR AL GUARDAR CSV ===");
-    console.error("Error completo:", err);
-    
-    const error = err as Error;
-    const mensajeError = error?.message || "Error desconocido";
-    alert("❌ Error al guardar CSV:\n" + mensajeError + "\n\nRevisa la consola (F12) para más detalles");
   }
-}
 
   let mostrarGuiaOpinion = false, mostrarGuiaMinisterio = false, mostrarGuiaTerritorio = false,
       mostrarGuiaAtencionTerritorio = false, mostrarGuiaPrecursoresMetas = false, mostrarGuiaReuniones = false,
@@ -270,7 +283,6 @@
       mostrarGuiaPotencial = false, mostrarGuiaAnalisisPrecursores = false, mostrarGuiaContabilidad = false,
       mostrarGuiaSeguimiento = false;
 </script>
-
 
 <div class="contenedor-analisis">
   <div class="cabecera-principal">
