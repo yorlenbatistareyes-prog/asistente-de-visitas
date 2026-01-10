@@ -14,6 +14,12 @@
   // TAURI PLUGINS
   import { LazyStore } from '@tauri-apps/plugin-store';
   
+  import { createEventDispatcher } from 'svelte'; // Si no está, añádela a tus imports
+  const dispatch = createEventDispatcher();
+
+  function navegarADocumentos() {
+    dispatch('cambiarVista', 'documentos');
+  }
   
   // --- INTERFACES ---
   interface Congregacion { 
@@ -277,7 +283,7 @@ async function guardarYVolver() {
 
   const secciones = [
     { titulo: "Informes", icon: FileText, action: irAInformes },
-    { titulo: "Documentos", icon: Folder, action: () => {} },
+    { titulo: "Documentos", icon: Folder, action: navegarADocumentos }, // <--- Ahora tiene la acción
     { titulo: "Asuntos pendientes", icon: ListChecks, action: () => {} }
   ];
 
