@@ -35,6 +35,9 @@ importers:
       lucide-svelte:
         specifier: ^0.562.0
         version: 0.562.0(svelte@5.46.1)
+      pako:
+        specifier: ^2.1.0
+        version: 2.1.0
       papaparse:
         specifier: ^5.5.3
         version: 5.5.3
@@ -60,6 +63,9 @@ importers:
       '@types/node':
         specifier: ^25.0.3
         version: 25.0.3
+      '@types/pako':
+        specifier: ^2.0.4
+        version: 2.0.4
       '@types/papaparse':
         specifier: ^5.5.2
         version: 5.5.2

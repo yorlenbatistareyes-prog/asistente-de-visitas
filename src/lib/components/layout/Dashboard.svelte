@@ -10,11 +10,11 @@
   import { onMount } from 'svelte';
   import { listaCongregaciones, fechaPorCongregacion } from '$lib/stores/appStore';
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
-  import { resumenUltimoAnalisis } from '$lib/stores/appStore';
+
   // TAURI PLUGINS
   import { LazyStore } from '@tauri-apps/plugin-store';
   
-  import { createEventDispatcher } from 'svelte'; // Si no está, añádela a tus imports
+  import { createEventDispatcher } from 'svelte';
   const dispatch = createEventDispatcher();
 
   function navegarADocumentos() {
@@ -138,8 +138,7 @@
     mostrarHistorial = false;
   }
 
- function exportarHistorialCSV(visita: VisitaHistorial) {
-    // Si visita.contenido falla, buscamos en el historial de sesión por seguridad
+  function exportarHistorialCSV(visita: VisitaHistorial) {
     const contenido = visita.contenido || "";
 
     if (!contenido.trim()) {
@@ -217,46 +216,47 @@
 
   // --- NAVEGACIÓN Y GUARDADO ---
 
-async function guardarYVolver() {
-  // 1. Capturamos el contenido actual del formulario
-  const textoAnalisis = observacionesPorCongregacion[seleccionado] ?? "";
-  console.log("🟦 Texto desde observacionesPorCongregacion:", textoAnalisis);
+  async function guardarYVolver() {
+    // 1. Tomamos el texto actual del formulario
+    const textoAnalisis = observacionesPorCongregacion[seleccionado] ?? "";
+    console.log("🟦 Texto desde observacionesPorCongregacion:", textoAnalisis);
 
-  // 2. Capturamos el resumen generado por el formulario
-  const resumen = $resumenUltimoAnalisis[seleccionado] || "";
-  console.log("🟩 Resumen desde resumenUltimoAnalisis:", resumen);
+    if (!textoAnalisis.trim()) {
+      alert("No hay texto para guardar en el historial.");
+      return;
+    }
 
-  // 3. Creamos el objeto de la visita
-  const nuevaVisita: VisitaHistorial = {
-    id: Date.now(),
-    fecha: $fechaPorCongregacion[seleccionado] || new Date().toLocaleDateString('es-ES'),
-    tipo: "Análisis de Congregación",
-    completado: true,
-    contenido: resumen
-  };
-  console.log("🟨 Visita creada:", nuevaVisita);
+    // 2. Creamos el objeto de la visita con ese texto
+    const nuevaVisita: VisitaHistorial = {
+      id: Date.now(),
+      fecha: $fechaPorCongregacion[seleccionado] || new Date().toLocaleDateString('es-ES'),
+      tipo: "Análisis de Congregación",
+      completado: true,
+      contenido: textoAnalisis
+    };
+    console.log("🟨 Visita creada:", nuevaVisita);
 
-  // 4. Lo añadimos al historial
-  if (!historialSesion[seleccionado]) historialSesion[seleccionado] = [];
-  historialSesion[seleccionado] = [nuevaVisita, ...historialSesion[seleccionado]];
-  console.log("🟧 Historial actualizado:", historialSesion[seleccionado]);
+    // 3. Lo añadimos al historial
+    if (!historialSesion[seleccionado]) historialSesion[seleccionado] = [];
+    historialSesion[seleccionado] = [nuevaVisita, ...historialSesion[seleccionado]];
+    console.log("🟧 Historial actualizado:", historialSesion[seleccionado]);
 
-  // 5. LIMPIEZA del formulario
-  observacionesPorCongregacion[seleccionado] = "";
-  observacionesPorCongregacion = { ...observacionesPorCongregacion };
+    // 4. LIMPIEZA del formulario
+    observacionesPorCongregacion[seleccionado] = "";
+    observacionesPorCongregacion = { ...observacionesPorCongregacion };
 
-  // 6. Persistencia y navegación
-  await persistirDatos();
-  cargarHistorialReal();
-  viendoFormulario = false;
-  vistaActual = "dashboard";
-}
+    // 5. Persistencia y navegación
+    await persistirDatos();
+    cargarHistorialReal();
+    viendoFormulario = false;
+    vistaActual = "dashboard";
+  }
 
   function irAInformes() {
     vistaActual = "informes";
-    viendoFormulario = false;  // No entra directo al formulario
-    mostrarHistorial = false;  // No entra directo al historial
-    cargarHistorialReal();     // Prepara los datos por si acaso
+    viendoFormulario = false;
+    mostrarHistorial = false;
+    cargarHistorialReal();
   }
 
   function volverAlDashboard() {
@@ -283,7 +283,7 @@ async function guardarYVolver() {
 
   const secciones = [
     { titulo: "Informes", icon: FileText, action: irAInformes },
-    { titulo: "Documentos", icon: Folder, action: navegarADocumentos }, // <--- Ahora tiene la acción
+    { titulo: "Documentos", icon: Folder, action: navegarADocumentos },
     { titulo: "Asuntos pendientes", icon: ListChecks, action: () => {} }
   ];
 
