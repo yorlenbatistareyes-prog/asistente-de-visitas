@@ -6,22 +6,17 @@
   import Papa from "papaparse";
   import { save } from "@tauri-apps/plugin-dialog";
   import { writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
-  import { fechaPorCongregacion } from '$lib/stores/appStore';
-  import { resumenUltimoAnalisis } from '$lib/stores/appStore';
-
+  import { fechaPorCongregacion, resumenUltimoAnalisis } from '$lib/stores/appStore';
 
   export let nombreCongregacion: string;
-  
 
   interface RegistroCongregacion {
     fechaVisita: string;
     opinionGeneral: string;
-
     ministerioAnalisis: string;
     ministerioDias: string[];
     territorioAnalisis: string;
     precursorAnalisis: string;
-
     ministerio: string;
     territorio: string;
     atencionTerritorio: string;
@@ -69,322 +64,86 @@
     seguimiento: ""
   };
 
-  // Construimos el registro a partir de los valores por defecto + lo guardado en el store
-  $: registro = {
-    ...valoresPorDefecto,
-    ...($observacionesStore[nombreCongregacion] || {})
-  };
+  let registro: RegistroCongregacion = { ...valoresPorDefecto };
 
-  function actualizarResumen() {
-  const resumen = construirResumenPlano(registro);
+  // Sincronización cuando cambia la congregación seleccionada
+  $: {
+    if (nombreCongregacion) {
+      const guardado = $observacionesStore[nombreCongregacion];
+      registro = guardado ? { ...valoresPorDefecto, ...guardado } : { ...valoresPorDefecto };
+    }
+  }
 
-  resumenUltimoAnalisis.update((r: Record<string, string>) => ({
-    ...r,
-    [nombreCongregacion]: resumen
-  }));
-}
-
-  function construirResumenPlano(registro: RegistroCongregacion): string {
-  return `
-FECHA DE VISITA:
-${registro.fechaVisita || ""}
-
-1. OPINIÓN DE LOS ANCIANOS
-${registro.opinionGeneral || ""}
-
-2. MINISTERIO CRISTIANO
-${registro.ministerio || ""}
-- Análisis Ministerio:
-${registro.ministerioAnalisis || ""}
-- Días:
-${(registro.ministerioDias || []).join(", ") || ""}
-
-3. CASA EN CASA
-${registro.territorio || ""}
-- Análisis Territorio:
-${registro.territorioAnalisis || ""}
-
-4. ATENCIÓN AL TERRITORIO
-${registro.atencionTerritorio || ""}
-
-5. SERVICIO DE PRECURSOR
-${registro.precursoresMetas || ""}
-- Análisis Precursores:
-${registro.precursorAnalisis || ""}
-
-6. REUNIONES
-${registro.reuniones || ""}
-
-7. PASTOREO
-${registro.pastoreo || ""}
-
-8. CRECIMIENTO
-${registro.crecimiento || ""}
-
-9. SUPERINTENDENTE DE SERVICIO
-${registro.superServicio || ""}
-
-10. PUBLICACIONES
-${registro.publicaciones || ""}
-
-11. METAS ESPIRITUALES
-${registro.metas || ""}
-
-12. CUERPO DE ANCIANOS
-${registro.cuerpoAncianos || ""}
-
-13. LOCAL
-${registro.local || ""}
-
-14. MISCELÁNEOS
-${registro.miscelaneos || ""}
-
-15. IRREGULARES
-${registro.irregulares || ""}
-
-16. POTENCIAL
-${registro.potencial || ""}
-
-17. ACTIVIDAD PRECURSORES
-${registro.analisisPrecursores || ""}
-
-18. CONTABILIDAD
-${registro.contabilidad || ""}
-
-19. SEGUIMIENTO
-${registro.seguimiento || ""}
+  function construirResumenPlano(reg: RegistroCongregacion): string {
+    return `
+FECHA DE VISITA: ${reg.fechaVisita || ""}
+1. OPINIÓN DE LOS ANCIANOS: ${reg.opinionGeneral || ""}
+2. MINISTERIO CRISTIANO: ${reg.ministerio || ""}
+3. CASA EN CASA: ${reg.territorio || ""}
+4. ATENCIÓN AL TERRITORIO: ${reg.atencionTerritorio || ""}
+5. SERVICIO DE PRECURSOR: ${reg.precursoresMetas || ""}
+6. REUNIONES: ${reg.reuniones || ""}
+7. PASTOREO: ${reg.pastoreo || ""}
+8. CRECIMIENTO: ${reg.crecimiento || ""}
+9. SUPERINTENDENTE DE SERVICIO: ${reg.superServicio || ""}
+10. PUBLICACIONES: ${reg.publicaciones || ""}
+11. METAS ESPIRITUALES: ${reg.metas || ""}
+12. CUERPO DE ANCIANOS: ${reg.cuerpoAncianos || ""}
+13. LOCAL: ${reg.local || ""}
+14. MISCELÁNEOS: ${reg.miscelaneos || ""}
+15. IRREGULARES: ${reg.irregulares || ""}
+16. POTENCIAL: ${reg.potencial || ""}
+17. ACTIVIDAD PRECURSORES: ${reg.analisisPrecursores || ""}
+18. CONTABILIDAD: ${reg.contabilidad || ""}
+19. SEGUIMIENTO: ${reg.seguimiento || ""}
 `.trim();
-}
+  }
 
   async function guardarModulo() {
-  if (!nombreCongregacion) return;
+    if (!nombreCongregacion) return;
 
-  const copiaActualizada = { ...$observacionesStore };
-  copiaActualizada[nombreCongregacion] = { ...registro };
-
-  try {
-    console.log("💾 Guardando datos para:", nombreCongregacion);
-    console.log("📦 Registro completo:", registro);
-    
-    // Guardar todo el registro (incluyendo fechaVisita) en el JSON
-    await guardarDatos(copiaActualizada);
-    
-    const resumen = construirResumenPlano(registro);
-    console.log("📄 Resumen generado (primeros 200 chars):", resumen.substring(0, 200));
-    console.log("📏 Longitud del resumen:", resumen.length);
-
-    resumenUltimoAnalisis.update(r => ({
-       ...r,
-       [nombreCongregacion]: resumen
-    }));
-    
-    console.log("✅ Resumen actualizado en el store");
-
-    // Sincronizar la fecha con el store usado por el Dashboard/historial
-    fechaPorCongregacion.update((f) => {
-      return {
-        ...f,
-        [nombreCongregacion]: registro.fechaVisita
-      };
-    });
-    
-    console.log("✅ Guardado completado exitosamente");
-  } catch (error) {
-    console.error("❌ Error al guardar:", error);
-  }
-}
-  
-  // AGREGAR JUSTO DESPUÉS DE LA FUNCIÓN guardarModulo()
-
-// ⭐ LLAMAR actualizarResumen automáticamente cuando cambien los datos
-$: {
-  if (registro && nombreCongregacion) {
-    console.log("🔄 Detectado cambio en registro, actualizando resumen...");
-    actualizarResumen();
-  }
-}
-
-  async function generarPDF() {
     try {
-      console.log("=== INICIANDO GENERACIÓN DE PDF ===");
+      // 1. Guardar los datos actuales en el historial/resumen
+      const resumen = construirResumenPlano(registro);
+      resumenUltimoAnalisis.update(r => ({ ...r, [nombreCongregacion]: resumen }));
+      fechaPorCongregacion.update(f => ({ ...f, [nombreCongregacion]: registro.fechaVisita }));
+
+      // 2. Limpiar el store de observaciones para esta congregación
+      // Esto borra los datos de la "sesión actual" en el persistencia.ts
+      const nuevaCopiaStore = { ...$observacionesStore };
+      nuevaCopiaStore[nombreCongregacion] = { ...valoresPorDefecto };
       
-      const doc = new jsPDF();
-      
-      // Encabezado
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Análisis: ${nombreCongregacion}`, 14, 20);
-      
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Fecha: ${registro.fechaVisita || 'No especificada'}`, 14, 28);
-      
-      // Preparar TODOS los datos
-      const filas = [
-        ["1. OPINIÓN DE LOS ANCIANOS", registro.opinionGeneral || ""],
-        ["2. MINISTERIO CRISTIANO", registro.ministerio || ""],
-        ["   - Análisis Ministerio", registro.ministerioAnalisis || ""],
-        ["   - Días", (registro.ministerioDias || []).join(", ") || ""],
-        ["3. CASA EN CASA", registro.territorio || ""],
-        ["   - Análisis Territorio", registro.territorioAnalisis || ""],
-        ["4. ATENCIÓN AL TERRITORIO", registro.atencionTerritorio || ""],
-        ["5. SERVICIO DE PRECURSOR", registro.precursoresMetas || ""],
-        ["   - Análisis Precursor", registro.precursorAnalisis || ""],
-        ["6. REUNIONES", registro.reuniones || ""],
-        ["7. PASTOREO", registro.pastoreo || ""],
-        ["8. CRECIMIENTO", registro.crecimiento || ""],
-        ["9. SUPERINTENDENTE DE SERVICIO", registro.superServicio || ""],
-        ["10. PUBLICACIONES", registro.publicaciones || ""],
-        ["11. METAS ESPIRITUALES", registro.metas || ""],
-        ["12. CUERPO DE ANCIANOS", registro.cuerpoAncianos || ""],
-        ["13. LOCAL", registro.local || ""],
-        ["14. MISCELÁNEOS", registro.miscelaneos || ""],
-        ["15. IRREGULARES", registro.irregulares || ""],
-        ["16. POTENCIAL", registro.potencial || ""],
-        ["17. ACTIVIDAD PRECURSORES", registro.analisisPrecursores || ""],
-        ["18. CONTABILIDAD", registro.contabilidad || ""],
-        ["19. SEGUIMIENTO", registro.seguimiento || ""]
-      ];
+      // Actualizamos el store y guardamos el archivo JSON vacío para esta congregación
+      observacionesStore.set(nuevaCopiaStore);
+      await guardarDatos(nuevaCopiaStore);
 
-      // Crear tabla simple
-      autoTable(doc, {
-        startY: 35,
-        head: [['Módulo', 'Observaciones']],
-        body: filas,
-        theme: 'striped',
-        headStyles: { 
-          fillColor: [41, 128, 185],
-          fontSize: 12,
-          fontStyle: 'bold'
-        },
-        styles: { 
-          fontSize: 10,
-          cellPadding: 5
-        },
-        columnStyles: {
-          0: { cellWidth: 60, fontStyle: 'bold' as const },
-          1: { cellWidth: 'auto' as const }
-        }
-      });
+      // 3. Limpiar la variable local para refrescar la UI al instante
+      registro = { ...valoresPorDefecto };
 
-      console.log("PDF generado");
-
-      // Guardar
-      const pdfOutput = doc.output('arraybuffer');
-      const uint8Array = new Uint8Array(pdfOutput);
-
-      const nombreSeguro = nombreCongregacion
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-zA-Z0-9\s]/g, "_")
-        .replace(/\s+/g, "_");
-
-      const filePath = await save({
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
-        defaultPath: `Analisis_${nombreSeguro}.pdf`
-      });
-
-     	if (!filePath) {
-        alert("Guardado cancelado");
-        return;
-      }
-
-      await writeFile(filePath, uint8Array);
-      alert(`✓ PDF guardado en:\n${filePath}`);
-
-    } catch (err) {
-      console.error("Error:", err);
-      const error = err as Error;
-      alert("❌ Error: " + (error?.message || "Error desconocido"));
+      alert("✅ Informe guardado y formulario limpiado.");
+    } catch (error) {
+      console.error("Error al guardar y limpiar:", error);
+      alert("Hubo un error al procesar el guardado.");
     }
+  }
+
+  // Funciones de exportación
+  async function generarPDF() {
+    const doc = new jsPDF();
+    doc.text(`Análisis: ${nombreCongregacion}`, 14, 20);
+    const filas = Object.entries(registro).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : v]);
+    autoTable(doc, { startY: 30, body: filas });
+    const output = await save({ filters: [{ name: "PDF", extensions: ["pdf"] }] });
+    if (output) await writeFile(output, new Uint8Array(doc.output('arraybuffer')));
   }
 
   async function generarCSV() {
-    try {
-      console.log("=== INICIANDO GENERACIÓN DE CSV ===");
-      console.log("Congregación:", nombreCongregacion);
-
-      // Preparar datos
-      const datosCSV = {
-        Congregacion: nombreCongregacion,
-        Fecha: registro.fechaVisita || "",
-        OpinionAncianos: registro.opinionGeneral || "",
-        MinisterioAnalisis: registro.ministerioAnalisis || "",
-        MinisterioDias: (registro.ministerioDias || []).join("; "),
-        TerritorioAnalisis: registro.territorioAnalisis || "",
-        PrecursorAnalisis: registro.precursorAnalisis || "",
-        Ministerio: registro.ministerio || "",
-        CasaEnCasa: registro.territorio || "",
-        AtencionTerritorio: registro.atencionTerritorio || "",
-        MetasPrecursores: registro.precursoresMetas || "",
-        Reuniones: registro.reuniones || "",
-        Pastoreo: registro.pastoreo || "",
-        Crecimiento: registro.crecimiento || "",
-        SuperServicio: registro.superServicio || "",
-        Publicaciones: registro.publicaciones || "",
-        Metas: registro.metas || "",
-        CuerpoAncianos: registro.cuerpoAncianos || "",
-        Local: registro.local || "",
-        Miscelaneos: registro.miscelaneos || "",
-        Irregulares: registro.irregulares || "",
-        Potencial: registro.potencial || "",
-        AnalisisPrecursores: registro.analisisPrecursores || "",
-        Contabilidad: registro.contabilidad || "",
-        Seguimiento: registro.seguimiento || ""
-      };
-
-      // Generar CSV
-      const csv = Papa.unparse([datosCSV], {
-        quotes: true,
-        delimiter: ",",
-        header: true
-      });
-
-      console.log("CSV generado, tamaño:", csv.length, "caracteres");
-
-      // Nombre seguro
-      const nombreSeguro = nombreCongregacion
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-zA-Z0-9\s]/g, "_")
-        .replace(/\s+/g, "_");
-
-      console.log("Abriendo diálogo de guardado...");
-
-      // Abrir diálogo
-      const filePath = await save({
-        filters: [{ 
-          name: "CSV", 
-          extensions: ["csv"] 
-        }],
-        defaultPath: `Analisis_${nombreSeguro}.csv`
-      });
-
-      if (!filePath) {
-        console.log("Usuario canceló");
-        alert("Guardado cancelado");
-        return;
-      }
-
-      console.log("Ruta seleccionada:", filePath);
-      console.log("Escribiendo archivo...");
-
-      // Escribir archivo
-      await writeTextFile(filePath, csv);
-
-      console.log("=== CSV GUARDADO EXITOSAMENTE ===");
-      alert(`✓ Archivo CSV guardado en:\n${filePath}`);
-
-    } catch (err) {
-      console.error("=== ERROR AL GUARDAR CSV ===");
-      console.error("Error completo:", err);
-      
-      const error = err as Error;
-      const mensajeError = error?.message || "Error desconocido";
-      alert("❌ Error al guardar CSV:\n" + mensajeError + "\n\nRevisa la consola (F12) para más detalles");
-    }
+    const csv = Papa.unparse([{ Congregacion: nombreCongregacion, ...registro }]);
+    const output = await save({ filters: [{ name: "CSV", extensions: ["csv"] }] });
+    if (output) await writeTextFile(output, csv);
   }
 
+  // Variables de control de guías (indispensables para el HTML)
   let mostrarGuiaOpinion = false, mostrarGuiaMinisterio = false, mostrarGuiaTerritorio = false,
       mostrarGuiaAtencionTerritorio = false, mostrarGuiaPrecursoresMetas = false, mostrarGuiaReuniones = false,
       mostrarGuiaPastoreo = false, mostrarGuiaCrecimiento = false, mostrarGuiaSuperServicio = false,
