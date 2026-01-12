@@ -157,32 +157,52 @@ ${registro.seguimiento || ""}
 }
 
   async function guardarModulo() {
-    if (!nombreCongregacion) return;
+  if (!nombreCongregacion) return;
 
-    const copiaActualizada = { ...$observacionesStore };
-    copiaActualizada[nombreCongregacion] = { ...registro };
+  const copiaActualizada = { ...$observacionesStore };
+  copiaActualizada[nombreCongregacion] = { ...registro };
 
-    try {
-      // Guardar todo el registro (incluyendo fechaVisita) en el JSON
-      await guardarDatos(copiaActualizada);
-      const resumen = construirResumenPlano(registro);
+  try {
+    console.log("💾 Guardando datos para:", nombreCongregacion);
+    console.log("📦 Registro completo:", registro);
+    
+    // Guardar todo el registro (incluyendo fechaVisita) en el JSON
+    await guardarDatos(copiaActualizada);
+    
+    const resumen = construirResumenPlano(registro);
+    console.log("📄 Resumen generado (primeros 200 chars):", resumen.substring(0, 200));
+    console.log("📏 Longitud del resumen:", resumen.length);
 
-      resumenUltimoAnalisis.update(r => ({
-         ...r,
-         [nombreCongregacion]: resumen
-      }));
+    resumenUltimoAnalisis.update(r => ({
+       ...r,
+       [nombreCongregacion]: resumen
+    }));
+    
+    console.log("✅ Resumen actualizado en el store");
 
-      // Sincronizar la fecha con el store usado por el Dashboard/historial
-      fechaPorCongregacion.update((f) => {
-        return {
-          ...f,
-          [nombreCongregacion]: registro.fechaVisita
-        };
-      });
-    } catch (error) {
-      console.error("Error al guardar:", error);
-    }
+    // Sincronizar la fecha con el store usado por el Dashboard/historial
+    fechaPorCongregacion.update((f) => {
+      return {
+        ...f,
+        [nombreCongregacion]: registro.fechaVisita
+      };
+    });
+    
+    console.log("✅ Guardado completado exitosamente");
+  } catch (error) {
+    console.error("❌ Error al guardar:", error);
   }
+}
+  
+  // AGREGAR JUSTO DESPUÉS DE LA FUNCIÓN guardarModulo()
+
+// ⭐ LLAMAR actualizarResumen automáticamente cuando cambien los datos
+$: {
+  if (registro && nombreCongregacion) {
+    console.log("🔄 Detectado cambio en registro, actualizando resumen...");
+    actualizarResumen();
+  }
+}
 
   async function generarPDF() {
     try {

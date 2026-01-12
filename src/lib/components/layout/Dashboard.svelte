@@ -14,6 +14,9 @@
   // TAURI PLUGINS
   import { LazyStore } from '@tauri-apps/plugin-store';
   
+  import jsPDF from "jspdf";
+  import { save } from "@tauri-apps/plugin-dialog";
+  import { writeFile } from "@tauri-apps/plugin-fs";
   
   // --- INTERFACES ---
   interface Congregacion { 
@@ -132,69 +135,51 @@
     mostrarHistorial = false;
   }
 
- function exportarHistorialCSV(visita: VisitaHistorial) {
-    // Si visita.contenido falla, buscamos en el historial de sesión por seguridad
-    const contenido = visita.contenido || "";
+  async function exportarHistorialPDF(visita: VisitaHistorial) {
+  console.log("🧾 Exportando visita:", visita);
 
-    if (!contenido.trim()) {
-      alert("No se encontró texto guardado en este registro del historial.");
-      return;
-    }
+  const contenido = visita.contenido || "";
 
-    const encabezados = "Fecha,Congregacion,Tipo,Analisis\n";
-    const contenidoLimpio = contenido.replace(/\r?\n/g, " ").replace(/"/g, '""');
-    const fila = `"${visita.fecha}","${seleccionado}","${visita.tipo}","${contenidoLimpio}"`;
-    
-    const blob = new Blob(["\ufeff" + encabezados + fila], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Informe_${seleccionado}_${visita.fecha.replace(/\//g, '-')}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+  if (!contenido.trim()) {
+    alert("No se encontró texto guardado en este registro del historial.");
+    return;
   }
 
-  function exportarHistorialPDF(visita: VisitaHistorial) {
-    const contenido = visita.contenido || "";
+  const doc = new jsPDF();
+  let y = 10;
 
-    if (!contenido.trim()) {
-      alert("No se encontró texto guardado en este registro del historial.");
-      return;
-    }
+  doc.setFontSize(16);
+  doc.text(`Informe de Análisis - ${seleccionado}`, 10, y);
+  y += 10;
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+  doc.setFontSize(12);
+  doc.text(`Fecha de visita: ${visita.fecha}`, 10, y);
+  y += 10;
 
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Informe ${seleccionado}</title>
-          <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; line-height: 1.6; color: #333; }
-            .header { border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 20px; }
-            h1 { color: #1e40af; margin: 0; font-size: 22px; }
-            .meta { font-size: 14px; color: #666; margin-bottom: 25px; background: #f8fafc; padding: 10px; border-radius: 5px; }
-            .content { white-space: pre-wrap; background: #ffffff; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Asistente de visitas: Análisis de Congregación</h1>
-          </div>
-          <div class="meta">
-            <strong>Congregación:</strong> ${seleccionado} <br>
-            <strong>Fecha de visita:</strong> ${visita.fecha}
-          </div>
-          <div class="content">${contenido}</div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 500);
+  const lineas = doc.splitTextToSize(contenido, 180);
+  doc.text(lineas, 10, y);
+
+  const nombreSeguro = seleccionado
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9\s]/g, "_")
+    .replace(/\s+/g, "_");
+
+  const ruta = await save({
+    title: "Guardar informe PDF",
+    filters: [{ name: "PDF", extensions: ["pdf"] }],
+    defaultPath: `Informe_${nombreSeguro}_${visita.fecha.replace(/\//g, "-")}.pdf`
+  });
+
+  if (!ruta) {
+    console.log("Guardado cancelado");
+    return;
   }
+
+  await writeFile(ruta, new Uint8Array(doc.output("arraybuffer")));
+
+  alert("✓ PDF guardado correctamente.");
+}
 
   async function eliminarRegistro(id: number) {
     if (!confirm("¿Estás seguro de que deseas eliminar este registro del historial?")) return;
@@ -212,63 +197,62 @@
   // --- NAVEGACIÓN Y GUARDADO ---
 
 async function guardarYVolver() {
-  // 1. Capturamos el contenido actual del formulario
-  const textoAnalisis = observacionesPorCongregacion[seleccionado] ?? "";
-  console.log("🟦 Texto desde observacionesPorCongregacion:", textoAnalisis);
-
-  // 2. Capturamos el resumen generado por el formulario
+  // 1. Tomamos el resumen generado automáticamente por el formulario
   const resumen = $resumenUltimoAnalisis[seleccionado] || "";
-  console.log("🟩 Resumen desde resumenUltimoAnalisis:", resumen);
+  console.log("🟩 Resumen recibido desde resumenUltimoAnalisis:", resumen);
 
-  // 3. Creamos el objeto de la visita
+  if (!resumen.trim()) {
+    alert("No hay contenido para guardar en el historial.");
+    return;
+  }
+
+  // 2. Creamos el objeto de la visita
   const nuevaVisita: VisitaHistorial = {
     id: Date.now(),
     fecha: $fechaPorCongregacion[seleccionado] || new Date().toLocaleDateString('es-ES'),
     tipo: "Análisis de Congregación",
     completado: true,
-    contenido: resumen
+    contenido: resumen   // 👈 AHORA SÍ: contenido real del formulario
   };
   console.log("🟨 Visita creada:", nuevaVisita);
 
-  // 4. Lo añadimos al historial
+  // 3. Lo añadimos al historial
   if (!historialSesion[seleccionado]) historialSesion[seleccionado] = [];
   historialSesion[seleccionado] = [nuevaVisita, ...historialSesion[seleccionado]];
   console.log("🟧 Historial actualizado:", historialSesion[seleccionado]);
 
-  // 5. LIMPIEZA del formulario
-  observacionesPorCongregacion[seleccionado] = "";
-  observacionesPorCongregacion = { ...observacionesPorCongregacion };
-
-  // 6. Persistencia y navegación
+  // 4. Persistencia y navegación
   await persistirDatos();
   cargarHistorialReal();
+
+  // 5. Volver al dashboard
   viendoFormulario = false;
   vistaActual = "dashboard";
 }
 
-  function irAInformes() {
-    vistaActual = "informes";
-    viendoFormulario = false;  // No entra directo al formulario
-    mostrarHistorial = false;  // No entra directo al historial
-    cargarHistorialReal();     // Prepara los datos por si acaso
-  }
+function irAInformes() {
+  vistaActual = "informes";
+  viendoFormulario = false;
+  mostrarHistorial = false;
+  cargarHistorialReal();
+}
 
-  function volverAlDashboard() {
-    vistaActual = "dashboard";
-    viendoFormulario = false;
-    mostrarHistorial = false;
-  }
+function volverAlDashboard() {
+  vistaActual = "dashboard";
+  viendoFormulario = false;
+  mostrarHistorial = false;
+}
 
-  function abrirHistorial() {
-    mostrarHistorial = true;
-    viendoFormulario = false;
-    cargarHistorialReal();
-  }
+function abrirHistorial() {
+  mostrarHistorial = true;
+  viendoFormulario = false;
+  cargarHistorialReal();
+}
 
-  function cerrarHistorial() {
-    mostrarHistorial = false;
-    viendoFormulario = false;
-  }
+function cerrarHistorial() {
+  mostrarHistorial = false;
+  viendoFormulario = false;
+}
 
   // --- MODALES ---
   let mostrarModal = false;
@@ -414,11 +398,6 @@ async function guardarYVolver() {
                       <button class="h-edit-btn" style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;" on:click={() => exportarHistorialPDF(visita)} title="Descargar PDF">
                         <FileText size={14} />
                         <span>PDF</span>
-                      </button>
-
-                      <button class="h-edit-btn" style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;" on:click={() => exportarHistorialCSV(visita)} title="Descargar Excel">
-                        <Download size={14} />
-                        <span>CSV</span>
                       </button>
                       
                       <button class="h-delete-btn" on:click={() => eliminarRegistro(visita.id)}>
