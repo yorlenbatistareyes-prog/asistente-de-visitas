@@ -10,6 +10,7 @@
   import { onMount } from 'svelte';
   import { listaCongregaciones, fechaPorCongregacion } from '$lib/stores/appStore';
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
+  import { resumenUltimoAnalisis } from '$lib/stores/appStore';
 
   // TAURI PLUGINS
   import { LazyStore } from '@tauri-apps/plugin-store';
@@ -17,7 +18,7 @@
   import jsPDF from "jspdf";
   import { save } from "@tauri-apps/plugin-dialog";
   import { writeFile } from "@tauri-apps/plugin-fs";
-  
+  import { goto } from '$app/navigation';
   // --- INTERFACES ---
   interface Congregacion { 
     nombre: string; 
@@ -335,7 +336,7 @@
 
   const secciones = [
     { titulo: "Informes", icon: FileText, action: irAInformes },
-    { titulo: "Documentos", icon: Folder, action: navegarADocumentos },
+    { titulo: "Documentos", icon: Folder, action: () => goto('/documentos') },
     { titulo: "Asuntos pendientes", icon: ListChecks, action: () => {} }
   ];
 

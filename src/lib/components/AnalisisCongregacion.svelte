@@ -12,9 +12,6 @@
 
   // Para emitir eventos al padre
   const dispatch = createEventDispatcher();
-
-  export let nombreCongregacion: string;
-  main
   
   export let nombreCongregacion: string;
   export let datosEdicion: any = null; // Prop para recibir datos del historial para edición
