@@ -14,12 +14,9 @@
   // TAURI PLUGINS
   import { LazyStore } from '@tauri-apps/plugin-store';
   
-  import { createEventDispatcher } from 'svelte';
-  const dispatch = createEventDispatcher();
-
-  function navegarADocumentos() {
-    dispatch('cambiarVista', 'documentos');
-  }
+  import jsPDF from "jspdf";
+  import { save } from "@tauri-apps/plugin-dialog";
+  import { writeFile } from "@tauri-apps/plugin-fs";
   
   // --- INTERFACES ---
   interface Congregacion { 
@@ -55,6 +52,52 @@
   let observacionesPorCongregacion: Record<string, string> = {}; 
   let historialSesion: Record<string, VisitaHistorial[]> = {};
   let historialVisitas: VisitaHistorial[] = [];
+
+  // --- NUEVAS VARIABLES PARA EDICIÓN DEL HISTORIAL ---
+  let datosParaEditar: any = null;
+  
+  // Mapeo para parsear el contenido del historial
+  const clavesHistorial = [
+    'opinionGeneral', 'ministerio', 'territorio', 'atencionTerritorio', 
+    'precursoresMetas', 'reuniones', 'pastoreo', 'crecimiento', 
+    'superServicio', 'publicaciones', 'metas', 'cuerpoAncianos', 
+    'local', 'miscelaneos', 'irregulares', 'potencial', 
+    'analisisPrecursores', 'contabilidad', 'seguimiento'
+  ];
+
+  function generarMapeoInverso() {
+    const mapeo: Record<string, string> = {};
+    clavesHistorial.forEach(clave => {
+      let nombreModulo = clave
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, str => str.toUpperCase())
+        .replace('Cuerpo Ancianos', 'Cuerpo de Ancianos');
+      mapeo[nombreModulo] = clave;
+    });
+    return mapeo;
+  }
+
+  const mapeoInverso = generarMapeoInverso();
+
+  function parsearContenidoHistorial(contenido: string): any {
+    const resultado: any = {};
+    if (!contenido) return resultado;
+    
+    const lineas = contenido.split('\n\n');
+    lineas.forEach(linea => {
+      const separadorIndex = linea.indexOf(': ');
+      if (separadorIndex > 0) {
+        const nombreModulo = linea.substring(0, separadorIndex);
+        const valor = linea.substring(separadorIndex + 2);
+        const clave = mapeoInverso[nombreModulo];
+        if (clave) {
+          resultado[clave] = valor === 'Sin observaciones' ? '' : valor;
+        }
+      }
+    });
+    
+    return resultado;
+  }
 
   let datos: Record<string, Congregacion[]> = {
     "Holguín-14": [
@@ -99,6 +142,13 @@
 
   onMount(cargarDatosGuardados);
 
+  // --- FUNCIÓN PARA RESETEAR ESTADO DEL FORMULARIO ---
+  function resetearEstadoFormulario() {
+    viendoFormulario = false;
+    datosParaEditar = null;
+    // También podrías querer resetear otros estados específicos
+  }
+
   // --- ACCIONES DE CONGREGACIÓN ---
   function abrirModal() { datosEdicion = null; mostrarModal = true; }
 
@@ -118,7 +168,17 @@
     mostrarMenuConfig = false;
   }
 
+  // --- FUNCIÓN ACTUALIZADA: seleccionarCongregacion con limpieza de formulario ---
   async function seleccionarCongregacion(nombre: string) {
+    // Si ya está seleccionada, no hacer nada
+    if (seleccionado === nombre) return;
+    
+    // Si hay un formulario abierto, limpiar el estado
+    if (viendoFormulario) {
+      resetearEstadoFormulario();
+    }
+    
+    // Cambiar la congregación seleccionada
     seleccionado = nombre;
     if (!historialSesion[nombre]) historialSesion[nombre] = [];
     if (!(nombre in observacionesPorCongregacion)) observacionesPorCongregacion[nombre] = "";
@@ -129,37 +189,28 @@
   // --- LÓGICA DE HISTORIAL (EDICIÓN Y EXPORTACIÓN) ---
 
   function editarRegistro(visita: VisitaHistorial) {
-    // Recuperamos el contenido guardado en ese historial
-    observacionesPorCongregacion[seleccionado] = visita.contenido || "";
-    // IMPORTANTE: Reasignamos para que Svelte detecte el cambio en el formulario
-    observacionesPorCongregacion = {...observacionesPorCongregacion};
+    console.log("📝 Editando registro del historial:", visita);
     
+    // Parsear el contenido del historial
+    const datosParseados = parsearContenidoHistorial(visita.contenido || "");
+    datosParseados.fechaVisita = visita.fecha;
+    
+    // Asignar los datos para editar
+    datosParaEditar = datosParseados;
+    
+    // Actualizar la fecha en el store (para que el formulario tenga la fecha correcta)
+    fechaPorCongregacion.update(f => ({ ...f, [seleccionado]: visita.fecha }));
+    
+    // Mostrar el formulario y ocultar el historial
     viendoFormulario = true;
     mostrarHistorial = false;
-  }
-
-  function exportarHistorialCSV(visita: VisitaHistorial) {
-    const contenido = visita.contenido || "";
-
-    if (!contenido.trim()) {
-      alert("No se encontró texto guardado en este registro del historial.");
-      return;
-    }
-
-    const encabezados = "Fecha,Congregacion,Tipo,Analisis\n";
-    const contenidoLimpio = contenido.replace(/\r?\n/g, " ").replace(/"/g, '""');
-    const fila = `"${visita.fecha}","${seleccionado}","${visita.tipo}","${contenidoLimpio}"`;
     
-    const blob = new Blob(["\ufeff" + encabezados + fila], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Informe_${seleccionado}_${visita.fecha.replace(/\//g, '-')}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    console.log("✅ Datos cargados para edición:", datosParseados);
   }
 
-  function exportarHistorialPDF(visita: VisitaHistorial) {
+  async function exportarHistorialPDF(visita: VisitaHistorial) {
+    console.log("🧾 Exportando visita:", visita);
+
     const contenido = visita.contenido || "";
 
     if (!contenido.trim()) {
@@ -167,38 +218,40 @@
       return;
     }
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    const doc = new jsPDF();
+    let y = 10;
 
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Informe ${seleccionado}</title>
-          <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; line-height: 1.6; color: #333; }
-            .header { border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 20px; }
-            h1 { color: #1e40af; margin: 0; font-size: 22px; }
-            .meta { font-size: 14px; color: #666; margin-bottom: 25px; background: #f8fafc; padding: 10px; border-radius: 5px; }
-            .content { white-space: pre-wrap; background: #ffffff; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Asistente de visitas: Análisis de Congregación</h1>
-          </div>
-          <div class="meta">
-            <strong>Congregación:</strong> ${seleccionado} <br>
-            <strong>Fecha de visita:</strong> ${visita.fecha}
-          </div>
-          <div class="content">${contenido}</div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 500);
+    doc.setFontSize(16);
+    doc.text(`Informe de Análisis - ${seleccionado}`, 10, y);
+    y += 10;
+
+    doc.setFontSize(12);
+    doc.text(`Fecha de visita: ${visita.fecha}`, 10, y);
+    y += 10;
+
+    const lineas = doc.splitTextToSize(contenido, 180);
+    doc.text(lineas, 10, y);
+
+    const nombreSeguro = seleccionado
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9\s]/g, "_")
+      .replace(/\s+/g, "_");
+
+    const ruta = await save({
+      title: "Guardar informe PDF",
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+      defaultPath: `Informe_${nombreSeguro}_${visita.fecha.replace(/\//g, "-")}.pdf`
+    });
+
+    if (!ruta) {
+      console.log("Guardado cancelado");
+      return;
+    }
+
+    await writeFile(ruta, new Uint8Array(doc.output("arraybuffer")));
+
+    alert("✓ PDF guardado correctamente.");
   }
 
   async function eliminarRegistro(id: number) {
@@ -217,22 +270,22 @@
   // --- NAVEGACIÓN Y GUARDADO ---
 
   async function guardarYVolver() {
-    // 1. Tomamos el texto actual del formulario
-    const textoAnalisis = observacionesPorCongregacion[seleccionado] ?? "";
-    console.log("🟦 Texto desde observacionesPorCongregacion:", textoAnalisis);
+    // 1. Tomamos el resumen generado automáticamente por el formulario
+    const resumen = $resumenUltimoAnalisis[seleccionado] || "";
+    console.log("🟩 Resumen recibido desde resumenUltimoAnalisis:", resumen);
 
-    if (!textoAnalisis.trim()) {
-      alert("No hay texto para guardar en el historial.");
+    if (!resumen.trim()) {
+      alert("No hay contenido para guardar en el historial.");
       return;
     }
 
-    // 2. Creamos el objeto de la visita con ese texto
+    // 2. Creamos el objeto de la visita
     const nuevaVisita: VisitaHistorial = {
       id: Date.now(),
       fecha: $fechaPorCongregacion[seleccionado] || new Date().toLocaleDateString('es-ES'),
       tipo: "Análisis de Congregación",
       completado: true,
-      contenido: textoAnalisis
+      contenido: resumen   // 👈 AHORA SÍ: contenido real del formulario
     };
     console.log("🟨 Visita creada:", nuevaVisita);
 
@@ -241,13 +294,11 @@
     historialSesion[seleccionado] = [nuevaVisita, ...historialSesion[seleccionado]];
     console.log("🟧 Historial actualizado:", historialSesion[seleccionado]);
 
-    // 4. LIMPIEZA del formulario
-    observacionesPorCongregacion[seleccionado] = "";
-    observacionesPorCongregacion = { ...observacionesPorCongregacion };
-
-    // 5. Persistencia y navegación
+    // 4. Persistencia y navegación
     await persistirDatos();
     cargarHistorialReal();
+
+    // 5. Volver al dashboard
     viendoFormulario = false;
     vistaActual = "dashboard";
   }
@@ -274,6 +325,7 @@
   function cerrarHistorial() {
     mostrarHistorial = false;
     viendoFormulario = false;
+    datosParaEditar = null;
   }
 
   // --- MODALES ---
@@ -321,6 +373,7 @@
 
   <main class="main-panel">
     {#if vistaActual === "dashboard"}
+      <!-- Contenido del dashboard -->
       <div class="header-cong">
         <h2>Congregación <strong>{seleccionado}</strong></h2>
 
@@ -361,6 +414,7 @@
       </div>
 
     {:else if vistaActual === "informes"}
+      <!-- Contenido de informes -->
       <div class="report-view">
         <header class="report-header">
           <button class="back-link" on:click={volverAlDashboard}>
@@ -372,29 +426,57 @@
             <p>Registrando informe para <strong>{seleccionado}</strong></p>
           </div>
 
-          {#if viendoFormulario}
-            <button class="save-button" on:click={guardarYVolver}>
-              <Save size={18} /> Guardar cambios
-            </button>
-          {:else}
-            <div style="width: 155px;"></div>
-          {/if}
+          <div style="width: 155px;"></div>
         </header>
-
+        
         <div class="report-content-scroll">
           {#if viendoFormulario}
-            <AnalisisCongregacion nombreCongregacion={seleccionado} />
+            <!-- Formulario de análisis con manejo de eventos -->
+            <AnalisisCongregacion 
+              nombreCongregacion={seleccionado}
+              datosEdicion={datosParaEditar}
+              on:guardarEnHistorial={async (e) => {
+                console.log("🟢 Evento guardarEnHistorial recibido");
+                const { congregacion, fecha, contenido } = e.detail;
+                
+                // Crear nueva visita en el historial
+                const nuevaVisita: VisitaHistorial = {
+                  id: Date.now(),
+                  fecha: fecha,
+                  tipo: "Análisis de Congregación",
+                  completado: true,
+                  contenido: contenido
+                };
+                
+                // Añadir al historial
+                if (!historialSesion[congregacion]) historialSesion[congregacion] = [];
+                historialSesion[congregacion] = [nuevaVisita, ...historialSesion[congregacion]];
+                
+                // Persistir datos (incluye el historial y el store limpiado por el componente)
+                await persistirDatos();
+                cargarHistorialReal();
+                
+                console.log("✅ Visita guardada en historial");
+              }}
+              on:limpiarFormulario={() => {
+                console.log("🟡 Limpiando formulario...");
+                // Cerrar el formulario y resetear datosParaEditar
+                datosParaEditar = null;
+                viendoFormulario = false;
+              }}
+            />
 
           {:else if mostrarHistorial}
+            <!-- Historial -->
             <div class="history-page-container">
               <div class="history-header" style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
                 <button class="back-btn-modern" on:click={cerrarHistorial}>
-                   <ArrowLeft size={18} />
-                   <span>Volver a opciones</span>
+                  <ArrowLeft size={18} />
+                  <span>Volver a opciones</span>
                 </button>
-    
+
                 <h2 style="margin: 0; font-size: 1.4rem; color: #1e293b; font-weight: 600;">
-                 Historial: <span style="color: #2563eb;">{seleccionado}</span>
+                  Historial: <span style="color: #2563eb;">{seleccionado}</span>
                 </h2>
               </div>
 
@@ -421,11 +503,6 @@
                         <FileText size={14} />
                         <span>PDF</span>
                       </button>
-
-                      <button class="h-edit-btn" style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;" on:click={() => exportarHistorialCSV(visita)} title="Descargar Excel">
-                        <Download size={14} />
-                        <span>CSV</span>
-                      </button>
                       
                       <button class="h-delete-btn" on:click={() => eliminarRegistro(visita.id)}>
                         <Trash2 size={14} />
@@ -442,6 +519,7 @@
             </div>
 
           {:else}
+            <!-- Estado vacío -->
             <div class="empty-state">
               <div class="icon-wrapper">
                 <div class="icon-decoration"></div>
@@ -555,7 +633,6 @@
   .report-title { text-align: center; }
   .report-title h1 { margin: 0; font-size: 1.25rem; color: #1e293b; }
   .report-title p { margin: 0; font-size: 0.85rem; color: #64748b; }
-  .save-button { background: #e11d48; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
   .report-content-scroll { flex: 1; overflow-y: auto; padding: 20px; background: #fdfdfd; }
 
   /* 6. Historial - Filas y Botones Nuevos */
