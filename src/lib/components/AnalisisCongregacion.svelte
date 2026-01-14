@@ -1,13 +1,16 @@
 <script lang="ts">
-  import { FileText, Table, Save, CheckCircle } from "lucide-svelte";
+  import { FileText, Save, CheckCircle } from "lucide-svelte";
   import { observacionesStore, guardarDatos } from '$lib/persistencia';
   import { jsPDF } from "jspdf";
   import autoTable from "jspdf-autotable";
-  import Papa from "papaparse";
   import { save } from "@tauri-apps/plugin-dialog";
-  import { writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
+  import { writeFile } from "@tauri-apps/plugin-fs";
   import { fechaPorCongregacion, resumenUltimoAnalisis } from '$lib/stores/appStore';
+  import { createEventDispatcher } from 'svelte';
 
+  // Para emitir eventos al padre
+  const dispatch = createEventDispatcher();
+  
   export let nombreCongregacion: string;
 
   interface RegistroCongregacion {
@@ -55,38 +58,76 @@
   }
 
   async function guardarCambios() {
-    if (!nombreCongregacion) return;
+    if (!nombreCongregacion) {
+      alert("⚠️ No hay congregación seleccionada.");
+      return;
+    }
     try {
       await guardarDatos($observacionesStore);
       alert("✅ Cambios guardados correctamente.");
     } catch (error) {
+      console.error("Error al guardar:", error);
       alert("❌ Error al guardar.");
     }
   }
 
   async function finalizarInforme() {
+    console.log("🔵 Botón Finalizar y Limpiar presionado");
+    
     if (!nombreCongregacion || !registro.fechaVisita) {
       alert("⚠️ Ingresa la fecha antes de finalizar.");
       return;
     }
-    if (!confirm("¿Finalizar y limpiar formulario?")) return;
+    
+    if (!confirm("¿Finalizar y limpiar formulario? Esta acción guardará el informe en el historial.")) return;
 
     try {
+      // 1. Crear resumen del formulario
       const resumen = Object.entries(registro)
-        .map(([k, v]) => `${k.toUpperCase()}: ${v || '-'}`).join('\n');
+        .filter(([key]) => key !== 'fechaVisita')
+        .map(([k, v]) => {
+          // Formatear nombres de módulos
+          const nombreModulo = k
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/^./, str => str.toUpperCase())
+            .replace('Cuerpo Ancianos', 'Cuerpo de Ancianos');
+          return `${nombreModulo}: ${v || 'Sin observaciones'}`;
+        })
+        .join('\n\n');
       
+      console.log("📝 Resumen generado:", resumen.substring(0, 100) + "...");
+      
+      // 2. Actualizar los stores globales (para que el padre tenga acceso)
       resumenUltimoAnalisis.update(r => ({ ...r, [nombreCongregacion]: resumen }));
       fechaPorCongregacion.update(f => ({ ...f, [nombreCongregacion]: registro.fechaVisita }));
 
+      // 3. Emitir evento para guardar en historial (el padre lo manejará)
+      dispatch('guardarEnHistorial', {
+        congregacion: nombreCongregacion,
+        fecha: registro.fechaVisita,
+        contenido: resumen
+      });
+      
+      // 4. Limpiar el store local y el estado
       const nuevaCopiaStore = { ...$observacionesStore };
       nuevaCopiaStore[nombreCongregacion] = { ...valoresPorDefecto };
       observacionesStore.set(nuevaCopiaStore);
+      
+      // 5. Guardar datos persistentes (para que la limpieza persista)
       await guardarDatos(nuevaCopiaStore);
-
+      
+      // 6. Resetear estado local
       registro = { ...valoresPorDefecto };
-      alert("✅ Informe finalizado.");
+      
+      // 7. Emitir evento para indicar que se debe limpiar el formulario (y cerrar)
+      dispatch('limpiarFormulario');
+      
+      // 8. Mostrar mensaje
+      alert("✅ Informe finalizado y guardado en el historial.");
+      
     } catch (e) {
-      alert("❌ Error.");
+      console.error("❌ Error al finalizar informe:", e);
+      alert("❌ Error al finalizar el informe.");
     }
   }
 
@@ -124,6 +165,7 @@
     <input type="date" id="fv" bind:value={registro.fechaVisita} />
   </div>
 
+  <!-- Los módulos del formulario se mantienen exactamente igual -->
   <div class="modulo">
     <h3 class="modulo-titulo">1. OPINIÓN DE LOS ANCIANOS</h3>
     <button class="guia-toggle" on:click={() => guias.g1 = !guias.g1}>{guias.g1 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
@@ -289,18 +331,99 @@
 
 <style>
   .contenedor-analisis { padding: 20px; font-family: system-ui; background: #fff; }
-  .cabecera-principal { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #3498db; margin-bottom: 25px; padding-bottom: 10px; }
+  .cabecera-principal { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    border-bottom: 3px solid #3498db; 
+    margin-bottom: 25px; 
+    padding-bottom: 10px; 
+  }
   .grupo-acciones { display: flex; gap: 8px; }
-  button { cursor: pointer; font-weight: bold; border-radius: 6px; border: none; padding: 10px 14px; display: flex; align-items: center; gap: 6px; }
-  .btn-rojo { background-color: #e11d48; color: white; }
-  .btn-gris { background-color: #64748b; color: white; }
-  .btn-azul { background-color: #2563eb; color: white; }
-  .modulo { background: #fcfcfc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-  .modulo-titulo { font-size: 0.9rem; color: #111; margin-bottom: 8px; font-weight: 800; }
-  .guia-toggle { background: #fef2f2; color: #b91c1c; font-size: 0.7rem; padding: 4px 8px; margin-bottom: 8px; }
-  .guia-contenido { background: #fff1f2; border-left: 4px solid #e11d48; padding: 12px; margin-bottom: 10px; font-size: 0.85rem; border-radius: 0 4px 4px 0; }
+  button { 
+    cursor: pointer; 
+    font-weight: bold; 
+    border-radius: 6px; 
+    border: none; 
+    padding: 10px 14px; 
+    display: flex; 
+    align-items: center; 
+    gap: 6px; 
+    transition: all 0.2s ease;
+  }
+  button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .btn-rojo { 
+    background-color: #e11d48; 
+    color: white; 
+  }
+  .btn-rojo:hover {
+    background-color: #be123c;
+  }
+  .btn-gris { 
+    background-color: #64748b; 
+    color: white; 
+  }
+  .btn-gris:hover {
+    background-color: #475569;
+  }
+  .btn-azul { 
+    background-color: #2563eb; 
+    color: white; 
+  }
+  .btn-azul:hover {
+    background-color: #1d4ed8;
+  }
+  .modulo { 
+    background: #fcfcfc; 
+    border: 1px solid #e2e8f0; 
+    border-radius: 10px; 
+    padding: 18px; 
+    margin-bottom: 20px; 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+  }
+  .modulo-titulo { 
+    font-size: 0.9rem; 
+    color: #111; 
+    margin-bottom: 8px; 
+    font-weight: 800; 
+  }
+  .guia-toggle { 
+    background: #fef2f2; 
+    color: #b91c1c; 
+    font-size: 0.7rem; 
+    padding: 4px 8px; 
+    margin-bottom: 8px; 
+    border-radius: 4px;
+  }
+  .guia-contenido { 
+    background: #fff1f2; 
+    border-left: 4px solid #e11d48; 
+    padding: 12px; 
+    margin-bottom: 10px; 
+    font-size: 0.85rem; 
+    border-radius: 0 4px 4px 0; 
+  }
   .guia-contenido p { margin: 4px 0; }
   .guia-contenido p::before { content: "• "; color: #e11d48; font-weight: bold; }
-  textarea { width: 100%; min-height: 100px; border-radius: 6px; border: 1.5px solid #cbd5e1; padding: 10px; resize: vertical; font-family: inherit; }
-  .fecha-seccion { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; background: #f8fafc; padding: 10px; border-radius: 6px; }
+  textarea { 
+    width: 100%; 
+    min-height: 100px; 
+    border-radius: 6px; 
+    border: 1.5px solid #cbd5e1; 
+    padding: 10px; 
+    resize: vertical; 
+    font-family: inherit; 
+  }
+  .fecha-seccion { 
+    margin-bottom: 20px; 
+    display: flex; 
+    align-items: center; 
+    gap: 10px; 
+    background: #f8fafc; 
+    padding: 10px; 
+    border-radius: 6px; 
+  }
 </style>
