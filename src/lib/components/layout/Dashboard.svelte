@@ -53,6 +53,52 @@
   let historialSesion: Record<string, VisitaHistorial[]> = {};
   let historialVisitas: VisitaHistorial[] = [];
 
+  // --- NUEVAS VARIABLES PARA EDICIÓN DEL HISTORIAL ---
+  let datosParaEditar: any = null;
+  
+  // Mapeo para parsear el contenido del historial
+  const clavesHistorial = [
+    'opinionGeneral', 'ministerio', 'territorio', 'atencionTerritorio', 
+    'precursoresMetas', 'reuniones', 'pastoreo', 'crecimiento', 
+    'superServicio', 'publicaciones', 'metas', 'cuerpoAncianos', 
+    'local', 'miscelaneos', 'irregulares', 'potencial', 
+    'analisisPrecursores', 'contabilidad', 'seguimiento'
+  ];
+
+  function generarMapeoInverso() {
+    const mapeo: Record<string, string> = {};
+    clavesHistorial.forEach(clave => {
+      let nombreModulo = clave
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, str => str.toUpperCase())
+        .replace('Cuerpo Ancianos', 'Cuerpo de Ancianos');
+      mapeo[nombreModulo] = clave;
+    });
+    return mapeo;
+  }
+
+  const mapeoInverso = generarMapeoInverso();
+
+  function parsearContenidoHistorial(contenido: string): any {
+    const resultado: any = {};
+    if (!contenido) return resultado;
+    
+    const lineas = contenido.split('\n\n');
+    lineas.forEach(linea => {
+      const separadorIndex = linea.indexOf(': ');
+      if (separadorIndex > 0) {
+        const nombreModulo = linea.substring(0, separadorIndex);
+        const valor = linea.substring(separadorIndex + 2);
+        const clave = mapeoInverso[nombreModulo];
+        if (clave) {
+          resultado[clave] = valor === 'Sin observaciones' ? '' : valor;
+        }
+      }
+    });
+    
+    return resultado;
+  }
+
   let datos: Record<string, Congregacion[]> = {
     "Holguín-14": [
       { nombre: "AEROPUERTO", enVisita: true }, 
@@ -126,60 +172,70 @@
   // --- LÓGICA DE HISTORIAL (EDICIÓN Y EXPORTACIÓN) ---
 
   function editarRegistro(visita: VisitaHistorial) {
-    // Recuperamos el contenido guardado en ese historial
-    observacionesPorCongregacion[seleccionado] = visita.contenido || "";
-    // IMPORTANTE: Reasignamos para que Svelte detecte el cambio en el formulario
-    observacionesPorCongregacion = {...observacionesPorCongregacion};
+    console.log("📝 Editando registro del historial:", visita);
     
+    // Parsear el contenido del historial
+    const datosParseados = parsearContenidoHistorial(visita.contenido || "");
+    datosParseados.fechaVisita = visita.fecha;
+    
+    // Asignar los datos para editar
+    datosParaEditar = datosParseados;
+    
+    // Actualizar la fecha en el store (para que el formulario tenga la fecha correcta)
+    fechaPorCongregacion.update(f => ({ ...f, [seleccionado]: visita.fecha }));
+    
+    // Mostrar el formulario y ocultar el historial
     viendoFormulario = true;
     mostrarHistorial = false;
+    
+    console.log("✅ Datos cargados para edición:", datosParseados);
   }
 
   async function exportarHistorialPDF(visita: VisitaHistorial) {
-  console.log("🧾 Exportando visita:", visita);
+    console.log("🧾 Exportando visita:", visita);
 
-  const contenido = visita.contenido || "";
+    const contenido = visita.contenido || "";
 
-  if (!contenido.trim()) {
-    alert("No se encontró texto guardado en este registro del historial.");
-    return;
+    if (!contenido.trim()) {
+      alert("No se encontró texto guardado en este registro del historial.");
+      return;
+    }
+
+    const doc = new jsPDF();
+    let y = 10;
+
+    doc.setFontSize(16);
+    doc.text(`Informe de Análisis - ${seleccionado}`, 10, y);
+    y += 10;
+
+    doc.setFontSize(12);
+    doc.text(`Fecha de visita: ${visita.fecha}`, 10, y);
+    y += 10;
+
+    const lineas = doc.splitTextToSize(contenido, 180);
+    doc.text(lineas, 10, y);
+
+    const nombreSeguro = seleccionado
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9\s]/g, "_")
+      .replace(/\s+/g, "_");
+
+    const ruta = await save({
+      title: "Guardar informe PDF",
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+      defaultPath: `Informe_${nombreSeguro}_${visita.fecha.replace(/\//g, "-")}.pdf`
+    });
+
+    if (!ruta) {
+      console.log("Guardado cancelado");
+      return;
+    }
+
+    await writeFile(ruta, new Uint8Array(doc.output("arraybuffer")));
+
+    alert("✓ PDF guardado correctamente.");
   }
-
-  const doc = new jsPDF();
-  let y = 10;
-
-  doc.setFontSize(16);
-  doc.text(`Informe de Análisis - ${seleccionado}`, 10, y);
-  y += 10;
-
-  doc.setFontSize(12);
-  doc.text(`Fecha de visita: ${visita.fecha}`, 10, y);
-  y += 10;
-
-  const lineas = doc.splitTextToSize(contenido, 180);
-  doc.text(lineas, 10, y);
-
-  const nombreSeguro = seleccionado
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9\s]/g, "_")
-    .replace(/\s+/g, "_");
-
-  const ruta = await save({
-    title: "Guardar informe PDF",
-    filters: [{ name: "PDF", extensions: ["pdf"] }],
-    defaultPath: `Informe_${nombreSeguro}_${visita.fecha.replace(/\//g, "-")}.pdf`
-  });
-
-  if (!ruta) {
-    console.log("Guardado cancelado");
-    return;
-  }
-
-  await writeFile(ruta, new Uint8Array(doc.output("arraybuffer")));
-
-  alert("✓ PDF guardado correctamente.");
-}
 
   async function eliminarRegistro(id: number) {
     if (!confirm("¿Estás seguro de que deseas eliminar este registro del historial?")) return;
@@ -196,63 +252,64 @@
 
   // --- NAVEGACIÓN Y GUARDADO ---
 
-async function guardarYVolver() {
-  // 1. Tomamos el resumen generado automáticamente por el formulario
-  const resumen = $resumenUltimoAnalisis[seleccionado] || "";
-  console.log("🟩 Resumen recibido desde resumenUltimoAnalisis:", resumen);
+  async function guardarYVolver() {
+    // 1. Tomamos el resumen generado automáticamente por el formulario
+    const resumen = $resumenUltimoAnalisis[seleccionado] || "";
+    console.log("🟩 Resumen recibido desde resumenUltimoAnalisis:", resumen);
 
-  if (!resumen.trim()) {
-    alert("No hay contenido para guardar en el historial.");
-    return;
+    if (!resumen.trim()) {
+      alert("No hay contenido para guardar en el historial.");
+      return;
+    }
+
+    // 2. Creamos el objeto de la visita
+    const nuevaVisita: VisitaHistorial = {
+      id: Date.now(),
+      fecha: $fechaPorCongregacion[seleccionado] || new Date().toLocaleDateString('es-ES'),
+      tipo: "Análisis de Congregación",
+      completado: true,
+      contenido: resumen   // 👈 AHORA SÍ: contenido real del formulario
+    };
+    console.log("🟨 Visita creada:", nuevaVisita);
+
+    // 3. Lo añadimos al historial
+    if (!historialSesion[seleccionado]) historialSesion[seleccionado] = [];
+    historialSesion[seleccionado] = [nuevaVisita, ...historialSesion[seleccionado]];
+    console.log("🟧 Historial actualizado:", historialSesion[seleccionado]);
+
+    // 4. Persistencia y navegación
+    await persistirDatos();
+    cargarHistorialReal();
+
+    // 5. Volver al dashboard
+    viendoFormulario = false;
+    vistaActual = "dashboard";
   }
 
-  // 2. Creamos el objeto de la visita
-  const nuevaVisita: VisitaHistorial = {
-    id: Date.now(),
-    fecha: $fechaPorCongregacion[seleccionado] || new Date().toLocaleDateString('es-ES'),
-    tipo: "Análisis de Congregación",
-    completado: true,
-    contenido: resumen   // 👈 AHORA SÍ: contenido real del formulario
-  };
-  console.log("🟨 Visita creada:", nuevaVisita);
+  function irAInformes() {
+    vistaActual = "informes";
+    viendoFormulario = false;
+    mostrarHistorial = false;
+    cargarHistorialReal();
+  }
 
-  // 3. Lo añadimos al historial
-  if (!historialSesion[seleccionado]) historialSesion[seleccionado] = [];
-  historialSesion[seleccionado] = [nuevaVisita, ...historialSesion[seleccionado]];
-  console.log("🟧 Historial actualizado:", historialSesion[seleccionado]);
+  function volverAlDashboard() {
+    vistaActual = "dashboard";
+    viendoFormulario = false;
+    mostrarHistorial = false;
+  }
 
-  // 4. Persistencia y navegación
-  await persistirDatos();
-  cargarHistorialReal();
+  function abrirHistorial() {
+    mostrarHistorial = true;
+    viendoFormulario = false;
+    cargarHistorialReal();
+  }
 
-  // 5. Volver al dashboard
-  viendoFormulario = false;
-  vistaActual = "dashboard";
-}
-
-function irAInformes() {
-  vistaActual = "informes";
-  viendoFormulario = false;
-  mostrarHistorial = false;
-  cargarHistorialReal();
-}
-
-function volverAlDashboard() {
-  vistaActual = "dashboard";
-  viendoFormulario = false;
-  mostrarHistorial = false;
-}
-
-function abrirHistorial() {
-  mostrarHistorial = true;
-  viendoFormulario = false;
-  cargarHistorialReal();
-}
-
-function cerrarHistorial() {
-  mostrarHistorial = false;
-  viendoFormulario = false;
-}
+  function cerrarHistorial() {
+    mostrarHistorial = false;
+    viendoFormulario = false;
+    datosParaEditar = null;
+  }
 
   // --- MODALES ---
   let mostrarModal = false;
@@ -298,195 +355,198 @@ function cerrarHistorial() {
   </aside>
 
   <main class="main-panel">
-  {#if vistaActual === "dashboard"}
-    <!-- Contenido del dashboard -->
-    <div class="header-cong">
-      <h2>Congregación <strong>{seleccionado}</strong></h2>
+    {#if vistaActual === "dashboard"}
+      <!-- Contenido del dashboard -->
+      <div class="header-cong">
+        <h2>Congregación <strong>{seleccionado}</strong></h2>
 
-      {#if lista.find(c => c.nombre === seleccionado)?.enVisita}
-        <span class="badge">EN VISITA</span>
-      {/if}
-
-      <div class="config-wrapper">
-        <button class="config-btn" on:click={() => mostrarMenuConfig = !mostrarMenuConfig}>
-          <Settings size={14} /> Configuración
-        </button>
-
-        {#if mostrarMenuConfig}
-          <div class="config-menu">
-            <button on:click={editarCongregacion}>
-              <Pencil size={14} /> Editar congregación
-            </button>
-            <button class="danger" on:click={eliminarCongregacion}>
-              <Trash2 size={14} /> Eliminar congregación
-            </button>
-          </div>
+        {#if lista.find(c => c.nombre === seleccionado)?.enVisita}
+          <span class="badge">EN VISITA</span>
         {/if}
-      </div>
-    </div>
 
-    <div class="grid">
-      {#each secciones as s}
-        <button class="card" on:click={s.action}>
-          <div class="icon-wrap">
-            <svelte:component this={s.icon} size={30} />
-          </div>
-          <div class="text">
-            <h3>{s.titulo}</h3>
-            <span>Acceder a sección</span>
-          </div>
-        </button>
-      {/each}
-    </div>
+        <div class="config-wrapper">
+          <button class="config-btn" on:click={() => mostrarMenuConfig = !mostrarMenuConfig}>
+            <Settings size={14} /> Configuración
+          </button>
 
-  {:else if vistaActual === "informes"}
-    <!-- Contenido de informes -->
-    <div class="report-view">
-      <header class="report-header">
-        <button class="back-link" on:click={volverAlDashboard}>
-          <ArrowLeft size={18} /> Volver al panel
-        </button>
-        
-        <div class="report-title">
-          <h1>Análisis de congregación</h1>
-          <p>Registrando informe para <strong>{seleccionado}</strong></p>
+          {#if mostrarMenuConfig}
+            <div class="config-menu">
+              <button on:click={editarCongregacion}>
+                <Pencil size={14} /> Editar congregación
+              </button>
+              <button class="danger" on:click={eliminarCongregacion}>
+                <Trash2 size={14} /> Eliminar congregación
+              </button>
+            </div>
+          {/if}
         </div>
-
-        <div style="width: 155px;"></div>
-      </header>
-<div class="report-content-scroll">
-  {#if viendoFormulario}
-    <!-- Formulario de análisis con manejo de eventos -->
-    <AnalisisCongregacion 
-      nombreCongregacion={seleccionado} 
-      on:guardarEnHistorial={async (e) => {
-        console.log("🟢 Evento guardarEnHistorial recibido");
-        const { congregacion, fecha, contenido } = e.detail;
-        
-        // Crear nueva visita en el historial
-        const nuevaVisita: VisitaHistorial = {
-          id: Date.now(),
-          fecha: fecha,
-          tipo: "Análisis de Congregación",
-          completado: true,
-          contenido: contenido
-        };
-        
-        // Añadir al historial
-        if (!historialSesion[congregacion]) historialSesion[congregacion] = [];
-        historialSesion[congregacion] = [nuevaVisita, ...historialSesion[congregacion]];
-        
-        // Persistir datos (incluye el historial y el store limpiado por el componente)
-        await persistirDatos();
-        cargarHistorialReal();
-        
-        console.log("✅ Visita guardada en historial");
-      }}
-      on:limpiarFormulario={() => {
-        console.log("🟡 Limpiando formulario...");
-        // Cerrar el formulario
-        viendoFormulario = false;
-      }}
-    />
-
-  {:else if mostrarHistorial}
-    <!-- Historial -->
-    <div class="history-page-container">
-      <div class="history-header" style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
-        <button class="back-btn-modern" on:click={cerrarHistorial}>
-          <ArrowLeft size={18} />
-          <span>Volver a opciones</span>
-        </button>
-
-        <h2 style="margin: 0; font-size: 1.4rem; color: #1e293b; font-weight: 600;">
-          Historial: <span style="color: #2563eb;">{seleccionado}</span>
-        </h2>
       </div>
 
-      <div class="full-history-list">
-        {#each historialVisitas as visita}
-          <div class="history-row">
-            <div class="row-left">
-              <div class="icon-circle">
-                <Clock size={20} />
-              </div>
-              <div class="row-info">
-                <span class="row-date">{visita.fecha}</span>
-                <span class="row-type">{visita.tipo}</span>
-              </div>
+      <div class="grid">
+        {#each secciones as s}
+          <button class="card" on:click={s.action}>
+            <div class="icon-wrap">
+              <svelte:component this={s.icon} size={30} />
             </div>
-            
-            <div class="row-actions" style="display: flex; gap: 8px;">
-              <button class="h-edit-btn" on:click={() => editarRegistro(visita)} title="Editar informe">
-                <Pencil size={14} />
-                <span>Editar</span>
-              </button>
-
-              <button class="h-edit-btn" style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;" on:click={() => exportarHistorialPDF(visita)} title="Descargar PDF">
-                <FileText size={14} />
-                <span>PDF</span>
-              </button>
-              
-              <button class="h-delete-btn" on:click={() => eliminarRegistro(visita.id)}>
-                <Trash2 size={14} />
-              </button>
+            <div class="text">
+              <h3>{s.titulo}</h3>
+              <span>Acceder a sección</span>
             </div>
-          </div>
-        {:else}
-          <div class="history-empty-state">
-            <History size={48} strokeWidth={1} />
-            <p>No hay registros previos para esta congregación.</p>
-          </div>
+          </button>
         {/each}
       </div>
-    </div>
 
-  {:else}
-    <!-- Estado vacío -->
-    <div class="empty-state">
-      <div class="icon-wrapper">
-        <div class="icon-decoration"></div>
-        <div class="empty-icon-container">
-          <ClipboardList size={50} strokeWidth={1.5} />
-        </div>
-      </div>
-
-      <h2>Nuevo Análisis de Congregación</h2>
-      <p>
-        Comienza a registrar los detalles de la visita para <strong>{seleccionado}</strong>. 
-      </p>
-
-      <div class="actions-container" style="display: flex; flex-direction: column; align-items: center; gap: 15px; width: 100%;">
-        <button class="start-btn" on:click={() => viendoFormulario = true}>
-          <Plus size={20} /> 
-          <span>COMENZAR NUEVO ANÁLISIS</span>
-        </button>
-
-        <button 
-          class="history-nav-btn" 
-          on:click={abrirHistorial}
-        >
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <History size={18} />
-            <span>VER HISTORIAL COMPLETO</span>
+    {:else if vistaActual === "informes"}
+      <!-- Contenido de informes -->
+      <div class="report-view">
+        <header class="report-header">
+          <button class="back-link" on:click={volverAlDashboard}>
+            <ArrowLeft size={18} /> Volver al panel
+          </button>
+          
+          <div class="report-title">
+            <h1>Análisis de congregación</h1>
+            <p>Registrando informe para <strong>{seleccionado}</strong></p>
           </div>
-          <ChevronRight size={16} />
-        </button>
-      </div>
-    </div>
-  {/if}
-</div>
 
-<footer class="report-footer">
-  <div class="status-indicator">
-    <div class="pulse-dot"></div>
-    <span>Auto-guardado activo para {seleccionado}</span>
-  </div>
-</footer>
-    </div>
-  {/if} <!-- CIERRE DEL BLOQUE PRINCIPAL -->
-</main>
-</div> <!-- ¡ESTE ES EL CIERRE QUE FALTABA! AÑÁDELO AQUÍ -->
+          <div style="width: 155px;"></div>
+        </header>
+        
+        <div class="report-content-scroll">
+          {#if viendoFormulario}
+            <!-- Formulario de análisis con manejo de eventos -->
+            <AnalisisCongregacion 
+              nombreCongregacion={seleccionado}
+              datosEdicion={datosParaEditar}
+              on:guardarEnHistorial={async (e) => {
+                console.log("🟢 Evento guardarEnHistorial recibido");
+                const { congregacion, fecha, contenido } = e.detail;
+                
+                // Crear nueva visita en el historial
+                const nuevaVisita: VisitaHistorial = {
+                  id: Date.now(),
+                  fecha: fecha,
+                  tipo: "Análisis de Congregación",
+                  completado: true,
+                  contenido: contenido
+                };
+                
+                // Añadir al historial
+                if (!historialSesion[congregacion]) historialSesion[congregacion] = [];
+                historialSesion[congregacion] = [nuevaVisita, ...historialSesion[congregacion]];
+                
+                // Persistir datos (incluye el historial y el store limpiado por el componente)
+                await persistirDatos();
+                cargarHistorialReal();
+                
+                console.log("✅ Visita guardada en historial");
+              }}
+              on:limpiarFormulario={() => {
+                console.log("🟡 Limpiando formulario...");
+                // Cerrar el formulario y resetear datosParaEditar
+                datosParaEditar = null;
+                viendoFormulario = false;
+              }}
+            />
+
+          {:else if mostrarHistorial}
+            <!-- Historial -->
+            <div class="history-page-container">
+              <div class="history-header" style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+                <button class="back-btn-modern" on:click={cerrarHistorial}>
+                  <ArrowLeft size={18} />
+                  <span>Volver a opciones</span>
+                </button>
+
+                <h2 style="margin: 0; font-size: 1.4rem; color: #1e293b; font-weight: 600;">
+                  Historial: <span style="color: #2563eb;">{seleccionado}</span>
+                </h2>
+              </div>
+
+              <div class="full-history-list">
+                {#each historialVisitas as visita}
+                  <div class="history-row">
+                    <div class="row-left">
+                      <div class="icon-circle">
+                        <Clock size={20} />
+                      </div>
+                      <div class="row-info">
+                        <span class="row-date">{visita.fecha}</span>
+                        <span class="row-type">{visita.tipo}</span>
+                      </div>
+                    </div>
+                    
+                    <div class="row-actions" style="display: flex; gap: 8px;">
+                      <button class="h-edit-btn" on:click={() => editarRegistro(visita)} title="Editar informe">
+                        <Pencil size={14} />
+                        <span>Editar</span>
+                      </button>
+
+                      <button class="h-edit-btn" style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;" on:click={() => exportarHistorialPDF(visita)} title="Descargar PDF">
+                        <FileText size={14} />
+                        <span>PDF</span>
+                      </button>
+                      
+                      <button class="h-delete-btn" on:click={() => eliminarRegistro(visita.id)}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                {:else}
+                  <div class="history-empty-state">
+                    <History size={48} strokeWidth={1} />
+                    <p>No hay registros previos para esta congregación.</p>
+                  </div>
+                {/each}
+              </div>
+            </div>
+
+          {:else}
+            <!-- Estado vacío -->
+            <div class="empty-state">
+              <div class="icon-wrapper">
+                <div class="icon-decoration"></div>
+                <div class="empty-icon-container">
+                  <ClipboardList size={50} strokeWidth={1.5} />
+                </div>
+              </div>
+
+              <h2>Nuevo Análisis de Congregación</h2>
+              <p>
+                Comienza a registrar los detalles de la visita para <strong>{seleccionado}</strong>. 
+              </p>
+
+              <div class="actions-container" style="display: flex; flex-direction: column; align-items: center; gap: 15px; width: 100%;">
+                <button class="start-btn" on:click={() => viendoFormulario = true}>
+                  <Plus size={20} /> 
+                  <span>COMENZAR NUEVO ANÁLISIS</span>
+                </button>
+
+                <button 
+                  class="history-nav-btn" 
+                  on:click={abrirHistorial}
+                >
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <History size={18} />
+                    <span>VER HISTORIAL COMPLETO</span>
+                  </div>
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          {/if}
+        </div>
+
+        <footer class="report-footer">
+          <div class="status-indicator">
+            <div class="pulse-dot"></div>
+            <span>Auto-guardado activo para {seleccionado}</span>
+          </div>
+        </footer>
+      </div>
+    {/if}
+  </main>
+</div>
 
 {#if mostrarModal}
   <NuevaCongregacionModal 

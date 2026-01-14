@@ -12,6 +12,7 @@
   const dispatch = createEventDispatcher();
   
   export let nombreCongregacion: string;
+  export let datosEdicion: any = null; // Prop para recibir datos del historial para edición
 
   interface RegistroCongregacion {
     fechaVisita: string;
@@ -47,13 +48,27 @@
   let registro: RegistroCongregacion = { ...valoresPorDefecto };
   let congregacionActual = "";
 
+  // Reactividad para cargar datos cuando cambia la congregación o cuando llegan datos de edición
   $: if (nombreCongregacion && nombreCongregacion !== congregacionActual) {
     congregacionActual = nombreCongregacion;
-    const guardado = $observacionesStore[nombreCongregacion];
-    registro = guardado ? { ...valoresPorDefecto, ...guardado } : { ...valoresPorDefecto };
+    // Si hay datosEdicion, los usamos; si no, cargamos del store
+    if (datosEdicion) {
+      console.log("🔄 Cargando datos de edición para nueva congregación:", datosEdicion);
+      registro = { ...valoresPorDefecto, ...datosEdicion };
+    } else {
+      const guardado = $observacionesStore[nombreCongregacion];
+      registro = guardado ? { ...valoresPorDefecto, ...guardado } : { ...valoresPorDefecto };
+    }
   }
-  
-  $: if (nombreCongregacion && congregacionActual === nombreCongregacion) {
+
+  // También reaccionamos a cambios en datosEdicion para la misma congregación
+  $: if (nombreCongregacion && congregacionActual === nombreCongregacion && datosEdicion) {
+    console.log("🔄 Cargando datos de edición en el formulario:", datosEdicion);
+    registro = { ...valoresPorDefecto, ...datosEdicion };
+  }
+
+  // Si no hay datosEdicion, guardamos los cambios en el store
+  $: if (nombreCongregacion && congregacionActual === nombreCongregacion && !datosEdicion) {
     observacionesStore.update(store => ({ ...store, [nombreCongregacion]: { ...registro } }));
   }
 
