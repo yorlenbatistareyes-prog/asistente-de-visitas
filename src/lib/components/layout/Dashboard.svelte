@@ -142,6 +142,13 @@
 
   onMount(cargarDatosGuardados);
 
+  // --- FUNCIÓN PARA RESETEAR ESTADO DEL FORMULARIO ---
+  function resetearEstadoFormulario() {
+    viendoFormulario = false;
+    datosParaEditar = null;
+    // También podrías querer resetear otros estados específicos
+  }
+
   // --- ACCIONES DE CONGREGACIÓN ---
   function abrirModal() { datosEdicion = null; mostrarModal = true; }
 
@@ -161,7 +168,17 @@
     mostrarMenuConfig = false;
   }
 
+  // --- FUNCIÓN ACTUALIZADA: seleccionarCongregacion con limpieza de formulario ---
   async function seleccionarCongregacion(nombre: string) {
+    // Si ya está seleccionada, no hacer nada
+    if (seleccionado === nombre) return;
+    
+    // Si hay un formulario abierto, limpiar el estado
+    if (viendoFormulario) {
+      resetearEstadoFormulario();
+    }
+    
+    // Cambiar la congregación seleccionada
     seleccionado = nombre;
     if (!historialSesion[nombre]) historialSesion[nombre] = [];
     if (!(nombre in observacionesPorCongregacion)) observacionesPorCongregacion[nombre] = "";
