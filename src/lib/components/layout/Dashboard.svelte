@@ -10,7 +10,7 @@
   import { onMount } from 'svelte';
   import { listaCongregaciones, fechaPorCongregacion } from '$lib/stores/appStore';
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
-  import { resumenUltimoAnalisis } from '$lib/stores/appStore';
+
   // TAURI PLUGINS
   import { LazyStore } from '@tauri-apps/plugin-store';
   
@@ -335,7 +335,7 @@
 
   const secciones = [
     { titulo: "Informes", icon: FileText, action: irAInformes },
-    { titulo: "Documentos", icon: Folder, action: () => {} },
+    { titulo: "Documentos", icon: Folder, action: navegarADocumentos },
     { titulo: "Asuntos pendientes", icon: ListChecks, action: () => {} }
   ];
 

@@ -26,4 +26,6 @@ tauri-plugin-store = "2.4.1"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2.3.3"
+zip = "7.0.0"
+flate2 = "1.1.5"
 

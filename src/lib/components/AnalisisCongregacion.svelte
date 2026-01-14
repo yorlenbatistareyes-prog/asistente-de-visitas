@@ -4,12 +4,17 @@
   import { jsPDF } from "jspdf";
   import autoTable from "jspdf-autotable";
   import { save } from "@tauri-apps/plugin-dialog";
-  import { writeFile } from "@tauri-apps/plugin-fs";
+
+  import { writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
   import { fechaPorCongregacion, resumenUltimoAnalisis } from '$lib/stores/appStore';
+  import { construirResumenPlano, type RegistroCongregacion } from '$lib/utils/construirResumenPlano';
   import { createEventDispatcher } from 'svelte';
 
   // Para emitir eventos al padre
   const dispatch = createEventDispatcher();
+
+  export let nombreCongregacion: string;
+  main
   
   export let nombreCongregacion: string;
   export let datosEdicion: any = null; // Prop para recibir datos del historial para edición
