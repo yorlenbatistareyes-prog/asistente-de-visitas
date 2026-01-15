@@ -17,7 +17,7 @@
   }
   
   // Importaciones de lucide-svelte
-  import { Calendar, Clock, PlusCircle, CheckCircle, Circle, Trash2, Edit2, X } from 'lucide-svelte';
+  import { Calendar, Clock, PlusCircle, CheckCircle, Circle, Trash2, Edit2, X, ArrowLeft} from 'lucide-svelte';
   
   // Crear dispatcher para eventos
   const dispatch = createEventDispatcher();
@@ -125,16 +125,16 @@
   <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
     <div style="display: flex; align-items: center; gap: 10px;">
       <Calendar size={24} />
+     
+      <div class="boton-inicio-container">
+       <button on:click={volverAlDashboard} class="btn-volver">
+         <ArrowLeft size={16} />
+         <span style="margin-left: 8px;">Inicio</span>
+       </button>
+      </div>
+      
       <h1>Asuntos Pendientes</h1>
-    </div>
-    
-    <button 
-      class="btn-volver" 
-      on:click={volverAlDashboard}
-    >
-      ← Volver al Dashboard
-    </button>
-  </div>
+    </div></div>
   
   <!-- Contadores -->
   <div class="contadores">
@@ -680,5 +680,128 @@
       padding: 20px;
       margin: 10px;
     }
+  }
+
+  .btn-inicio {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background-color: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  
+  .btn-inicio:hover {
+    background-color: #e5e7eb;
+    border-color: #9ca3af;
+  }
+  
+  /* Versión más compacta */
+  .btn-compacto {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  
+  .btn-compacto:hover {
+    color: #374151;
+  }
+
+  .boton-inicio-container {
+    margin: 1rem 0;
+  }
+  
+  .btn-inicio {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background-color: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  
+  .btn-inicio:hover {
+    background-color: #e5e7eb;
+    border-color: #9ca3af;
+  }
+
+  .btn-inicio {
+  white-space: nowrap;
+}
+
+.btn-volver {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 100px;
+  }
+  
+  .btn-volver:hover {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+  }
+
+  .header-section {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  
+  .btn-volver {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 100px;
+    font-size: 14px;
+    color: #374151;
+  }
+  
+  .btn-volver:hover {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #111827;
+    flex-grow: 1;
   }
 </style>

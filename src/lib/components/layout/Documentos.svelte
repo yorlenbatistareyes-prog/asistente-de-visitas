@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, FileText, Download, Eye, Folder } from "lucide-svelte";
+  import { ArrowLeft, FileText, Download, Eye, Folder, } from "lucide-svelte";
   import { createEventDispatcher } from 'svelte';
 
   const dispatch = createEventDispatcher();
@@ -35,9 +35,13 @@
 
 <div class="documentos-view">
   <header class="header-cong">
-    <button class="back-link" on:click={volver}>
-      <ArrowLeft size={18} /> Volver al panel
-    </button>
+    <div class="boton-inicio-container">
+  <button on:click={() => dispatch('volver')} class="btn-inicio">
+    <ArrowLeft size={18} />
+    <span>Inicio</span>
+  </button>
+</div>
+
     <h2>📄 Documentos Generales</h2>
     <p class="subtitle">Sección independiente - No vinculada a congregación específica</p>
   </header>
@@ -406,4 +410,69 @@
     font-weight: 600;
     cursor: pointer;
   }
+
+  .btn-inicio {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background-color: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  
+  .btn-inicio:hover {
+    background-color: #e5e7eb;
+    border-color: #9ca3af;
+  }
+  
+  /* Versión más compacta */
+  .btn-compacto {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  
+  .btn-compacto:hover {
+    color: #374151;
+  }
+
+  .boton-inicio-container {
+    margin: 1rem 0;
+  }
+  
+  .btn-inicio {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background-color: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  
+  .btn-inicio:hover {
+    background-color: #e5e7eb;
+    border-color: #9ca3af;
+  }
+
+  .btn-inicio {
+  white-space: nowrap;
+}
 </style>
