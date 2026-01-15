@@ -8,9 +8,9 @@
 
   // 1. IMPORTACIONES DE ESTADO Y COMPONENTES
   import { onMount } from 'svelte';
-  import { listaCongregaciones, fechaPorCongregacion } from '$lib/stores/appStore';
+  import { listaCongregaciones, fechaPorCongregacion, resumenUltimoAnalisis, mostrarCircuitBar } from '$lib/stores/appStore';
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
-  import { resumenUltimoAnalisis } from '$lib/stores/appStore';
+  import { goto } from '$app/navigation';
 
   // TAURI PLUGINS
   import { LazyStore } from '@tauri-apps/plugin-store';
@@ -18,7 +18,7 @@
   import jsPDF from "jspdf";
   import { save } from "@tauri-apps/plugin-dialog";
   import { writeFile } from "@tauri-apps/plugin-fs";
-  import { goto } from '$app/navigation';
+  
   // --- INTERFACES ---
   interface Congregacion { 
     nombre: string; 
@@ -46,7 +46,7 @@
   // --- VARIABLES DE ESTADO ---
   export let circuitoNombre: string = "Holguín-14";
   let seleccionado = "AEROPUERTO";
-  let vistaActual: "dashboard" | "informes" = "dashboard";
+  let vistaActual: "dashboard" | "informes" | "pendientes" = "dashboard";
   let viendoFormulario = false; 
   let mostrarHistorial = false;
   
@@ -147,7 +147,6 @@
   function resetearEstadoFormulario() {
     viendoFormulario = false;
     datosParaEditar = null;
-    // También podrías querer resetear otros estados específicos
   }
 
   // --- ACCIONES DE CONGREGACIÓN ---
@@ -171,15 +170,12 @@
 
   // --- FUNCIÓN ACTUALIZADA: seleccionarCongregacion con limpieza de formulario ---
   async function seleccionarCongregacion(nombre: string) {
-    // Si ya está seleccionada, no hacer nada
     if (seleccionado === nombre) return;
     
-    // Si hay un formulario abierto, limpiar el estado
     if (viendoFormulario) {
       resetearEstadoFormulario();
     }
     
-    // Cambiar la congregación seleccionada
     seleccionado = nombre;
     if (!historialSesion[nombre]) historialSesion[nombre] = [];
     if (!(nombre in observacionesPorCongregacion)) observacionesPorCongregacion[nombre] = "";
@@ -192,17 +188,13 @@
   function editarRegistro(visita: VisitaHistorial) {
     console.log("📝 Editando registro del historial:", visita);
     
-    // Parsear el contenido del historial
     const datosParseados = parsearContenidoHistorial(visita.contenido || "");
     datosParseados.fechaVisita = visita.fecha;
     
-    // Asignar los datos para editar
     datosParaEditar = datosParseados;
     
-    // Actualizar la fecha en el store (para que el formulario tenga la fecha correcta)
     fechaPorCongregacion.update(f => ({ ...f, [seleccionado]: visita.fecha }));
     
-    // Mostrar el formulario y ocultar el historial
     viendoFormulario = true;
     mostrarHistorial = false;
     
@@ -271,7 +263,6 @@
   // --- NAVEGACIÓN Y GUARDADO ---
 
   async function guardarYVolver() {
-    // 1. Tomamos el resumen generado automáticamente por el formulario
     const resumen = $resumenUltimoAnalisis[seleccionado] || "";
     console.log("🟩 Resumen recibido desde resumenUltimoAnalisis:", resumen);
 
@@ -280,28 +271,23 @@
       return;
     }
 
-    // 2. Creamos el objeto de la visita
     const nuevaVisita: VisitaHistorial = {
       id: Date.now(),
       fecha: $fechaPorCongregacion[seleccionado] || new Date().toLocaleDateString('es-ES'),
       tipo: "Análisis de Congregación",
       completado: true,
-      contenido: resumen   // 👈 AHORA SÍ: contenido real del formulario
+      contenido: resumen
     };
-    console.log("🟨 Visita creada:", nuevaVisita);
 
-    // 3. Lo añadimos al historial
     if (!historialSesion[seleccionado]) historialSesion[seleccionado] = [];
     historialSesion[seleccionado] = [nuevaVisita, ...historialSesion[seleccionado]];
-    console.log("🟧 Historial actualizado:", historialSesion[seleccionado]);
 
-    // 4. Persistencia y navegación
     await persistirDatos();
     cargarHistorialReal();
 
-    // 5. Volver al dashboard
     viendoFormulario = false;
     vistaActual = "dashboard";
+    $mostrarCircuitBar = true;
   }
 
   function irAInformes() {
@@ -309,12 +295,14 @@
     viendoFormulario = false;
     mostrarHistorial = false;
     cargarHistorialReal();
+    $mostrarCircuitBar = false;
   }
 
   function volverAlDashboard() {
     vistaActual = "dashboard";
     viendoFormulario = false;
     mostrarHistorial = false;
+    $mostrarCircuitBar = true;
   }
 
   function abrirHistorial() {
@@ -335,9 +323,24 @@
   let datosEdicion: Congregacion | null = null;
 
   const secciones = [
-    { titulo: "Informes", icon: FileText, action: irAInformes },
-    { titulo: "Documentos", icon: Folder, action: () => goto('/documentos') },
-    { titulo: "Asuntos pendientes", icon: ListChecks, action: () => {} }
+    { 
+      titulo: "Informes", 
+      icon: FileText, 
+      action: irAInformes 
+    },
+    { 
+      titulo: "Documentos", 
+      icon: Folder, 
+      action: () => goto('/documentos') 
+    },
+    { 
+      titulo: "Asuntos pendientes", 
+      icon: ListChecks, 
+      action: () => {
+        vistaActual = "pendientes";
+        $mostrarCircuitBar = false;
+      } 
+    }
   ];
 
   $: lista = datos[circuitoNombre] || [];
@@ -461,7 +464,6 @@
               }}
               on:limpiarFormulario={() => {
                 console.log("🟡 Limpiando formulario...");
-                // Cerrar el formulario y resetear datosParaEditar
                 datosParaEditar = null;
                 viendoFormulario = false;
               }}
@@ -561,6 +563,18 @@
             <span>Auto-guardado activo para {seleccionado}</span>
           </div>
         </footer>
+      </div>
+
+    {:else if vistaActual === "pendientes"}
+      <!-- Contenido para asuntos pendientes -->
+      <div class="pendientes-view" style="padding: 20px;">
+        <div class="header-cong">
+          <button class="back-link" on:click={volverAlDashboard}>
+            <ArrowLeft size={18} /> Volver al panel
+          </button>
+          <h2>Asuntos Pendientes - {seleccionado}</h2>
+        </div>
+        <p>Sección de asuntos pendientes en desarrollo...</p>
       </div>
     {/if}
   </main>

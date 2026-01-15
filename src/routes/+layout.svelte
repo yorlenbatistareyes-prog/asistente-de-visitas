@@ -1,14 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte'; // Importamos onMount para ejecutar al iniciar
-  import { circuitoActivo, listaCongregaciones } from '$lib/stores/appStore';
-  import { cargarDatos } from '$lib/persistencia'; // Importamos la función de carga
+  import { onMount } from 'svelte';
+  // Importamos los stores necesarios, incluyendo mostrarCircuitBar
+  import { circuitoActivo, listaCongregaciones, mostrarCircuitBar } from '$lib/stores/appStore';
+  import { cargarDatos } from '$lib/persistencia';
   import TopBar from '$lib/components/layout/TopBar.svelte';
   import CircuitBar from '$lib/components/layout/CircuitBar.svelte';
 
   // Al montar el layout (cuando se abre la app en Windows)
   onMount(async () => {
     try {
-      await cargarDatos(); // Leemos el archivo JSON del sistema
+      await cargarDatos();
       console.log("Datos de visitas cargados correctamente");
     } catch (e) {
       console.error("Error al cargar persistencia:", e);
@@ -19,7 +20,10 @@
 <div class="app-container">
   <TopBar />
 
-  <CircuitBar bind:circuitoNombre={$circuitoActivo} />
+  <!-- CONDICIÓN: Solo mostrar CircuitBar si mostrarCircuitBar es true -->
+  {#if $mostrarCircuitBar}
+    <CircuitBar />
+  {/if}
 
   <main class="main-content">
     <slot />
@@ -32,14 +36,12 @@
     padding: 0;
     height: 100vh;
     overflow: hidden; 
-    /* ESTA LÍNEA RECUPERA EL ESTILO ORIGINAL */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color: #1a1a1a;
   }
 
-  /* Asegura que los botones y entradas de texto también usen la misma letra */
   :global(input, button, select, textarea) {
     font-family: inherit;
   }
