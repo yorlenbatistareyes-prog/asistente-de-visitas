@@ -10,7 +10,8 @@
   import { onMount } from 'svelte';
   import { listaCongregaciones, fechaPorCongregacion, resumenUltimoAnalisis, mostrarCircuitBar } from '$lib/stores/appStore';
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
-  import { goto } from '$app/navigation';
+  import Documentos from '$lib/components/layout/Documentos.svelte';
+  import AsuntosPendientes from '$lib/components/layout/AsuntosPendientes.svelte';
 
   // TAURI PLUGINS
   import { LazyStore } from '@tauri-apps/plugin-store';
@@ -46,7 +47,7 @@
   // --- VARIABLES DE ESTADO ---
   export let circuitoNombre: string = "Holguín-14";
   let seleccionado = "AEROPUERTO";
-  let vistaActual: "dashboard" | "informes" | "pendientes" = "dashboard";
+  let vistaActual: "dashboard" | "informes" | "documentos" | "asuntos-pendientes" = "dashboard";
   let viendoFormulario = false; 
   let mostrarHistorial = false;
   
@@ -170,6 +171,15 @@
 
   // --- FUNCIÓN ACTUALIZADA: seleccionarCongregacion con limpieza de formulario ---
   async function seleccionarCongregacion(nombre: string) {
+    console.log('🟡 Intentando seleccionar congregación:', nombre);
+    console.log('📊 Vista actual:', vistaActual);
+    
+    // BLOQUEO TOTAL si no estamos en dashboard o informes
+    if (vistaActual !== "dashboard" && vistaActual !== "informes") {
+      console.log('🚫 BLOQUEADO: No se puede cambiar congregación fuera del dashboard o informes');
+      return;
+    }
+    
     if (seleccionado === nombre) return;
     
     if (viendoFormulario) {
@@ -181,6 +191,8 @@
     if (!(nombre in observacionesPorCongregacion)) observacionesPorCongregacion[nombre] = "";
     cargarHistorialReal();
     mostrarMenuConfig = false;
+    
+    console.log('✅ Congregación cambiada a:', seleccionado);
   }
 
   // --- LÓGICA DE HISTORIAL (EDICIÓN Y EXPORTACIÓN) ---
@@ -290,6 +302,7 @@
     $mostrarCircuitBar = true;
   }
 
+  // --- FUNCIONES PARA CAMBIAR DE VISTA ---
   function irAInformes() {
     vistaActual = "informes";
     viendoFormulario = false;
@@ -298,11 +311,28 @@
     $mostrarCircuitBar = false;
   }
 
+  function irADocumentos() {
+    vistaActual = "documentos";
+    $mostrarCircuitBar = false;
+    seleccionado = ""; // Limpia la selección de congregación
+  }
+
+  function irAAsuntosPendientes() {
+    vistaActual = "asuntos-pendientes";
+    $mostrarCircuitBar = false;
+    seleccionado = ""; // Limpia la selección de congregación
+  }
+
   function volverAlDashboard() {
     vistaActual = "dashboard";
     viendoFormulario = false;
     mostrarHistorial = false;
     $mostrarCircuitBar = true;
+    
+    // Restaura la selección de congregación si hay alguna
+    if (lista.length > 0 && (!seleccionado || seleccionado === "")) {
+      seleccionado = lista[0].nombre;
+    }
   }
 
   function abrirHistorial() {
@@ -331,15 +361,12 @@
     { 
       titulo: "Documentos", 
       icon: Folder, 
-      action: () => goto('/documentos') 
+      action: irADocumentos 
     },
     { 
       titulo: "Asuntos pendientes", 
       icon: ListChecks, 
-      action: () => {
-        vistaActual = "pendientes";
-        $mostrarCircuitBar = false;
-      } 
+      action: irAAsuntosPendientes
     }
   ];
 
@@ -347,35 +374,38 @@
 </script>
 
 <div class="dashboard">
-  <aside class="sidebar-cong">
-    <div class="label-box">
-      <MapPin size={12} /> 
-      <span>CONGREGACIONES</span>
-    </div>
-
-    <div class="scroll-area">
-      <div class="items">
-        {#each lista as cong}
-          <button 
-            class="item {seleccionado === cong.nombre ? 'active' : ''}" 
-            on:click={() => seleccionarCongregacion(cong.nombre)}
-          >
-            <div class="item-text">
-              <strong>{cong.nombre}</strong>
-              <p class="fecha">Última visita: {$fechaPorCongregacion[cong.nombre] || "—"}</p>
-            </div>
-            <ChevronRight size={14} />
-          </button>
-        {/each}
+  <!-- Sidebar SOLO visible en Dashboard e Informes -->
+  {#if vistaActual === "dashboard" || vistaActual === "informes"}
+    <aside class="sidebar-cong">
+      <div class="label-box">
+        <MapPin size={12} /> 
+        <span>CONGREGACIONES</span>
       </div>
-    </div>
 
-    <button class="add-btn" on:click={abrirModal}>
-      <Plus size={16} /> Nueva Congregación
-    </button>
-  </aside>
+      <div class="scroll-area">
+        <div class="items">
+          {#each lista as cong}
+            <button 
+              class="item {seleccionado === cong.nombre ? 'active' : ''}" 
+              on:click={() => seleccionarCongregacion(cong.nombre)}
+            >
+              <div class="item-text">
+                <strong>{cong.nombre}</strong>
+                <p class="fecha">Última visita: {$fechaPorCongregacion[cong.nombre] || "—"}</p>
+              </div>
+              <ChevronRight size={14} />
+            </button>
+          {/each}
+        </div>
+      </div>
 
-  <main class="main-panel">
+      <button class="add-btn" on:click={abrirModal}>
+        <Plus size={16} /> Nueva Congregación
+      </button>
+    </aside>
+  {/if}
+
+  <main class="main-panel {vistaActual === 'documentos' || vistaActual === 'asuntos-pendientes' ? 'full-width' : ''}">
     {#if vistaActual === "dashboard"}
       <!-- Contenido del dashboard -->
       <div class="header-cong">
@@ -508,7 +538,7 @@
                       </button>
                       
                       <button class="h-delete-btn" on:click={() => eliminarRegistro(visita.id)}>
-                        <Trash2 size={14} />
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </div>
@@ -565,17 +595,14 @@
         </footer>
       </div>
 
-    {:else if vistaActual === "pendientes"}
-      <!-- Contenido para asuntos pendientes -->
-      <div class="pendientes-view" style="padding: 20px;">
-        <div class="header-cong">
-          <button class="back-link" on:click={volverAlDashboard}>
-            <ArrowLeft size={18} /> Volver al panel
-          </button>
-          <h2>Asuntos Pendientes - {seleccionado}</h2>
-        </div>
-        <p>Sección de asuntos pendientes en desarrollo...</p>
-      </div>
+    {:else if vistaActual === "documentos"}
+      <!-- Componente Documentos independiente -->
+      <Documentos on:volver={volverAlDashboard} on:cerrar={volverAlDashboard} />
+
+    {:else if vistaActual === "asuntos-pendientes"}
+      <!-- Componente Asuntos Pendientes independiente -->
+      <AsuntosPendientes on:volver={volverAlDashboard} on:cerrar={volverAlDashboard} />
+
     {/if}
   </main>
 </div>
@@ -629,6 +656,10 @@
 
   /* 3. Panel Principal */
   .main-panel { flex: 1; height: 100%; overflow-y: auto; }
+  .main-panel.full-width {
+    width: 100%;
+    margin-left: 0;
+  }
   .header-cong { display: flex; align-items: center; gap: 15px; margin-bottom: 25px; }
   .badge { background: #e11d48; color: white; font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 4px; }
 
@@ -728,5 +759,9 @@
     transform: translateX(-2px);
   }
 
-  </style>
-  
+  /* Asegura que el contenido de Documentos y Asuntos ocupe todo el espacio */
+  .main-panel.full-width > :global(*) {
+    width: 100%;
+    max-width: none;
+  }
+</style>
