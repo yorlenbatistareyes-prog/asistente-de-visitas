@@ -1,41 +1,35 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "windows": ["main"],
+  "description": "Permisos completos",
+  "windows": ["*"],
   "permissions": [
     "core:default",
-    "core:window:allow-close",
-    "core:window:allow-hide",
-    "core:window:allow-show",
     
-    "opener:default", 
-    
-    "dialog:default",
-    "dialog:allow-save",
-    "dialog:allow-open",
+    "opener:default",
+    "opener:allow-open-path",
     
     "fs:default",
-    "fs:allow-write-file",
+    "fs:scope",
+    "fs:allow-read-text-file",
     "fs:allow-write-text-file",
     "fs:allow-read-file",
-    "fs:allow-read-text-file",
+    "fs:allow-write-file",
+    "fs:allow-mkdir",
     "fs:allow-exists",
-    "fs:allow-create",
     "fs:allow-remove",
     "fs:allow-read-dir",
-    
     "fs:allow-copy-file",
-    "fs:allow-applocaldata-write-recursive",
     
-    "shell:allow-open",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
     
     "store:default",
     
     {
       "identifier": "fs:scope",
-      "allow": [
-        { "path": "**" }
-      ]
+      "allow": ["**"]
     }
   ]
 }

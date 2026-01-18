@@ -24,7 +24,7 @@ serde_json = "1"
 # --- Plugins de Tauri ---
 # Mantengo tus versiones actuales para asegurar estabilidad
 tauri-plugin-opener = "2"
-tauri-plugin-store = "2.4.1"
+tauri-plugin-store = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2.3.3"
