@@ -7,9 +7,13 @@
     "core:window:allow-close",
     "core:window:allow-hide",
     "core:window:allow-show",
+    
+    "opener:default", 
+    
     "dialog:default",
     "dialog:allow-save",
     "dialog:allow-open",
+    
     "fs:default",
     "fs:allow-write-file",
     "fs:allow-write-text-file",
@@ -17,13 +21,12 @@
     "fs:allow-read-text-file",
     "fs:allow-exists",
     "fs:allow-create",
-    "fs:allow-read-dir", 
+    "fs:allow-read-dir",
+    
     "shell:allow-open",
-    "store:allow-load",
-    "store:allow-save",
-    "store:allow-get",    
-    "store:allow-set",    
-    "store:allow-delete", 
+    
+    "store:default",
+    
     {
       "identifier": "fs:scope",
       "allow": [

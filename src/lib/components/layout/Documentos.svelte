@@ -1,478 +1,376 @@
 <script lang="ts">
-  import { ArrowLeft, FileText, Download, Eye, Folder, } from "lucide-svelte";
   import { createEventDispatcher } from 'svelte';
+  // Plugin oficial de Tauri para abrir archivos nativos
+  import { open } from '@tauri-apps/plugin-dialog';
+  // Para comunicarse con el Backend (Rust)
+  import { invoke } from '@tauri-apps/api/core'; 
+
+  // Iconos
+  import { 
+    Folder, FileText, FileSpreadsheet, File as FileIcon, 
+    Search, Plus, Download, ChevronRight, Home, 
+    Trash2, ExternalLink, ArrowLeft
+  } from 'lucide-svelte';
+  import { fade } from 'svelte/transition';
 
   const dispatch = createEventDispatcher();
 
-  function volver() {
-    dispatch('volver');
+  // --- 1. DEFINICIÓN DE TIPOS ---
+  interface DocFile {
+    id: string;
+    name: string;
+    type: 'pdf' | 'docx' | 'xlsx' | 'folder' | 'other';
+    path: string;
+    date: string;
+    size?: string;
   }
 
-  // Datos de ejemplo para documentos
-  let documentos = [
-    { id: 1, nombre: "Informe Mensual Circuito", tipo: "PDF", tamaño: "2.4 MB", fecha: "15/03/2024" },
-    { id: 2, nombre: "Estadísticas Bautismos", tipo: "Excel", tamaño: "1.8 MB", fecha: "10/03/2024" },
-    { id: 3, nombre: "Guía de Visitación", tipo: "PDF", tamaño: "3.2 MB", fecha: "05/03/2024" },
-    { id: 4, nombre: "Listado Congregaciones", tipo: "Excel", tamaño: "0.9 MB", fecha: "01/03/2024" },
-    { id: 5, nombre: "Plan Anual de Circuito", tipo: "PDF", tamaño: "4.1 MB", fecha: "25/02/2024" },
-    { id: 6, nombre: "Formato Informe Visita", tipo: "Word", tamaño: "1.2 MB", fecha: "20/02/2024" }
-  ];
+  // --- 2. ESTADO INICIAL (VACÍO) ---
+  let allFiles: DocFile[] = []; 
+  let searchQuery = '';
+  let selectedFile: DocFile | null = null;
+  let currentPath: string[] = ['Inicio'];
 
-  function descargarDocumento(id: number) {
-    const documento = documentos.find(d => d.id === id);
-    if (documento) {
-      alert(`Descargando: ${documento.nombre}`);
+  // --- 3. FILTRADO REACTIVO ---
+  $: filteredFiles = allFiles.filter(f => 
+    f.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // --- 4. UTILIDADES ---
+  const getToday = () => new Date().toLocaleDateString('es-ES');
+
+  function detectType(path: string): DocFile['type'] {
+      const lower = path.toLowerCase();
+      if (lower.endsWith('.pdf')) return 'pdf';
+      if (lower.endsWith('.docx') || lower.endsWith('.doc')) return 'docx';
+      if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) return 'xlsx';
+      return 'other';
+  }
+
+  function getIcon(type: string) {
+    switch (type) {
+      case 'folder': return Folder;
+      case 'pdf': return FileText;
+      case 'xlsx': return FileSpreadsheet;
+      case 'docx': return FileText;
+      default: return FileIcon;
     }
   }
 
-  function verDocumento(id: number) {
-    const documento = documentos.find(d => d.id === id);
-    if (documento) {
-      alert(`Viendo: ${documento.nombre}`);
+  function getColorClass(type: string) {
+    switch (type) {
+      case 'folder': return 'text-yellow-500';
+      case 'pdf': return 'text-red-500';
+      case 'xlsx': return 'text-green-600';
+      case 'docx': return 'text-blue-600';
+      default: return 'text-gray-500';
+    }
+  }
+
+  // --- 5. FUNCIONES DE LÓGICA (RUST) ---
+
+  // A) IMPORTAR ARCHIVOS
+  // Reemplaza tu función importFiles actual con esta versión corregida:
+
+  async function importFiles() {
+    try {
+        const selected = await open({
+            multiple: true,
+            filters: [{
+                name: 'Documentos',
+                extensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt']
+            }]
+        });
+
+        if (Array.isArray(selected)) {
+            for (const path of selected) {
+                const name = path.split(/[\\/]/).pop() || 'Desconocido';
+                const type = detectType(name);
+                const date = getToday();
+                
+                // 1. Actualizar Vista (Frontend)
+                const newDoc: DocFile = {
+                    id: Date.now().toString() + Math.random(),
+                    name,
+                    type,
+                    path,
+                    date,
+                    size: '-' 
+                };
+                
+                allFiles = [...allFiles, newDoc];
+
+                // 2. Guardar en Backend (Rust)
+                // CORRECCIÓN TÉCNICA AQUÍ:
+                // En TypeScript enviamos 'docType' (camelCase).
+                // Tauri lo convierte automáticamente a 'doc_type' para que Rust lo entienda.
+                await invoke('save_document_record', {
+                    name: name,
+                    path: path,
+                    docType: type, // <--- AQUÍ ESTÁ LA CORRECCIÓN (Antes decía doc_type)
+                    size: '0 KB',
+                    date: date
+                });
+            }
+        }
+    } catch (err) {
+        console.error("Error detallado:", err);
+        // Quitamos el alert de permisos porque probablemente el error era solo el nombre del argumento
+        alert("Ocurrió un error al importar. Revisa la consola (F12) para detalles.");
+    }
+  }
+  // B) VINCULAR CARPETA
+  async function linkFolder() {
+    try {
+        // Abrir selector de directorios
+        const selected = await open({
+            directory: true, 
+            multiple: false
+        });
+
+        if (selected && typeof selected === 'string') {
+            const name = selected.split(/[\\/]/).pop() || 'Nueva Carpeta';
+            const date = getToday();
+            
+            // 1. Actualizar Vista
+            const newFolder: DocFile = {
+                id: Date.now().toString(),
+                name: name,
+                type: 'folder',
+                path: selected,
+                date: date
+            };
+
+            allFiles = [...allFiles, newFolder];
+            
+            // 2. Guardar en Backend
+            await invoke('save_document_record', {
+                name: name,
+                path: selected,
+                doc_type: 'folder',
+                size: '-',
+                date: date
+            });
+        }
+    } catch (err) {
+        console.error("Error seleccionando carpeta:", err);
+    }
+  }
+
+  function handleFileClick(file: DocFile) {
+    if (file.type === 'folder') {
+      currentPath = [...currentPath, file.name];
+      // Aquí podrías añadir lógica para listar el contenido real de esa carpeta usando 'fs'
+    } else {
+      selectedFile = file;
+    }
+  }
+
+  // Abrir archivo con el programa predeterminado del sistema
+  async function openExternally() {
+    if(!selectedFile) return;
+    try {
+        // Usa el plugin 'opener' que configuramos en capabilities
+        // Si tienes problemas, asegúrate de importar { open } from '@tauri-apps/plugin-opener'
+        // O usar invoke('plugin:opener|open', ...)
+        alert(`Abriendo: ${selectedFile.path}`);
+        // await invoke('plugin:opener|open', { path: selectedFile.path }); 
+    } catch (e) {
+        alert("No se pudo abrir el archivo.");
     }
   }
 </script>
 
-<div class="documentos-view">
-  <header class="header-cong">
-    <div class="boton-inicio-container">
-  <button on:click={() => dispatch('volver')} class="btn-inicio">
-    <ArrowLeft size={18} />
-    <span>Inicio</span>
-  </button>
-</div>
+<div class="docs-layout">
+  <header class="top-bar">
+    <div class="left-actions">
+      <button class="btn-back" on:click={() => dispatch('volver')} title="Volver al Dashboard">
+        <ArrowLeft size={20} />
+      </button>
+      <h2>Documentos del Circuito</h2>
+    </div>
 
-    <h2>📄 Documentos Generales</h2>
-    <p class="subtitle">Sección independiente - No vinculada a congregación específica</p>
+    <div class="search-box">
+      <Search size={18} class="search-icon" />
+      <input type="text" placeholder="Buscar documento..." bind:value={searchQuery} />
+    </div>
   </header>
 
-  <div class="documentos-content">
-    <div class="documentos-stats">
-      <div class="stat-card">
-        <div class="stat-icon">
-          <Folder size={24} />
-        </div>
-        <div class="stat-info">
-          <div class="stat-number">{documentos.length}</div>
-          <div class="stat-label">Documentos Totales</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon">
-          <FileText size={24} />
-        </div>
-        <div class="stat-info">
-          <div class="stat-number">{documentos.filter(d => d.tipo === 'PDF').length}</div>
-          <div class="stat-label">Documentos PDF</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon">
-          <Download size={24} />
-        </div>
-        <div class="stat-info">
-          <div class="stat-number">{Math.round(documentos.reduce((acc, d) => {
-            const tamañoNum = parseFloat(d.tamaño);
-            return acc + (isNaN(tamañoNum) ? 0 : tamañoNum);
-          }, 0) * 10) / 10} MB</div>
-          <div class="stat-label">Espacio Total</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="documentos-toolbar">
-      <button class="toolbar-btn">
-        <FileText size={16} />
-        <span>Nuevo Documento</span>
-      </button>
-      <button class="toolbar-btn secondary">
-        <Folder size={16} />
-        <span>Crear Carpeta</span>
-      </button>
-      <div class="search-box">
-        <input type="text" placeholder="Buscar documentos..." />
-      </div>
-    </div>
-
-    <div class="documentos-list">
-      <div class="table-header">
-        <div class="col nombre">Nombre del Documento</div>
-        <div class="col tipo">Tipo</div>
-        <div class="col tamaño">Tamaño</div>
-        <div class="col fecha">Fecha</div>
-        <div class="col acciones">Acciones</div>
-      </div>
-
-      {#each documentos as documento (documento.id)}
-        <div class="documento-row">
-          <div class="col nombre">
-            <div class="documento-icon">
-              {#if documento.tipo === 'PDF'}
-                📄
-              {:else if documento.tipo === 'Excel'}
-                📊
-              {:else}
-                📝
-              {/if}
-            </div>
-            <div class="documento-info">
-              <strong>{documento.nombre}</strong>
-              <span class="documento-path">/documentos/generales/</span>
-            </div>
-          </div>
-          <div class="col tipo">
-            <span class="badge {documento.tipo.toLowerCase()}">{documento.tipo}</span>
-          </div>
-          <div class="col tamaño">{documento.tamaño}</div>
-          <div class="col fecha">{documento.fecha}</div>
-          <div class="col acciones">
-            <button class="action-btn view" on:click={() => verDocumento(documento.id)} title="Ver documento">
-              <Eye size={14} />
+  <div class="main-split">
+    <aside class="sidebar-explorer">
+      <div class="toolbar">
+        <div class="btn-group">
+            <button class="btn-tool primary" on:click={importFiles} title="Importar Archivos">
+                <Download size={16} /> <span>Importar</span>
             </button>
-            <button class="action-btn download" on:click={() => descargarDocumento(documento.id)} title="Descargar">
-              <Download size={14} />
+            <button class="btn-tool secondary" on:click={linkFolder} title="Vincular Carpeta">
+                <Plus size={16} /> <span>Carpeta</span>
             </button>
-          </div>
         </div>
-      {/each}
-    </div>
-
-    <div class="documentos-upload">
-      <h3>Subir Nuevo Documento</h3>
-      <div class="upload-area">
-        <FileText size={48} />
-        <p>Arrastra y suelta archivos aquí o haz clic para seleccionar</p>
-        <button class="upload-btn">Seleccionar Archivos</button>
       </div>
-    </div>
+
+      <div class="breadcrumbs">
+        <button class="crumb-home" on:click={() => currentPath = ['Inicio']}>
+            <Home size={14} />
+        </button>
+        {#each currentPath.slice(1) as crumb}
+            <ChevronRight size={12} class="crumb-sep" />
+            <span class="crumb-text">{crumb}</span>
+        {/each}
+      </div>
+
+      <div class="file-list">
+        {#if allFiles.length === 0}
+            <div class="empty-list-sidebar">
+                <p>Carpeta vacía</p>
+                <small>Usa "Importar" para agregar archivos.</small>
+            </div>
+        {:else if filteredFiles.length === 0}
+            <div class="empty-search">
+                <p>No se encontraron resultados.</p>
+            </div>
+        {:else}
+            {#each filteredFiles as file (file.id)}
+            <div 
+                class="file-item" 
+                class:active={selectedFile?.id === file.id}
+                on:click={() => handleFileClick(file)}
+            >
+                <div class="file-icon {getColorClass(file.type)}">
+                    <svelte:component this={getIcon(file.type)} size={20} />
+                </div>
+                <div class="file-info">
+                    <span class="file-name">{file.name}</span>
+                    <span class="file-meta">{file.date} • {file.type.toUpperCase()}</span>
+                </div>
+                {#if file.type === 'folder'}
+                    <ChevronRight size={16} class="folder-arrow" />
+                {/if}
+            </div>
+            {/each}
+        {/if}
+      </div>
+    </aside>
+
+    <main class="preview-panel">
+      {#if selectedFile}
+        <div class="preview-header" transition:fade>
+            <div class="preview-title">
+                <div class="icon-large {getColorClass(selectedFile.type)}">
+                    <svelte:component this={getIcon(selectedFile.type)} size={24} />
+                </div>
+                <div>
+                    <h3 class="file-title-text">{selectedFile.name}</h3>
+                    <small class="path-text">{selectedFile.path}</small>
+                </div>
+            </div>
+            <div class="preview-actions">
+                <button class="btn-preview" on:click={openExternally} title="Abrir externamente">
+                    <ExternalLink size={18} /> Abrir
+                </button>
+                <button class="btn-preview delete" title="Eliminar referencia">
+                    <Trash2 size={18} />
+                </button>
+            </div>
+        </div>
+
+        <div class="preview-content">
+            <div class="placeholder-viewer">
+                {#if selectedFile.type === 'pdf'}
+                    <div class="pdf-mockup">
+                        <FileText size={48} class="text-red-400 mb-2"/>
+                        <p>Documento PDF</p>
+                        <button class="btn-open-real" on:click={openExternally}>Ver PDF</button>
+                    </div>
+                {:else if selectedFile.type === 'xlsx' || selectedFile.type === 'docx'}
+                    <div class="office-mockup">
+                        <svelte:component this={getIcon(selectedFile.type)} size={48} class={getColorClass(selectedFile.type)}/>
+                        <p>Documento de Office</p>
+                        <button class="btn-open-real" on:click={openExternally}>Abrir archivo</button>
+                    </div>
+                {:else}
+                    <p>Archivo seleccionado</p>
+                    <button class="btn-open-real" on:click={openExternally}>Abrir</button>
+                {/if}
+            </div>
+        </div>
+      {:else}
+        <div class="empty-state">
+            <div class="empty-icon-bg">
+                <FileText size={64} color="#cbd5e1" />
+            </div>
+            <h3>Gestor de Documentos</h3>
+            <p>Selecciona un archivo o importa uno nuevo para gestionarlo.</p>
+        </div>
+      {/if}
+    </main>
   </div>
 </div>
 
 <style>
-  .documentos-view {
-    padding: 20px;
-    height: 100%;
-    background: #f9fafb;
-  }
-
-  .header-cong {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 25px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid #e5e7eb;
-  }
-
-  .back-link {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    color: #4b5563;
-    cursor: pointer;
-    font-size: 0.9rem;
-    align-self: flex-start;
-  }
-
-  .back-link:hover {
-    background: #f3f4f6;
-  }
-
-  .header-cong h2 {
-    margin: 0;
-    font-size: 1.8rem;
-    color: #1f2937;
-  }
-
-  .subtitle {
-    margin: 0;
-    color: #6b7280;
-    font-size: 0.95rem;
-  }
-
-  .documentos-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    margin-bottom: 25px;
-  }
-
-  .stat-card {
-    background: white;
-    border-radius: 10px;
-    padding: 20px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    border: 1px solid #e5e7eb;
-  }
-
-  .stat-icon {
-    background: #eff6ff;
-    width: 50px;
-    height: 50px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #3b82f6;
-  }
-
-  .stat-number {
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: #1f2937;
-  }
-
-  .stat-label {
-    font-size: 0.9rem;
-    color: #6b7280;
-  }
-
-  .documentos-toolbar {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    align-items: center;
-  }
-
-  .toolbar-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
-    background: #3b82f6;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 500;
-  }
-
-  .toolbar-btn.secondary {
-    background: #6b7280;
-  }
-
-  .toolbar-btn:hover {
-    opacity: 0.9;
-  }
-
-  .search-box {
-    flex: 1;
-  }
-
-  .search-box input {
-    width: 100%;
-    padding: 10px 15px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    font-size: 0.9rem;
-  }
-
-  .documentos-list {
-    background: white;
-    border-radius: 10px;
-    border: 1px solid #e5e7eb;
-    margin-bottom: 25px;
-    overflow: hidden;
-  }
-
-  .table-header {
-    display: grid;
-    grid-template-columns: 3fr 1fr 1fr 1fr 1fr;
-    padding: 15px;
-    background: #f9fafb;
-    border-bottom: 1px solid #e5e7eb;
-    font-weight: 600;
-    color: #374151;
-    font-size: 0.9rem;
-  }
-
-  .documento-row {
-    display: grid;
-    grid-template-columns: 3fr 1fr 1fr 1fr 1fr;
-    padding: 15px;
-    border-bottom: 1px solid #f3f4f6;
-    align-items: center;
-  }
-
-  .documento-row:hover {
-    background: #f9fafb;
-  }
-
-  .col {
-    padding: 0 8px;
-  }
-
-  .documento-icon {
-    font-size: 1.5rem;
-    margin-right: 12px;
-  }
-
-  .col.nombre {
-    display: flex;
-    align-items: center;
-  }
-
-  .documento-info {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .documento-path {
-    font-size: 0.8rem;
-    color: #9ca3af;
-  }
-
-  .badge {
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 500;
-  }
-
-  .badge.pdf {
-    background: #fee2e2;
-    color: #dc2626;
-  }
-
-  .badge.excel {
-    background: #dcfce7;
-    color: #16a34a;
-  }
-
-  .badge.word {
-    background: #dbeafe;
-    color: #2563eb;
-  }
-
-  .acciones {
-    display: flex;
-    gap: 8px;
-  }
-
-  .action-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 6px;
-    border: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-
-  .action-btn.view {
-    background: #eff6ff;
-    color: #3b82f6;
-  }
-
-  .action-btn.download {
-    background: #f0fdf4;
-    color: #16a34a;
-  }
-
-  .documentos-upload {
-    background: white;
-    border-radius: 10px;
-    padding: 25px;
-    border: 2px dashed #d1d5db;
-    text-align: center;
-  }
-
-  .documentos-upload h3 {
-    margin: 0 0 15px 0;
-    color: #1f2937;
-  }
-
-  .upload-area {
-    padding: 40px 20px;
-    background: #f9fafb;
-    border-radius: 8px;
-    border: 2px dashed #d1d5db;
-  }
-
-  .upload-area p {
-    margin: 15px 0;
-    color: #6b7280;
-  }
-
-  .upload-btn {
-    padding: 12px 24px;
-    background: #3b82f6;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .btn-inicio {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background-color: #f3f4f6;
-    color: #374151;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s ease;
-  }
+  /* --- LAYOUT PRINCIPAL --- */
+  .docs-layout { display: flex; flex-direction: column; height: 100vh; background: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif; color: #334155; overflow: hidden; }
   
-  .btn-inicio:hover {
-    background-color: #e5e7eb;
-    border-color: #9ca3af;
-  }
+  /* --- TOP BAR --- */
+  .top-bar { background: white; border-bottom: 1px solid #e2e8f0; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; height: 60px; box-sizing: border-box; }
+  .left-actions { display: flex; align-items: center; gap: 15px; }
+  .left-actions h2 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+  .btn-back { background: none; border: none; cursor: pointer; color: #64748b; padding: 8px; border-radius: 6px; transition: background 0.2s; }
+  .btn-back:hover { background: #f1f5f9; color: #0f172a; }
   
-  /* Versión más compacta */
-  .btn-compacto {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    background: none;
-    border: none;
-    color: #6b7280;
-    cursor: pointer;
-    font-size: 14px;
-  }
+  /* --- BÚSQUEDA --- */
+  .search-box { position: relative; width: 300px; }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; }
+  .search-box input { width: 100%; padding: 8px 10px 8px 36px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline: none; transition: border 0.2s; }
+  .search-box input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
   
-  .btn-compacto:hover {
-    color: #374151;
-  }
-
-  .boton-inicio-container {
-    margin: 1rem 0;
-  }
+  /* --- SPLIT VIEW --- */
+  .main-split { display: flex; flex: 1; overflow: hidden; }
+  .sidebar-explorer { width: 320px; background: white; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; }
   
-  .btn-inicio {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background-color: #f3f4f6;
-    color: #374151;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s ease;
-  }
+  /* --- TOOLBAR IZQUIERDA --- */
+  .toolbar { padding: 15px; border-bottom: 1px solid #f1f5f9; }
+  .btn-group { display: flex; gap: 10px; }
+  .btn-tool { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+  .btn-tool.primary { background: #3b82f6; color: white; border: none; }
+  .btn-tool.primary:hover { background: #2563eb; }
+  .btn-tool.secondary { background: white; border: 1px solid #cbd5e1; color: #475569; }
+  .btn-tool.secondary:hover { background: #f8fafc; border-color: #94a3b8; }
   
-  .btn-inicio:hover {
-    background-color: #e5e7eb;
-    border-color: #9ca3af;
-  }
-
-  .btn-inicio {
-  white-space: nowrap;
-}
+  /* --- LISTA Y BREADCRUMBS --- */
+  .breadcrumbs { display: flex; align-items: center; padding: 10px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 0.8rem; color: #64748b; }
+  .crumb-home { border: none; background: none; padding: 4px; cursor: pointer; color: inherit; }
+  .crumb-sep { margin: 0 4px; opacity: 0.5; }
+  .file-list { flex: 1; overflow-y: auto; padding: 10px; }
+  .empty-list-sidebar, .empty-search { text-align: center; padding: 20px 10px; color: #94a3b8; font-size: 0.9rem; }
+  .file-item { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 8px; cursor: pointer; transition: background 0.1s; border: 1px solid transparent; }
+  .file-item:hover { background: #f1f5f9; }
+  .file-item.active { background: #eff6ff; border-color: #bfdbfe; }
+  .file-info { flex: 1; overflow: hidden; }
+  .file-name { display: block; font-weight: 500; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-meta { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
+  .folder-arrow { color: #cbd5e1; }
+  .text-yellow-500 { color: #eab308; }
+  .text-red-500 { color: #ef4444; }
+  .text-green-600 { color: #16a34a; }
+  .text-blue-600 { color: #2563eb; }
+  .text-gray-500 { color: #64748b; }
+  .text-red-400 { color: #f87171; }
+  
+  /* --- PANEL DERECHO (PREVIEW) --- */
+  .preview-panel { flex: 1; background: #f8fafc; display: flex; flex-direction: column; padding: 20px; overflow: hidden; }
+  .preview-header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 10px 10px 0 0; border: 1px solid #e2e8f0; border-bottom: none; }
+  .preview-title { display: flex; align-items: center; gap: 12px; }
+  .file-title-text { margin: 0; font-size: 1rem; color: #0f172a; }
+  .path-text { font-size: 0.75rem; color: #94a3b8; display: block; max-width: 400px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .preview-actions { display: flex; gap: 8px; }
+  .btn-preview { display: flex; align-items: center; gap: 6px; background: white; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; color: #475569; }
+  .btn-preview:hover { background: #f1f5f9; color: #0f172a; }
+  .btn-preview.delete:hover { background: #fee2e2; border-color: #fca5a5; color: #ef4444; }
+  .preview-content { flex: 1; background: white; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .placeholder-viewer { text-align: center; color: #64748b; }
+  .pdf-mockup, .office-mockup { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .btn-open-real { margin-top: 10px; padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; text-align: center; }
+  .empty-icon-bg { background: #e2e8f0; width: 100px; height: 100px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
 </style>
