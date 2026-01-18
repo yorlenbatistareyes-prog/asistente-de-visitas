@@ -21,7 +21,11 @@
     "fs:allow-read-text-file",
     "fs:allow-exists",
     "fs:allow-create",
+    "fs:allow-remove",
     "fs:allow-read-dir",
+    
+    "fs:allow-copy-file",
+    "fs:allow-applocaldata-write-recursive",
     
     "shell:allow-open",
     
