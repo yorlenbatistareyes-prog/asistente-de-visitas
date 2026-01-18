@@ -1,8 +1,8 @@
 <script lang="ts">
   import { 
     MapPin, ChevronRight, Plus, FileText, Folder, ListChecks, 
-    Settings, Pencil, Trash2, ArrowLeft, Save, ClipboardList,
-    History, Clock, Download,
+    Settings, Pencil, Trash2, ArrowLeft, ClipboardList,
+    History, Clock
   } from "lucide-svelte";
   import NuevaCongregacionModal from "../modals/NuevaCongregacionModal.svelte";
 
@@ -46,7 +46,10 @@
 
   // --- VARIABLES DE ESTADO ---
   export let circuitoNombre: string = "Holguín-14";
-  let seleccionado = "AEROPUERTO";
+  
+  // Iniciamos sin selección para que no se rompa si está vacío
+  let seleccionado = ""; 
+  
   let vistaActual: "dashboard" | "informes" | "documentos" | "asuntos-pendientes" = "dashboard";
   let viendoFormulario = false; 
   let mostrarHistorial = false;
@@ -101,14 +104,14 @@
     return resultado;
   }
 
+  // --- ESTADO INICIAL VACÍO ---
   let datos: Record<string, Congregacion[]> = {
-    "Holguín-14": [
-      { nombre: "AEROPUERTO", enVisita: true }, 
-      { nombre: "CACOCUM", enVisita: false }
-    ]
+    "Holguín-14": [] 
   };
 
-  const store = new LazyStore('datos_asistente.json');
+  // --- AQUÍ ESTÁ EL TRUCO ---
+  // Cambiamos el nombre del archivo. Al ser un nombre nuevo, se creará VACÍO.
+  const store = new LazyStore('registro_circuito_v1.json');
 
   // --- PERSISTENCIA ---
   async function persistirDatos() {
@@ -132,10 +135,18 @@
       if (histGuardado) historialSesion = histGuardado;
       if (datosGuardados) datos = datosGuardados;
 
+      // Lógica para manejar lista vacía o llena
       const listaActual = datos[circuitoNombre] || [];
-      if (!listaActual.find(c => c.nombre === seleccionado) && listaActual.length > 0) {
-          seleccionado = listaActual[0].nombre;
+      if (listaActual.length > 0) {
+          // Si hay datos, seleccionamos el primero si no hay selección válida
+          if (!seleccionado || !listaActual.find(c => c.nombre === seleccionado)) {
+             seleccionado = listaActual[0].nombre;
+          }
+      } else {
+          // Si NO hay datos, nos aseguramos de que no haya selección
+          seleccionado = ""; 
       }
+
       cargarHistorialReal();
     } catch (err) {
       console.log("Iniciando con datos por defecto.");
@@ -164,17 +175,22 @@
   async function eliminarCongregacion() {
     if(!confirm(`¿Eliminar la congregación ${seleccionado} y todos sus datos?`)) return;
     datos[circuitoNombre] = datos[circuitoNombre].filter(c => c.nombre !== seleccionado);
-    seleccionado = datos[circuitoNombre][0]?.nombre || "";
+    
+    // Si quedan congregaciones, seleccionamos la primera. Si no, vacío.
+    if (datos[circuitoNombre].length > 0) {
+        seleccionado = datos[circuitoNombre][0].nombre;
+    } else {
+        seleccionado = "";
+    }
+
     await persistirDatos();
     mostrarMenuConfig = false;
   }
 
-  // --- FUNCIÓN ACTUALIZADA: seleccionarCongregacion con limpieza de formulario ---
+  // --- FUNCIÓN ACTUALIZADA: seleccionarCongregacion ---
   async function seleccionarCongregacion(nombre: string) {
     console.log('🟡 Intentando seleccionar congregación:', nombre);
-    console.log('📊 Vista actual:', vistaActual);
     
-    // BLOQUEO TOTAL si no estamos en dashboard o informes
     if (vistaActual !== "dashboard" && vistaActual !== "informes") {
       console.log('🚫 BLOQUEADO: No se puede cambiar congregación fuera del dashboard o informes');
       return;
@@ -269,6 +285,10 @@
   }
 
   function cargarHistorialReal() {
+    if (!seleccionado) {
+        historialVisitas = [];
+        return;
+    }
     historialVisitas = historialSesion[seleccionado] || [];
   }
 
@@ -314,13 +334,13 @@
   function irADocumentos() {
     vistaActual = "documentos";
     $mostrarCircuitBar = false;
-    seleccionado = ""; // Limpia la selección de congregación
+    seleccionado = ""; 
   }
 
   function irAAsuntosPendientes() {
     vistaActual = "asuntos-pendientes";
     $mostrarCircuitBar = false;
-    seleccionado = ""; // Limpia la selección de congregación
+    seleccionado = ""; 
   }
 
   function volverAlDashboard() {
@@ -329,7 +349,7 @@
     mostrarHistorial = false;
     $mostrarCircuitBar = true;
     
-    // Restaura la selección de congregación si hay alguna
+    // Restaura la selección solo si hay congregaciones
     if (lista.length > 0 && (!seleccionado || seleccionado === "")) {
       seleccionado = lista[0].nombre;
     }
