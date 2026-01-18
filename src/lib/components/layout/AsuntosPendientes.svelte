@@ -103,6 +103,13 @@
     showModal = false;
     editingTask = null;
   }
+
+  // ... resto de tu código ...
+
+  // Función para enfocar el input automáticamente sin usar 'autofocus'
+  function enfocar(node: HTMLElement) {
+    node.focus();
+  }
 </script>
 
 <div class="layout-wrapper">
@@ -158,8 +165,8 @@
               {#each tasks.filter(t => t.date === dateStr && !t.completed) as task (task.id)}
                 <div class="task-card priority-{task.priority.toLowerCase()}" transition:fly={{y: 10, duration: 300}}>
                   
-                  <button class="check-area" on:click={() => toggleComplete(task.id)}>
-                    <div class="custom-checkbox"></div>
+                  <button class="check-area" on:click={() => toggleComplete(task.id)} aria-label="Marcar tarea como completada">
+                      <div class="custom-checkbox"></div>
                   </button>
 
                   <div class="card-body">
@@ -203,8 +210,22 @@
   </div>
 
   {#if showModal}
-    <div class="modal-overlay" on:click={closeModal} transition:fade={{duration: 150}}>
-      <div class="modal-box" on:click|stopPropagation transition:fly={{y: 50}}>
+    <div 
+      class="modal-overlay" 
+      role="button" 
+      tabindex="0"
+      on:click={closeModal} 
+      on:keydown={(e) => e.key === 'Enter' && closeModal()}
+      transition:fade={{duration: 150}}
+    >
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <div 
+        class="modal-box" 
+        role="document"
+        on:click|stopPropagation 
+        on:keydown|stopPropagation
+        transition:fly={{y: 50}}
+      >
         <div class="modal-top">
           <h3>{editingTask ? 'Editar' : 'Agendar'} Asunto</h3>
           <button on:click={closeModal} class="btn-close"><X size={20}/></button>
@@ -213,7 +234,13 @@
         <form on:submit|preventDefault={saveTask}>
           <div class="input-group">
             <label for="desc">Descripción</label>
-            <input id="desc" bind:value={newTask.title} placeholder="Escribe el asunto..." required autofocus />
+            <input 
+              id="desc" 
+              bind:value={newTask.title} 
+              placeholder="Escribe el asunto..." 
+              required 
+              use:enfocar 
+            />
           </div>
 
           <div class="row-inputs">

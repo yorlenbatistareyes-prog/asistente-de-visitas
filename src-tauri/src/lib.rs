@@ -67,13 +67,15 @@ fn get_personal_agenda() -> Vec<PersonalTask> {
 
 #[tauri::command]
 fn add_personal_task(title: String, date: String, _priority: String) -> String {
-    println!("AGENDA: {}", title);
+    // CORRECCIÓN: Agregamos 'date' al mensaje para que Rust vea que se usa
+    println!("AGENDA: {} - Fecha: {}", title, date);
     "OK".to_string()
 }
 
 #[tauri::command]
 fn save_document_record(name: String, path: String, doc_type: String, _size: String, _date: String) -> String {
-    println!("DOC: {}", name);
+    // CORRECCIÓN: Agregamos 'doc_type' y 'path' al mensaje
+    println!("DOC: {} (Tipo: {}) guardado en: {}", name, doc_type, path);
     "OK".to_string()
 }
 

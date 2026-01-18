@@ -313,7 +313,9 @@
                 class="file-item" 
                 class:active={selectedFile?.id === file.id}
                 on:click={() => handleFileClick(file)}
-                role="button" tabindex="0"
+                on:keydown={(e) => e.key === 'Enter' && handleFileClick(file)}
+                role="button" 
+                tabindex="0"
             >
                 <div class="file-icon {getColorClass(file.type)}">
                     <svelte:component this={getIcon(file.type)} size={20} />
