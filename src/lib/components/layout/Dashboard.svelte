@@ -579,16 +579,6 @@
   .h-edit-btn { display: flex; align-items: center; justify-content: center; background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; padding: 8px 12px; border-radius: 8px; cursor: pointer; gap: 6px; font-weight: 600; font-size: 0.8rem; }
   .h-edit-btn.pdf { background: #fff7ed; color: #c2410c; border-color: #ffedd5; }
   .h-delete-btn { display: flex; align-items: center; justify-content: center; background: #fff1f2; color: #e11d48; border: 1px solid #ffe4e6; padding: 8px; border-radius: 8px; cursor: pointer; }
-
-  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 40px; }
-  .icon-wrapper { position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center; margin-bottom: 25px; }
-  .empty-icon-container { background: #fff1f2; color: #e11d48; width: 100px; height: 100px; border-radius: 35px; display: flex; align-items: center; justify-content: center; z-index: 2; }
-  .icon-decoration { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 2px dashed #fecaca; border-radius: 42px; z-index: 1; }
-  .empty-state h2 { color: #1e293b; font-size: 22px; font-weight: 800; margin-bottom: 10px; }
-  
-  .start-btn { background: #e11d48; color: white; border: none; padding: 15px 30px; border-radius: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: all 0.2s; box-shadow: 0 10px 15px -3px rgba(225, 29, 72, 0.2); }
-  .history-nav-btn { display: flex; align-items: center; justify-content: space-between; width: 320px; padding: 14px 20px; background: white; color: #475569; border: 1px solid #e2e8f0; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-
   .config-wrapper { position: relative; margin-left: auto; }
   .config-btn { display: flex; align-items: center; gap: 8px; background: white; color: #64748b; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .config-menu { position: absolute; top: 40px; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px; width: 150px; z-index: 1000; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
@@ -620,7 +610,7 @@
   .preview-item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px 16px; border-radius: 10px; border: 1px solid #f1f5f9; cursor: pointer; transition: 0.2s; }
   .preview-item:hover { border-color: #e2e8f0; transform: translateX(5px); box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
   .p-left { display: flex; align-items: center; gap: 8px; color: #334155; font-weight: 600; font-size: 0.9rem; }
-  .p-icon { color: #94a3b8; }
   .p-action { font-size: 0.75rem; color: #e11d48; display: flex; align-items: center; gap: 2px; font-weight: 600; opacity: 0; transition: 0.2s; }
   .preview-item:hover .p-action { opacity: 1; }
 </style>
+
