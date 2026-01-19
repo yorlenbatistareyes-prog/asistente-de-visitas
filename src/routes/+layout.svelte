@@ -1,26 +1,32 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  // Importamos los stores necesarios, incluyendo mostrarCircuitBar
   import { circuitoActivo, listaCongregaciones, mostrarCircuitBar } from '$lib/stores/appStore';
   import { cargarDatos } from '$lib/persistencia';
+  
+  // Componentes de Layout
   import TopBar from '$lib/components/layout/TopBar.svelte';
   import CircuitBar from '$lib/components/layout/CircuitBar.svelte';
 
-  // Al montar el layout (cuando se abre la app en Windows)
+  // --- CORRECCIÓN DE LA RUTA ---
+  // Antes: import ... from '$lib/modals/...' (Mal)
+  // Ahora: Agregamos '/components/' a la ruta
+  import ConfiguracionGlobalModal from '$lib/components/modals/ConfiguracionGlobalModal.svelte';
+
+  let mostrarConfig = false;
+
   onMount(async () => {
     try {
       await cargarDatos();
-      console.log("Datos de visitas cargados correctamente");
+      console.log("Datos cargados.");
     } catch (e) {
-      console.error("Error al cargar persistencia:", e);
+      console.error("Error persistencia:", e);
     }
   });
 </script>
 
 <div class="app-container">
-  <TopBar />
+  <TopBar on:abrirConfig={() => mostrarConfig = true} />
 
-  <!-- CONDICIÓN: Solo mostrar CircuitBar si mostrarCircuitBar es true -->
   {#if $mostrarCircuitBar}
     <CircuitBar />
   {/if}
@@ -28,6 +34,10 @@
   <main class="main-content">
     <slot />
   </main>
+
+  {#if mostrarConfig}
+    <ConfiguracionGlobalModal on:close={() => mostrarConfig = false} />
+  {/if}
 </div>
 
 <style>
@@ -51,6 +61,7 @@
     flex-direction: column;
     height: 100vh; 
     width: 100%;
+    position: relative; /* Importante para que el modal se posicione bien */
   }
 
   .main-content {
