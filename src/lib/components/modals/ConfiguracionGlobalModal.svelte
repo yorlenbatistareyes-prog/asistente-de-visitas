@@ -228,12 +228,24 @@
   }
 </script>
 
-<div class="modal-overlay" on:click|self={cerrar}>
+<div 
+  class="modal-overlay" 
+  role="button" 
+  tabindex="0" 
+  on:click|self={cerrar} 
+  on:keydown={(e) => { if(e.key === 'Escape') cerrar() }}
+>
   <div class="modal-content">
     <header>
-      <div class="title-group"><div class="icon-box"><Database size={20} color="#475569"/></div><h3>Configuración Global</h3></div>
-      <button class="close-btn" on:click={cerrar}><X size={20} /></button>
+      <div class="title-group">
+        <div class="icon-box"><Database size={20} color="#475569"/></div>
+        <h3>Configuración Global</h3>
+      </div>
+      <button class="close-btn" on:click={cerrar} aria-label="Cerrar">
+        <X size={20} />
+      </button>
     </header>
+    
     <div class="scroll-content">
       <div class="options-grid">
         <div class="section-label">PERFIL DE USUARIO</div>
@@ -249,7 +261,11 @@
         </div>
         <div class="divider"></div>
         <div class="section-label">GESTIÓN DE DATOS</div>
-        <div class="storage-card" on:click={abrirCarpetaDatos} role="button" tabindex="0" on:keydown={() => {}}><div class="storage-info"><FolderOpen size={20} /><div><h4>Ubicación de Archivos</h4><p>Acceder a la carpeta física de datos</p></div></div><div class="btn-mini">Abrir</div></div>
+        
+        <div class="storage-card" on:click={abrirCarpetaDatos} role="button" tabindex="0" on:keydown={(e) => { if(e.key === 'Enter') abrirCarpetaDatos() }}>
+            <div class="storage-info"><FolderOpen size={20} /><div><h4>Ubicación de Archivos</h4><p>Acceder a la carpeta física de datos</p></div></div><div class="btn-mini">Abrir</div>
+        </div>
+        
         <div class="backup-actions">
           <button class="action-card" on:click={crearBackup} disabled={procesando}><div class="card-icon backup"><Save size={20} /></div><div class="text-col"><h4>Crear Respaldo</h4><p>Guardar TODO</p></div></button>
           <button class="action-card" on:click={restaurarBackup} disabled={procesando}><div class="card-icon restore"><FolderInput size={20} /></div><div class="text-col"><h4>Restaurar Datos</h4><p>Recuperar desde archivo</p></div></button>

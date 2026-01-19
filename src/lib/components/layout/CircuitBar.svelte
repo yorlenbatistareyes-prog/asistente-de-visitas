@@ -150,33 +150,68 @@
 </nav>
 
 {#if mostrarModal}
-  <div class="modal-overlay" transition:fade on:click|self={() => (mostrarModal = false)} role="button" tabindex="-1">
+  <div 
+    class="modal-overlay" 
+    transition:fade 
+    on:click|self={() => (mostrarModal = false)}
+    on:keydown={(e) => { if(e.key === 'Escape') mostrarModal = false; }}
+    role="button"
+    tabindex="0"
+  >
     <div class="modal-card" transition:scale>
       <header>
         <h3>Nuevo Circuito</h3>
-        <button type="button" class="close-btn" on:click={() => (mostrarModal = false)}><X size={20} /></button>
+        <button type="button" class="close-btn" on:click={() => (mostrarModal = false)} aria-label="Cerrar">
+          <X size={20} />
+        </button>
       </header>
+
       <div class="modal-body">
-        <div class="info-banner">Se creará un nuevo registro de circuito vacío.</div>
+        <div class="info-banner">
+          Se creará un nuevo registro de circuito vacío.
+        </div>
+
         <label for="c-name">Identificador</label>
         <div class="input-with-icon">
           <Plus size={18} class="plus-icon" />
-          <input id="c-name" bind:value={nuevoNombre} placeholder="Ej: HOLGUÍN-15" on:keydown={(e) => e.key === 'Enter' && guardar()}/>
+          <input 
+            id="c-name"
+            bind:value={nuevoNombre} 
+            placeholder="Ej: HOLGUÍN-15"
+            on:keydown={(e) => e.key === 'Enter' && guardar()}
+          />
         </div>
+
         <div class="row-cols">
           <div class="col">
             <label for="c-lang">Idioma</label>
-            <div class="input-with-icon"><input id="c-lang" bind:value={nuevoIdioma} placeholder="Opcional" /></div>
+            <div class="input-with-icon">
+              <input id="c-lang" bind:value={nuevoIdioma} placeholder="Opcional" />
+            </div>
           </div>
           <div class="col">
             <label for="c-country">País</label>
-            <div class="input-with-icon"><input id="c-country" bind:value={nuevoPais} placeholder="Opcional" /></div>
+            <div class="input-with-icon">
+              <input id="c-country" bind:value={nuevoPais} placeholder="Opcional" />
+            </div>
           </div>
         </div>
+
       </div>
+
       <footer>
-        <button type="button" class="btn-text" on:click={() => (mostrarModal = false)}>Cancelar</button>
-        <button type="button" class="btn-save" on:click={guardar} disabled={!nuevoNombre.trim()}>Crear</button>
+        <button type="button" class="btn-text" on:click={() => (mostrarModal = false)}>
+          Cancelar
+        </button>
+
+        <button 
+          type="button" 
+          class="btn-save" 
+          on:click={guardar}
+          disabled={!nuevoNombre.trim()}
+        >
+          Crear
+        </button>
       </footer>
     </div>
   </div>
