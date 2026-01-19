@@ -1,21 +1,25 @@
 <script lang="ts">
   import { FileText, Save, CheckCircle } from "lucide-svelte";
-  import { observacionesStore, guardarDatos } from '$lib/persistencia';
-  import { jsPDF } from "jspdf";
-  import autoTable from "jspdf-autotable";
-  import { save } from "@tauri-apps/plugin-dialog";
-
-  // IMPORTANTE: Librerías para leer la configuración del usuario (Pie de página)
-  import { writeFile, readTextFile, BaseDirectory, exists } from "@tauri-apps/plugin-fs";
-  
-  import { fechaPorCongregacion, resumenUltimoAnalisis } from '$lib/stores/appStore';
   import { createEventDispatcher } from 'svelte';
+  
+  // TAURI & STORES (Arquitectura Nueva: LazyStore)
+  import { LazyStore } from '@tauri-apps/plugin-store'; 
+  import { writeFile, readTextFile, BaseDirectory, exists } from "@tauri-apps/plugin-fs";
+  import { save } from "@tauri-apps/plugin-dialog";
+  
+  // PDF
+  import jsPDF from "jspdf";
+  import autoTable from "jspdf-autotable";
+
+  // STORES DE UI (Solo para actualizar la vista del Dashboard en tiempo real)
+  import { fechaPorCongregacion, resumenUltimoAnalisis } from '$lib/stores/appStore';
 
   const dispatch = createEventDispatcher();
   
   export let nombreCongregacion: string;
   export let datosEdicion: any = null;
 
+  // INTERFAZ DE DATOS
   interface RegistroCongregacion {
     fechaVisita: string;
     opinionGeneral: string;
@@ -49,85 +53,130 @@
 
   let registro: RegistroCongregacion = { ...valoresPorDefecto };
   let congregacionActual = "";
+  
+  // CONEXIÓN DIRECTA A BASE DE DATOS (Vital para el respaldo)
+  const store = new LazyStore('registro_circuito_v1.json');
+  let mapaObservaciones: Record<string, any> = {};
 
-  // --- CARGA DE DATOS ---
+  // --- REACTIVIDAD Y CARGA DE DATOS ---
+  
+  // 1. Si cambia la congregación seleccionada en el menú
   $: if (nombreCongregacion && nombreCongregacion !== congregacionActual) {
     congregacionActual = nombreCongregacion;
-    if (datosEdicion) {
-      registro = { ...valoresPorDefecto, ...datosEdicion };
-    } else {
-      const guardado = $observacionesStore[nombreCongregacion];
-      registro = guardado ? { ...valoresPorDefecto, ...guardado } : { ...valoresPorDefecto };
+    if (!datosEdicion) {
+        cargarDatosBorrador();
     }
   }
 
-  $: if (nombreCongregacion && congregacionActual === nombreCongregacion && datosEdicion) {
+  // 2. Si entramos en modo edición desde el historial
+  $: if (datosEdicion) {
+    // Si hay datos de edición, tienen prioridad sobre el borrador
     registro = { ...valoresPorDefecto, ...datosEdicion };
   }
 
-  $: if (nombreCongregacion && congregacionActual === nombreCongregacion && !datosEdicion) {
-    observacionesStore.update(store => ({ ...store, [nombreCongregacion]: { ...registro } }));
+  // Función para cargar lo que se estaba escribiendo (Borrador)
+  async function cargarDatosBorrador() {
+    try {
+      // Obtenemos el objeto 'observaciones' completo del archivo JSON
+      const obs = await store.get<Record<string, any>>('observaciones');
+      mapaObservaciones = obs || {};
+      
+      const guardado = mapaObservaciones[nombreCongregacion];
+      if (guardado) {
+        registro = { ...valoresPorDefecto, ...guardado };
+      } else {
+        registro = { ...valoresPorDefecto };
+      }
+    } catch (e) {
+      console.log("Creando registro nuevo.");
+      registro = { ...valoresPorDefecto };
+    }
   }
 
+  // --- GUARDAR BORRADOR (DISCO DURO) ---
   async function guardarCambios() {
     if (!nombreCongregacion) { alert("⚠️ No hay congregación seleccionada."); return; }
+    
     try {
-      await guardarDatos($observacionesStore);
-      alert("✅ Cambios guardados correctamente.");
-    } catch (error) { console.error(error); alert("❌ Error al guardar."); }
+      // 1. Aseguramos tener la última versión del mapa
+      const obs = await store.get<Record<string, any>>('observaciones') || {};
+      mapaObservaciones = obs;
+
+      // 2. Actualizamos solo esta congregación
+      mapaObservaciones[nombreCongregacion] = registro;
+      
+      // 3. Escribimos en el archivo físico
+      await store.set('observaciones', mapaObservaciones);
+      await store.save(); // ¡IMPORTANTE! Esto confirma la escritura en disco
+      
+      alert("✅ Borrador guardado correctamente.");
+    } catch (error) { 
+      console.error(error); 
+      alert("❌ Error al guardar en disco."); 
+    }
   }
 
+  // --- FINALIZAR (Mover a Historial) ---
   async function finalizarInforme() {
     if (!nombreCongregacion || !registro.fechaVisita) { alert("⚠️ Ingresa la fecha antes de finalizar."); return; }
     if (!confirm("¿Finalizar y limpiar formulario? Esta acción guardará el informe en el historial.")) return;
 
     try {
+      // 1. Generar resumen de texto
       const resumen = Object.entries(registro)
         .filter(([key]) => key !== 'fechaVisita')
         .map(([k, v]) => {
-          const nombreModulo = k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).replace('Cuerpo Ancianos', 'Cuerpo de Ancianos');
+          const nombreModulo = k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
+            .replace('Cuerpo Ancianos', 'Cuerpo de Ancianos');
           return `${nombreModulo}: ${v || 'Sin observaciones'}`;
         })
         .join('\n\n');
       
+      // 2. Actualizar Stores de UI (Badges y textos en Dashboard)
       resumenUltimoAnalisis.update(r => ({ ...r, [nombreCongregacion]: resumen }));
       fechaPorCongregacion.update(f => ({ ...f, [nombreCongregacion]: registro.fechaVisita }));
 
-      dispatch('guardarEnHistorial', { congregacion: nombreCongregacion, fecha: registro.fechaVisita, contenido: resumen });
+      // 3. Emitir evento para que el Dashboard guarde el Historial Físico
+      dispatch('guardarEnHistorial', { 
+        congregacion: nombreCongregacion, 
+        fecha: registro.fechaVisita, 
+        contenido: resumen 
+      });
       
-      const nuevaCopiaStore = { ...$observacionesStore };
-      nuevaCopiaStore[nombreCongregacion] = { ...valoresPorDefecto };
-      observacionesStore.set(nuevaCopiaStore);
-      await guardarDatos(nuevaCopiaStore);
+      // 4. Limpiar el borrador en el archivo físico
+      const obs = await store.get<Record<string, any>>('observaciones') || {};
+      if (obs[nombreCongregacion]) {
+        obs[nombreCongregacion] = { ...valoresPorDefecto }; // Reseteamos data
+        await store.set('observaciones', obs);
+        await store.save();
+      }
       
+      // 5. Limpiar formulario visual
       registro = { ...valoresPorDefecto };
       dispatch('limpiarFormulario');
+      
       alert("✅ Informe finalizado y guardado en el historial.");
     } catch (e) { console.error(e); alert("❌ Error al finalizar."); }
   }
 
-  // --- FUNCIÓN PDF ACTUALIZADA (Con Pie de Página y Configuración) ---
+  // --- GENERAR PDF ---
   async function generarPDF() {
     let firmaUsuario = "";
     let textoPiePagina = "Informe generado por Asistente de Visitas"; 
 
-    // Intentamos leer la configuración del usuario
+    // Leer configuración del usuario para el pie de página
     try {
-      const existe = await exists('config_usuario.json', { baseDir: BaseDirectory.AppData });
-      if (existe) {
-        const content = await readTextFile('config_usuario.json', { baseDir: BaseDirectory.AppData });
+      if (await exists('config_usuario.json', { baseDir: BaseDirectory.AppLocalData })) {
+        const content = await readTextFile('config_usuario.json', { baseDir: BaseDirectory.AppLocalData });
         const config = JSON.parse(content);
-        if (config.nombre) {
-            firmaUsuario = `Generado por: ${config.nombre}`;
-            if (config.rol) firmaUsuario += ` (${config.rol})`;
-        }
+        if (config.nombre) firmaUsuario = `Generado por: ${config.nombre}` + (config.rol ? ` (${config.rol})` : "");
         if (config.piePagina) textoPiePagina = config.piePagina;
       }
-    } catch (e) { console.log("Usando valores PDF por defecto."); }
+    } catch (e) { console.log("Usando configuración por defecto."); }
 
     const doc = new jsPDF();
     
-    // Cabecera
+    // Encabezado
     doc.setFontSize(18); doc.setTextColor(40, 40, 40);
     doc.text(`Análisis: ${nombreCongregacion}`, 14, 20);
     doc.setFontSize(11); doc.setTextColor(80, 80, 80);
@@ -142,7 +191,7 @@
          return [label, v || 'Sin observaciones'];
       });
 
-    // Tabla con corrección de cellWidth y Pie de Página
+    // Tabla PDF corregida (cellWidth)
     autoTable(doc, { 
       startY: 35, 
       head: [['Módulo', 'Observaciones']],
@@ -150,19 +199,19 @@
       theme: 'grid',
       headStyles: { fillColor: [225, 29, 72], textColor: 255, fontStyle: 'bold' },
       columnStyles: { 
-        0: { fontStyle: 'bold', cellWidth: 60 }, // 'cellWidth' es la propiedad correcta
+        0: { fontStyle: 'bold', cellWidth: 60 }, 
         1: { cellWidth: 'auto' } 
       },
       didDrawPage: (data) => {
         const pageSize = doc.internal.pageSize;
         doc.setFontSize(8); doc.setTextColor(150, 150, 150);
         
-        // Firma a la izquierda
+        // Firma izquierda
         if (firmaUsuario) doc.text(firmaUsuario, 14, pageSize.height - 10);
         
-        // Texto personalizado a la derecha
-        const anchoTexto = doc.getTextWidth(textoPiePagina);
-        doc.text(textoPiePagina, pageSize.width - 14 - anchoTexto, pageSize.height - 10);
+        // Pie derecha
+        const ancho = doc.getTextWidth(textoPiePagina);
+        doc.text(textoPiePagina, pageSize.width - 14 - ancho, pageSize.height - 10);
       }
     });
 
@@ -178,6 +227,7 @@
     }
   }
 
+  // Estado de las guías de ayuda
   let guias = {
     g1: false, g2: false, g3: false, g4: false, g5: false, g6: false, g7: false, g8: false,
     g9: false, g10: false, g11: false, g12: false, g13: false, g14: false, g15: false,
@@ -503,6 +553,7 @@
   .modulo-titulo { font-size: 0.9rem; color: #111; margin-bottom: 8px; font-weight: 800; }
   .guia-toggle { background: #fef2f2; color: #b91c1c; font-size: 0.7rem; padding: 4px 8px; margin-bottom: 8px; border-radius: 4px; }
   
+  /* ESTILOS DE PREGUNTAS (Separadas) */
   .guia-contenido { 
     background: #fff1f2; 
     border-left: 4px solid #e11d48; 

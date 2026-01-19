@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core'; // O '@tauri-apps/api/tauri'
+  // CORRECCIÓN: Usamos el sistema de archivos directo (FS) que sabemos que sí tienes instalado
+  import { readTextFile, writeTextFile, BaseDirectory, exists } from '@tauri-apps/plugin-fs';
   import { Calendar, Plus, CheckCircle2, Check, Trash2, Edit3, X, ArrowLeft, AlertTriangle, Briefcase, Clock } from 'lucide-svelte';
   import { slide, fade, fly } from 'svelte/transition';
 
@@ -10,7 +11,7 @@
   interface Task {
     id: number;
     title: string;
-    date: string; // YYYY-MM-DD
+    date: string;
     priority: 'Alta' | 'Normal';
     completed: boolean;
   }
@@ -33,15 +34,12 @@
 
   $: pendingCount = tasks.filter(t => !t.completed).length;
 
-  // --- 3. LÓGICA DE AGRUPACIÓN POR FECHA ---
-  
-  // Obtenemos todas las fechas únicas de las tareas pendientes, ordenadas
+  // --- 3. LÓGICA DE FECHAS ---
   $: uniqueDates = [...new Set(tasks.filter(t => !t.completed).map(t => t.date))].sort();
 
-  // Función para formatear fecha bonita (Ej: "Lunes, 25 de Octubre")
   function formatDateNice(dateStr: string) {
     if (!dateStr) return 'Sin fecha';
-    const date = new Date(dateStr + 'T12:00:00'); // T12 para evitar problemas de zona horaria
+    const date = new Date(dateStr + 'T12:00:00');
     return new Intl.DateTimeFormat('es-ES', { 
         weekday: 'long', 
         day: 'numeric', 
@@ -49,41 +47,73 @@
     }).format(date);
   }
 
-  // Helper para saber si una fecha es HOY (para resaltarla)
   function isToday(dateStr: string) {
       return dateStr === getTodayStr();
   }
 
-  // --- 4. CICLO DE VIDA ---
+  // --- 4. CICLO DE VIDA (CARGA SEGURA) ---
   onMount(async () => {
-    try {
-      tasks = await invoke('get_personal_agenda');
-    } catch (error) {
-      console.log("Iniciando agenda limpia.");
-      tasks = []; 
-    }
+    await cargarDesdeDisco();
   });
 
-  // --- 5. FUNCIONES ---
+  async function cargarDesdeDisco() {
+    try {
+      // Leemos app_data.json desde AppLocalData (donde guarda el backup)
+      const existe = await exists('app_data.json', { baseDir: BaseDirectory.AppLocalData });
+      
+      if (existe) {
+        const contenido = await readTextFile('app_data.json', { baseDir: BaseDirectory.AppLocalData });
+        const datos = JSON.parse(contenido);
+        // Si el archivo tiene la clave 'pendientes', la usamos
+        if (datos && Array.isArray(datos.pendientes)) {
+          tasks = datos.pendientes;
+        } else {
+          tasks = [];
+        }
+      } else {
+        tasks = [];
+      }
+    } catch (error) {
+      console.error("Error cargando:", error);
+      tasks = []; 
+    }
+  }
+
+  // --- 5. PERSISTENCIA (GUARDADO SEGURO) ---
+  async function guardarEnDisco() {
+    try {
+      // Creamos la estructura correcta
+      const datosAGuardar = { pendientes: tasks };
+      const texto = JSON.stringify(datosAGuardar, null, 2);
+      
+      // Escribimos directamente. Esto asegura que el Backup lo encuentre.
+      await writeTextFile('app_data.json', texto, { baseDir: BaseDirectory.AppLocalData });
+    } catch (e) {
+      console.error("Error guardando:", e);
+    }
+  }
+
+  // --- 6. FUNCIONES DE UI ---
   async function saveTask() {
     if (editingTask) {
       tasks = tasks.map(t => t.id === editingTask!.id ? { ...t, ...newTask } : t);
       editingTask = null;
     } else {
-      try {
-        await invoke('add_personal_task', { ...newTask });
-        const updated = await invoke('get_personal_agenda') as Task[];
-        if(updated && updated.length > tasks.length) tasks = updated;
-        else tasks = [...tasks, { id: Date.now(), ...newTask, completed: false }];
-      } catch (e) {
-        tasks = [...tasks, { id: Date.now(), ...newTask, completed: false }];
-      }
+      const nueva: Task = { 
+        id: Date.now(), 
+        ...newTask, 
+        completed: false 
+      };
+      tasks = [...tasks, nueva];
     }
+    
+    await guardarEnDisco(); // Guardamos al instante
     closeModal();
   }
 
-  function toggleComplete(id: number) {
+  async function toggleComplete(id: number) {
     tasks = tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
+    await guardarEnDisco(); // Guardamos el cambio de estado
   }
 
   function prepareEdit(task: Task) {
@@ -92,9 +122,10 @@
     showModal = true;
   }
 
-  function deleteTask(id: number) {
+  async function deleteTask(id: number) {
     if(confirm('¿Eliminar este asunto?')) {
         tasks = tasks.filter(t => t.id !== id);
+        await guardarEnDisco(); // Guardamos el borrado
     }
   }
 
@@ -104,9 +135,6 @@
     editingTask = null;
   }
 
-  // ... resto de tu código ...
-
-  // Función para enfocar el input automáticamente sin usar 'autofocus'
   function enfocar(node: HTMLElement) {
     node.focus();
   }
@@ -218,7 +246,6 @@
       on:keydown={(e) => e.key === 'Enter' && closeModal()}
       transition:fade={{duration: 150}}
     >
-      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <div 
         class="modal-box" 
         role="document"
