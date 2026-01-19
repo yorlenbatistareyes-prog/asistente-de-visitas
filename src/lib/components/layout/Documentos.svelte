@@ -5,17 +5,13 @@
   import { open as openDialog, ask } from '@tauri-apps/plugin-dialog';
   import { copyFile, mkdir, exists, BaseDirectory, readFile, writeTextFile, readTextFile, remove, readDir } from '@tauri-apps/plugin-fs';
   import { appLocalDataDir, join } from '@tauri-apps/api/path';
-  
-  // CORRECCIÓN CRÍTICA:
-  // 1. Agregamos 'invoke' para llamar a Rust.
-  // 2. Quitamos 'openPath' (ya no lo usamos, usamos el nativo).
   import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 
   // --- ICONOS ---
   import { 
     Folder, FileText, FileSpreadsheet, File as FileIcon, 
     Search, Plus, Download, ChevronRight, Home, 
-    Trash2, ExternalLink, ArrowLeft
+    Trash2, ExternalLink, ArrowLeft, AlertTriangle
   } from 'lucide-svelte';
 
   const dispatch = createEventDispatcher();
@@ -215,15 +211,11 @@
       } catch (error) { console.error("Error PDF:", error); }
   }
 
-  // --- FUNCIÓN ABRIR EXTERNO (HÍBRIDA / NATIVA) ---
+  // --- FUNCIÓN ABRIR EXTERNO ---
   async function openExternally() {
     if(!selectedFile) return;
     try {
-        console.log("Solicitando apertura a Rust:", selectedFile.path);
-        
-        // Llamamos a la función 'abrir_archivo_nativo' que creamos en Rust (lib.rs)
         await invoke('abrir_archivo_nativo', { ruta: selectedFile.path });
-        
     } catch (e) {
         console.error("Fallo:", e);
         const txt = String(e);
@@ -231,33 +223,56 @@
     }
   }
 
+  // --- LÓGICA DE ELIMINAR ACTUALIZADA ---
   async function eliminarArchivo(archivo: DocFile, event?: MouseEvent) {
     if (event) event.stopPropagation();
+    
     const esArchivoDeBD = currentPathUrl === ''; 
+    const esCarpeta = archivo.type === 'folder';
+
+    // Mensaje personalizado dependiendo de si es carpeta o archivo
+    const mensaje = esCarpeta 
+        ? `¿Seguro que deseas eliminar la carpeta "${archivo.name}" y TODO su contenido?`
+        : `¿Eliminar "${archivo.name}"?`;
+
     const confirmar = await ask(
-        `¿Eliminar "${archivo.name}"?`, 
-        { title: 'Confirmar', kind: 'warning', okLabel: 'Eliminar', cancelLabel: 'Cancelar' }
+        mensaje, 
+        { 
+            title: esCarpeta ? 'Eliminar Carpeta' : 'Eliminar Archivo', 
+            kind: 'warning', 
+            okLabel: 'Eliminar', 
+            cancelLabel: 'Cancelar' 
+        }
     );
 
     if (!confirmar) return;
 
     try {
         try {
-            await remove(archivo.path, { recursive: archivo.type === 'folder' });
-        } catch (e) { console.warn("Error borrado físico:", e); }
+            // "recursive: true" es la clave para borrar carpetas llenas
+            await remove(archivo.path, { recursive: true });
+        } catch (e) { 
+            console.warn("Error borrado físico (puede que no exista o permisos):", e); 
+        }
 
+        // Actualizar visualmente la lista
         fileListDisplayed = fileListDisplayed.filter(f => f.path !== archivo.path);
 
+        // Si estamos en la raíz, guardar cambios en JSON
         if (esArchivoDeBD) {
             rootFiles = rootFiles.filter(f => f.id !== archivo.id);
             await guardarEnDisco();
         }
 
+        // Si lo que borramos estaba seleccionado en el preview, limpiarlo
         if (selectedFile && selectedFile.path === archivo.path) {
             selectedFile = null;
             pdfUrl = null;
         }
-    } catch (error) { console.error("Error eliminando:", error); }
+    } catch (error) { 
+        console.error("Error eliminando:", error);
+        await ask("Error al eliminar el elemento.", { kind: 'error' });
+    }
   }
 </script>
 
@@ -324,17 +339,18 @@
                     <span class="file-name">{file.name}</span>
                     <span class="file-meta">{file.date}</span>
                 </div>
+                
                 <div class="file-actions-hover">
-                   {#if file.type !== 'folder'}
-                      <button class="btn-mini-delete" title="Eliminar"
+                    <button class="btn-mini-delete" title={file.type === 'folder' ? "Eliminar Carpeta" : "Eliminar Archivo"}
                         on:click|stopPropagation={(e) => eliminarArchivo(file, e)}>
                         <Trash2 size={16} />
-                      </button>
-                   {/if}
-                   {#if file.type === 'folder'}
+                    </button>
+                    
+                    {#if file.type === 'folder'}
                       <ChevronRight size={16} class="folder-arrow" />
-                   {/if}
+                    {/if}
                 </div>
+
             </div>
             {/each}
         {/if}
@@ -393,37 +409,12 @@
   .btn-back { background: none; border: none; cursor: pointer; color: #64748b; padding: 8px; border-radius: 6px; }
   .btn-back:hover { background: #f1f5f9; color: #0f172a; }
 
-  /* --- CORRECCIÓN FINAL DE LA LUPITA --- */
-  .search-box { 
-      position: relative; /* Necesario para que el icono absoluto se quede aquí */
-      width: 300px; 
-      display: flex;
-      align-items: center;
-  }
-  
-  .search-icon { 
-      position: absolute; 
-      left: 10px; 
-      top: 50%;
-      transform: translateY(-50%);
-      color: #94a3b8; 
-      pointer-events: none; /* Permite hacer clic a través del icono */
-      z-index: 10;
-  }
-  
-  .search-box input { 
-      width: 100%; 
-      padding: 8px 10px 8px 36px; /* 36px a la izquierda para dejar sitio al icono */
-      border: 1px solid #cbd5e1; 
-      border-radius: 8px; 
-      outline: none; 
-      font-size: 0.9rem;
-      transition: border 0.2s;
-      background: white;
-  }
+  /* SEARCH BOX */
+  .search-box { position: relative; width: 300px; display: flex; align-items: center; }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; z-index: 10; }
+  .search-box input { width: 100%; padding: 8px 10px 8px 36px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; font-size: 0.9rem; transition: border 0.2s; background: white; }
   .search-box input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
-  /* -------------------------------------- */
-
+  
   .main-split { display: flex; flex: 1; overflow: hidden; height: 100%; }
   .sidebar-explorer { width: 320px; background: white; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; flex-shrink: 0; }
   .toolbar { padding: 15px; border-bottom: 1px solid #f1f5f9; }
@@ -446,8 +437,11 @@
   .file-info { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
   .file-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .file-meta { font-size: 0.75rem; color: #94a3b8; }
-  .file-actions-hover { display: flex; gap: 4px; }
-  .btn-mini-delete { background: transparent; border: none; padding: 4px; color: #ef4444; cursor: pointer; opacity: 0; }
+  .file-actions-hover { display: flex; gap: 4px; align-items: center; }
+  
+  /* ESTILOS BOTON ELIMINAR */
+  .btn-mini-delete { background: transparent; border: none; padding: 4px; color: #ef4444; cursor: pointer; opacity: 0; border-radius: 4px; transition: 0.2s; }
+  .btn-mini-delete:hover { background: #fee2e2; }
   .file-item:hover .btn-mini-delete { opacity: 1; }
   
   .preview-panel { flex: 1; background: #f8fafc; display: flex; flex-direction: column; padding: 20px; height: 100%; box-sizing: border-box; }

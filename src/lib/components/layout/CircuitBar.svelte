@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { listaCongregaciones, circuitoActivo } from '$lib/stores/appStore';
-  import { Globe, Search, LayoutGrid, ChevronDown, X, Plus } from "lucide-svelte";
+  import { Globe, Search, LayoutGrid, ChevronDown, X, Plus, Trash2, AlertTriangle } from "lucide-svelte";
   import { slide, fade, scale } from 'svelte/transition';
   import { LazyStore } from '@tauri-apps/plugin-store';
 
@@ -10,6 +10,10 @@
   let listaCircuitos: CircuitoItem[] = [];
   let mostrarModal = false;
   let mostrarDropdown = false;
+  
+  // Variables para el borrado
+  let mostrarModalEliminar = false;
+  let circuitoParaEliminar: CircuitoItem | null = null;
 
   let nuevoNombre = "";
   let nuevoIdioma = "";
@@ -28,14 +32,18 @@
     try {
       const entries = await store.entries(); 
       
-      // FILTRO CORREGIDO: Solo mostramos lo que NO esté en la lista negra
       listaCircuitos = entries
         .filter(([key, _]) => !CLAVES_SISTEMA.includes(key))
-        .map(([key, _]) => ({
-          nombre: key,
-          idioma: "General", 
-          pais: "Registrado"
-        }));
+        .map(([key, val]) => {
+           // Intentamos recuperar info extra si existe en el valor guardado
+           // (Asumiendo que guardamos congregaciones, aquí solo tomamos la key, 
+           // pero si guardaste metadatos, podrías extraerlos. Por ahora mantenemos tu lógica).
+           return {
+             nombre: key,
+             idioma: "General", 
+             pais: "Registrado"
+           };
+        });
 
       if (listaCircuitos.length > 0) {
         if (!$circuitoActivo || !listaCircuitos.find(c => c.nombre === $circuitoActivo)) {
@@ -67,11 +75,45 @@
     mostrarDropdown = false;
   }
 
+  // --- LÓGICA DE BORRADO ---
+  function solicitarEliminacion(c: CircuitoItem, e: Event) {
+    e.stopPropagation(); // Evita que se seleccione el circuito al hacer click en borrar
+    circuitoParaEliminar = c;
+    mostrarModalEliminar = true;
+    mostrarDropdown = false; // Cerramos el menú
+  }
+
+  async function confirmarEliminacion() {
+    if (!circuitoParaEliminar) return;
+
+    try {
+      // 1. Eliminar del Store
+      await store.delete(circuitoParaEliminar.nombre);
+      await store.save();
+
+      // 2. Si el circuito borrado era el activo, limpiar la selección
+      if ($circuitoActivo === circuitoParaEliminar.nombre) {
+        $circuitoActivo = "";
+        $listaCongregaciones = [];
+      }
+
+      // 3. Recargar la lista visual
+      await cargarCircuitosExistentes();
+
+    } catch (error) {
+      console.error("Error al eliminar:", error);
+      alert("Hubo un error al intentar eliminar el circuito.");
+    } finally {
+      mostrarModalEliminar = false;
+      circuitoParaEliminar = null;
+    }
+  }
+  // -------------------------
+
   async function guardar() {
     if (nuevoNombre.trim()) {
       const nombreFinal = nuevoNombre.trim().toUpperCase();
 
-      // Validación extra: No permitir nombres reservados
       if (CLAVES_SISTEMA.includes(nombreFinal.toLowerCase())) {
         alert("Este nombre está reservado por el sistema.");
         return;
@@ -90,6 +132,7 @@
 
       listaCircuitos = [...listaCircuitos, nuevoCircuito];
 
+      // Guardamos un array vacío inicial
       await store.set(nombreFinal, []); 
       await store.save(); 
 
@@ -119,10 +162,16 @@
       {#if mostrarDropdown}
         <div class="dropdown-menu" transition:slide>
           {#each listaCircuitos as c}
-            <button type="button" class="dropdown-item" on:click={() => seleccionarCircuito(c)}>
-              <strong>{c.nombre}</strong>
-              <span class="meta-info">{c.idioma} • {c.pais}</span>
-            </button>
+            <div class="dropdown-row">
+                <button type="button" class="dropdown-item" on:click={() => seleccionarCircuito(c)}>
+                    <strong>{c.nombre}</strong>
+                    <span class="meta-info">{c.idioma} • {c.pais}</span>
+                </button>
+                
+                <button type="button" class="btn-delete-item" on:click={(e) => solicitarEliminacion(c, e)} title="Eliminar Circuito">
+                    <Trash2 size={16} />
+                </button>
+            </div>
           {/each}
           {#if listaCircuitos.length === 0}
              <div class="empty-drop">No hay circuitos creados</div>
@@ -217,6 +266,32 @@
   </div>
 {/if}
 
+{#if mostrarModalEliminar}
+<div 
+  class="modal-overlay" 
+  transition:fade 
+  role="alertdialog"
+  tabindex="0"
+>
+  <div class="modal-card delete-card" transition:scale>
+    <div class="icon-warning">
+        <AlertTriangle size={32} color="#dc2626" />
+    </div>
+    <h3>¿Eliminar Circuito?</h3>
+    <p class="delete-msg">
+        Estás a punto de eliminar <strong>{circuitoParaEliminar?.nombre}</strong>.
+        <br>
+        <span class="sub-warn">Se perderán todas las congregaciones y datos asociados a este circuito. Esta acción no se puede deshacer.</span>
+    </p>
+    
+    <div class="modal-actions-delete">
+      <button class="btn-cancel" on:click={() => mostrarModalEliminar = false}>Cancelar</button>
+      <button class="btn-confirm-delete" on:click={confirmarEliminacion}>Sí, Eliminar</button>
+    </div>
+  </div>
+</div>
+{/if}
+
 <style>
   :global(.circuit-bar) { margin-top: 10px; }
   .circuit-bar { max-width: 1400px; margin: 0 auto; width: 95%; background: white; padding: 12px 20px; border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); position: relative; z-index: 10; }
@@ -226,24 +301,37 @@
   .chip-circuit:hover { border-color: #c62828; }
   .icon-chevron { transition: 0.2s; opacity: 0.5; margin-left: 4px; }
   .rotate { transform: rotate(180deg); }
-  .dropdown-menu { position: absolute; top: 125%; left: 0; background: white; border: 1px solid #e2e8f0; border-radius: 10px; min-width: 220px; box-shadow: 0 10px 15px rgba(0,0,0,0.1); z-index: 100; overflow: hidden; display: flex; flex-direction: column; }
-  .dropdown-item { width: 100%; padding: 12px 15px; text-align: left; border: none; background: none; cursor: pointer; display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid #f1f5f9; }
-  .dropdown-item:last-child { border-bottom: none; }
+  
+  /* Dropdown Styles Update */
+  .dropdown-menu { position: absolute; top: 125%; left: 0; background: white; border: 1px solid #e2e8f0; border-radius: 10px; min-width: 240px; box-shadow: 0 10px 15px rgba(0,0,0,0.1); z-index: 100; overflow: hidden; display: flex; flex-direction: column; }
+  
+  .dropdown-row { display: flex; align-items: stretch; border-bottom: 1px solid #f1f5f9; transition: 0.2s; }
+  .dropdown-row:last-child { border-bottom: none; }
+  .dropdown-row:hover { background-color: #fff1f2; }
+
+  .dropdown-item { flex: 1; padding: 12px 15px; text-align: left; border: none; background: none; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
   .dropdown-item strong { color: #1e293b; font-size: 0.9rem; }
   .dropdown-item .meta-info { color: #64748b; font-size: 0.75rem; }
-  .dropdown-item:hover { background: #fff1f2; }
-  .dropdown-item:hover strong { color: #c62828; }
+  .dropdown-row:hover .dropdown-item strong { color: #c62828; }
+
+  .btn-delete-item { background: none; border: none; padding: 0 12px; cursor: pointer; color: #cbd5e1; display: flex; align-items: center; justify-content: center; transition: 0.2s; border-left: 1px solid transparent; }
+  .dropdown-row:hover .btn-delete-item { color: #ef4444; border-left-color: #fecaca; }
+  .btn-delete-item:hover { background-color: #fee2e2; color: #dc2626; }
+
   .empty-drop { padding: 15px; font-size: 0.8rem; color: #94a3b8; text-align: center; font-style: italic; }
+  
   .search-wrapper { flex: 1; position: relative; display: flex; align-items: center; }
   :global(.search-icon) { position: absolute; left: 14px; color: #94a3b8; }
   .search-wrapper input { width: 100%; padding: 10px 15px 10px 42px; border-radius: 10px; border: 1px solid #fee2e2; outline: none; }
   .search-wrapper input:focus { border-color: #c62828; box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.1); }
+  
   .actions { display: flex; align-items: center; gap: 12px; }
   .btn-secondary { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border: 1px solid #fca5a5; border-radius: 10px; color: #c62828; font-weight: 700; font-size: 0.85rem; }
   .badge { background: #c62828; color: white; padding: 2px 7px; border-radius: 6px; font-size: 0.75rem; }
   .btn-primary { display: flex; align-items: center; gap: 8px; padding: 10px 18px; background: #1e293b; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.3s; }
   .btn-primary:hover { background: #c62828; }
-  /* MODAL */
+
+  /* MODAL ESTÁNDAR */
   .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 999; }
   .modal-card { background: white; padding: 24px; border-radius: 16px; width: 90%; max-width: 420px; box-shadow: 0 20px 25px rgba(0,0,0,0.2); }
   header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -262,4 +350,14 @@
   .btn-save { background: #c62828; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: 0.2s; }
   .btn-save:disabled { background: #e2e8f0; cursor: not-allowed; color: #94a3b8; }
   .btn-save:not(:disabled):hover { background: #b91c1c; transform: translateY(-1px); }
+
+  /* ESTILOS ESPECIFICOS PARA ELIMINAR */
+  .delete-card { text-align: center; border-top: 5px solid #dc2626; max-width: 380px; }
+  .icon-warning { margin-bottom: 15px; display: flex; justify-content: center; }
+  .delete-msg { color: #334155; margin: 10px 0 20px; line-height: 1.5; }
+  .sub-warn { display: block; margin-top: 8px; font-size: 0.85rem; color: #dc2626; background: #fef2f2; padding: 8px; border-radius: 6px; }
+  .modal-actions-delete { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+  .btn-cancel { padding: 10px 20px; border-radius: 8px; border: 1px solid #cbd5e1; background: white; color: #475569; font-weight: 600; cursor: pointer; }
+  .btn-confirm-delete { padding: 10px 20px; border-radius: 8px; border: none; background: #dc2626; color: white; font-weight: 600; cursor: pointer; }
+  .btn-confirm-delete:hover { background: #b91c1c; }
 </style>
