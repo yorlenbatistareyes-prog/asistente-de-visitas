@@ -17,7 +17,7 @@
     "@tauri-apps/plugin-fs": "~2",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-shell": "^2.3.3",
-    "@tauri-apps/plugin-store": "^2.4.1",
+    "@tauri-apps/plugin-store": "~2",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",
     "jszip": "^3.10.1",

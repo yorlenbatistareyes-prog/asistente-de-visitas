@@ -1,25 +1,26 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "asistente-de-visitas",
-  "version": "0.1.0",
+  "productName": "Asistente de Visitas", 
+  "version": "1.0.0",
   "identifier": "com.bitia.asistente-de-visitas",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
-
   },
   "app": {
     "windows": [
       {
-        "title": "asistente-de-visitas",
-        "width": 800,
-        "height": 600
+        "title": "Asistente de Visitas",
+        "width": 1024,
+        "height": 768,
+        "center": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' ipc: https://ipc.localhost; img-src 'self' asset: https://asset.localhost blob: data:; frame-src 'self' asset: https://asset.localhost blob: data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';",
+      "capabilities": ["default"]
     }
   },
   "bundle": {

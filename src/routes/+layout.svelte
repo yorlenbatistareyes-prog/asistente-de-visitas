@@ -1,29 +1,43 @@
 <script lang="ts">
-  import { onMount } from 'svelte'; // Importamos onMount para ejecutar al iniciar
-  import { circuitoActivo, listaCongregaciones } from '$lib/stores/appStore';
-  import { cargarDatos } from '$lib/persistencia'; // Importamos la función de carga
+  import { onMount } from 'svelte';
+  import { circuitoActivo, listaCongregaciones, mostrarCircuitBar } from '$lib/stores/appStore';
+  import { cargarDatos } from '$lib/persistencia';
+  
+  // Componentes de Layout
   import TopBar from '$lib/components/layout/TopBar.svelte';
   import CircuitBar from '$lib/components/layout/CircuitBar.svelte';
 
-  // Al montar el layout (cuando se abre la app en Windows)
+  // --- CORRECCIÓN DE LA RUTA ---
+  // Antes: import ... from '$lib/modals/...' (Mal)
+  // Ahora: Agregamos '/components/' a la ruta
+  import ConfiguracionGlobalModal from '$lib/components/modals/ConfiguracionGlobalModal.svelte';
+
+  let mostrarConfig = false;
+
   onMount(async () => {
     try {
-      await cargarDatos(); // Leemos el archivo JSON del sistema
-      console.log("Datos de visitas cargados correctamente");
+      await cargarDatos();
+      console.log("Datos cargados.");
     } catch (e) {
-      console.error("Error al cargar persistencia:", e);
+      console.error("Error persistencia:", e);
     }
   });
 </script>
 
 <div class="app-container">
-  <TopBar />
+  <TopBar on:abrirConfig={() => mostrarConfig = true} />
 
-  <CircuitBar bind:circuitoNombre={$circuitoActivo} />
+  {#if $mostrarCircuitBar}
+    <CircuitBar />
+  {/if}
 
   <main class="main-content">
     <slot />
   </main>
+
+  {#if mostrarConfig}
+    <ConfiguracionGlobalModal on:close={() => mostrarConfig = false} />
+  {/if}
 </div>
 
 <style>
@@ -32,14 +46,12 @@
     padding: 0;
     height: 100vh;
     overflow: hidden; 
-    /* ESTA LÍNEA RECUPERA EL ESTILO ORIGINAL */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color: #1a1a1a;
   }
 
-  /* Asegura que los botones y entradas de texto también usen la misma letra */
   :global(input, button, select, textarea) {
     font-family: inherit;
   }
@@ -49,6 +61,7 @@
     flex-direction: column;
     height: 100vh; 
     width: 100%;
+    position: relative; /* Importante para que el modal se posicione bien */
   }
 
   .main-content {

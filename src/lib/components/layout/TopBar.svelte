@@ -1,5 +1,16 @@
 <script lang="ts">
   import { Settings } from "lucide-svelte";
+  // 1. Importamos el despachador de eventos
+  import { createEventDispatcher } from 'svelte';
+
+  // 2. Inicializamos el despachador
+  const dispatch = createEventDispatcher();
+
+  // 3. Función que avisa al padre (App o Layout) que se hizo clic
+  function clicEnConfiguracion() {
+    console.log("⚙️ Botón de configuración presionado");
+    dispatch('abrirConfig');
+  }
 </script>
 
 <header class="topbar-container" data-tauri-drag-region>
@@ -16,7 +27,12 @@
         <h1>Asistente de Visitas</h1>
         <p>Documenta todas tus visitas</p>
       </div>
-      <button class="settings-btn">
+      
+      <button 
+        class="settings-btn" 
+        on:click={clicEnConfiguracion}
+        title="Abrir Configuración Global"
+      >
         <Settings size={22} strokeWidth={1.5} />
       </button>
     </div>
@@ -112,9 +128,12 @@
     color: #444;
     display: flex;
     transition: transform 0.2s;
+    padding: 8px; /* Un poco de padding para facilitar el clic */
+    border-radius: 50%;
   }
 
   .settings-btn:hover {
     transform: rotate(30deg);
+    background-color: rgba(0,0,0,0.05); /* Sutil fondo al pasar el mouse */
   }
 </style>
