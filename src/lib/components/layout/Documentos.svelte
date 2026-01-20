@@ -29,7 +29,7 @@
   let pdfUrl: string | null = null;
   const DB_FILE = 'registro_documentos.json';
 
-  // --- LÓGICA (Intacta) ---
+  // --- LÓGICA ---
   const getToday = () => new Date().toLocaleDateString('es-ES');
   async function guardarEnDisco() { try { await writeTextFile(DB_FILE, JSON.stringify(rootFiles, null, 2), { baseDir: BaseDirectory.AppLocalData }); } catch (e) { console.error(e); } }
   async function cargarDesdeDisco() { try { if (await exists(DB_FILE, { baseDir: BaseDirectory.AppLocalData })) { const json = await readTextFile(DB_FILE, { baseDir: BaseDirectory.AppLocalData }); rootFiles = JSON.parse(json); fileListDisplayed = [...rootFiles]; } } catch (e) { console.error(e); } }
@@ -118,7 +118,9 @@
     </div>
     
     <div class="search-box">
-      <Search size={18} class="search-icon" />
+      <div class="search-icon">
+        <Search size={18} />
+      </div>
       <input type="text" placeholder="Buscar..." bind:value={searchQuery} />
     </div>
   </header>
@@ -250,6 +252,7 @@
         display: flex;
         overflow: hidden;
         min-height: 0;
+        height: 100%;
     }
 
     /* Barra Lateral */
@@ -261,9 +264,10 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        height: 100%;
     }
 
-    /* TOOLBAR MEJORADA - COMPACTA */
+    /* TOOLBAR */
     .toolbar-compact {
         padding: 16px 16px 12px;
         border-bottom: 1px solid #f1f5f9;
@@ -310,7 +314,7 @@
     .btn-icon { display: flex; align-items: center; justify-content: center; }
     .btn-text { white-space: nowrap; }
 
-    /* --- LUPA CORREGIDA (Centrado Perfecto) --- */
+    /* --- ARREGLO LUPA (CENTRO ABSOLUTO) --- */
     .search-box {
         position: relative;
         width: 280px;
@@ -320,14 +324,16 @@
     .search-icon {
         position: absolute;
         left: 12px;
-        top: 50%;
-        transform: translateY(-50%);
+        /* Truco para centro vertical exacto */
+        top: 0;
+        bottom: 0;
+        margin: auto 0;
+        height: 18px; /* Altura del icono */
+        display: flex;
+        align-items: center;
         color: #94a3b8;
         pointer-events: none;
         z-index: 10;
-        display: flex;
-        align-items: center;
-        justify-content: center;
     }
 
     .search-box input {
@@ -374,14 +380,34 @@
     .del-btn:hover { background: #fee2e2; }
     .del-btn.visible { opacity: 1; }
 
-    /* Panel Principal */
-    .preview-panel { flex: 1; background: #f8fafc; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+    /* Panel Principal (Arreglo PDF height) */
+    .preview-panel { 
+        flex: 1; 
+        background: #f8fafc; 
+        display: flex; 
+        flex-direction: column; 
+        overflow: hidden; 
+        position: relative;
+        height: 100%;
+        min-height: 0; 
+    }
     .viewer-header { height: 56px; flex-shrink: 0; background: white; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); }
     .viewer-title { display: flex; align-items: center; gap: 10px; font-weight: 600; overflow: hidden; flex: 1; }
+    
+    /* ARREGLO TYPO CSS */
     .viewer-title span { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 500px; }
-    .viewer-body { flex: 1; position: relative; overflow: hidden; background: white; }
+    
+    .viewer-body { 
+        flex: 1; 
+        position: relative; 
+        overflow: hidden; 
+        background: white; 
+        height: 100%; /* IMPORTANTE PARA PDF */
+        min-height: 0;
+    }
     .absolute-pdf-wrapper { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; overflow: hidden; background: #f1f5f9; }
     iframe { width: 100%; height: 100%; border: none; display: block; background: white; }
+    
     .empty-msg { text-align: center; padding: 40px 20px; color: #94a3b8; font-size: 14px; }
     .empty-state { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; gap: 16px; }
     .empty-state p { font-size: 15px; color: #64748b; }
