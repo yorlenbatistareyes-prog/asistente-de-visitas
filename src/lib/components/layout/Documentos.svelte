@@ -230,7 +230,6 @@
     const esArchivoDeBD = currentPathUrl === ''; 
     const esCarpeta = archivo.type === 'folder';
 
-    // Mensaje personalizado dependiendo de si es carpeta o archivo
     const mensaje = esCarpeta 
         ? `¿Seguro que deseas eliminar la carpeta "${archivo.name}" y TODO su contenido?`
         : `¿Eliminar "${archivo.name}"?`;
@@ -249,22 +248,18 @@
 
     try {
         try {
-            // "recursive: true" es la clave para borrar carpetas llenas
             await remove(archivo.path, { recursive: true });
         } catch (e) { 
             console.warn("Error borrado físico (puede que no exista o permisos):", e); 
         }
 
-        // Actualizar visualmente la lista
         fileListDisplayed = fileListDisplayed.filter(f => f.path !== archivo.path);
 
-        // Si estamos en la raíz, guardar cambios en JSON
         if (esArchivoDeBD) {
             rootFiles = rootFiles.filter(f => f.id !== archivo.id);
             await guardarEnDisco();
         }
 
-        // Si lo que borramos estaba seleccionado en el preview, limpiarlo
         if (selectedFile && selectedFile.path === archivo.path) {
             selectedFile = null;
             pdfUrl = null;
@@ -379,7 +374,13 @@
 
         <div class="preview-content">
            {#if selectedFile.type === 'pdf' && pdfUrl}
-                <iframe src={pdfUrl} title="Visor" width="100%" height="100%"></iframe>
+                <iframe 
+                    src="{pdfUrl}#toolbar=1&view=FitH" 
+                    title="Visor PDF" 
+                    width="100%" 
+                    height="100%"
+                    class="pdf-viewer"
+                ></iframe>
            {:else if ['jpg', 'png'].includes(selectedFile.type)}
                 <img src={convertFileSrc(selectedFile.path)} alt="Vista previa" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
            {:else}
@@ -452,6 +453,17 @@
   .btn-preview { padding: 6px 12px; border: 1px solid #cbd5e1; background: white; border-radius: 6px; cursor: pointer; color: #475569; }
   
   .preview-content { flex: 1; background: white; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px; display: flex; flex-direction: column; overflow: hidden; position: relative; height: 100%; }
+  
+  /* ESTILOS Iframe PDF */
+  .pdf-viewer {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+      background: #f1f5f9;
+      flex: 1; /* Esto asegura que crezca para llenar todo el espacio */
+  }
+  
   iframe { width: 100%; height: 100%; border: none; display: block; background: #f1f5f9; }
   
   .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; text-align: center; }
