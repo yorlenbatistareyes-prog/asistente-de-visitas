@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { Plus, MapPin, Calendar, Users, Trash2, ArrowRight, Map } from "lucide-svelte";
+  // Añadimos Search a las importaciones
+  import { Plus, MapPin, Calendar, Users, Trash2, ArrowRight, Map, Search } from "lucide-svelte";
   
   import { 
     obtenerTodosLosCircuitos, 
@@ -17,11 +18,31 @@
 
   let circuitos: CircuitoVisual[] = [];
   let mostrandoModal = false;
+
+  // NUEVAS VARIABLES PARA BÚSQUEDA Y FILTRO
+  let busqueda = "";
+  let filtroEstado = "todos";
   
   let nuevoNombre = "";
   let nuevasEtiquetas = "";
   let nuevaFechaInicio = "";
   let nuevaFechaFin = "";
+
+  // LÓGICA REACTIVA DE FILTRADO
+  // Esta lista se actualiza sola cada vez que escribes o cambias el filtro
+  $: circuitosFiltrados = (circuitos || []).filter(c => {
+    const nombre = c.nombre?.toLowerCase() || "";
+    const etiquetas = c.etiquetas?.toLowerCase() || "";
+    const textoBusqueda = busqueda.toLowerCase();
+    
+    // Filtro por nombre o ubicación
+    const coincideTexto = nombre.includes(textoBusqueda) || etiquetas.includes(textoBusqueda);
+    
+    // Filtro por estado (Actual, Futuro, Anterior)
+    if (filtroEstado === "todos") return coincideTexto;
+    const estadoActual = obtenerEstado(c).texto.toLowerCase(); 
+    return coincideTexto && estadoActual === filtroEstado.toLowerCase();
+  });
 
   async function cargarCircuitos() {
     try {
@@ -94,8 +115,39 @@
     </button>
   </div>
 
+  <div class="toolbar-modular">
+  <div class="search-pill card-global">
+    <Search size={18} class="search-icon" />
+    <input 
+      type="text" 
+      placeholder="Buscar circuitos por nombre, ubicación o fecha..." 
+      bind:value={busqueda}
+      class="search-input"
+    />
+  </div>
+
+  <div class="filters-aside">
+    <div class="filter-item card-global">
+      <select bind:value={filtroEstado} class="minimal-select">
+        <option value="todos">Todos los circuitos</option>
+        <option value="actual">Actuales</option>
+        <option value="futuro">Futuros</option>
+        <option value="anterior">Pasados</option>
+      </select>
+    </div>
+
+    <div class="filter-item card-global">
+      <select class="minimal-select">
+        <option>Fecha (Recientes primero)</option>
+        <option>Fecha (Antiguos primero)</option>
+        <option>Nombre (A-Z)</option>
+      </select>
+    </div>
+  </div>
+</div>
+
   <div class="grid-circuitos">
-    {#each circuitos as circuito}
+    {#each circuitosFiltrados as circuito}
       <div class="rassembly-card card-global">
         <div class="card-header">
           <div class="top-row">
@@ -437,4 +489,216 @@
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
 }
+
+/* --- ESTILOS DE LA BARRA DE BÚSQUEDA --- */
+  .toolbar-circuitos {
+    display: flex;
+    gap: 20px;
+    padding: 15px 25px;
+    margin-bottom: 30px;
+    align-items: center;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+  }
+
+  .search-box {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    background: var(--bg-app);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0 15px;
+    transition: all 0.2s ease;
+  }
+
+  .search-box:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1);
+  }
+
+  .search-icon {
+    color: var(--text-muted);
+    margin-right: 12px;
+  }
+
+  .search-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 12px 0;
+    color: var(--text-main);
+    outline: none;
+    font-size: 0.95rem;
+  }
+
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .filter-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .filter-select {
+    background: var(--bg-app);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    padding: 10px 15px;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .filter-select:hover {
+    border-color: var(--primary);
+  }
+
+  /* Contenedor padre para alinear ambos bloques */
+  .controles-circuitos {
+    display: flex;
+    gap: 15px; /* Espacio entre los dos bloques */
+    margin-bottom: 35px;
+    align-items: stretch;
+  }
+
+  /* BLOQUE DE BÚSQUEDA INDEPENDIENTE */
+  .search-container {
+    flex: 1; /* Toma todo el espacio disponible */
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+  }
+
+  .search-container:focus-within {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-md);
+  }
+
+  .search-icon { color: var(--text-muted); margin-right: 12px; }
+
+  .search-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 14px 0;
+    color: var(--text-main);
+    outline: none;
+    font-size: 1rem;
+  }
+
+  /* BLOQUE DE FILTRO INDEPENDIENTE */
+  .filter-container {
+    display: flex;
+    flex-direction: column; /* Apilamos la etiqueta sobre el select para un look más Pro */
+    justify-content: center;
+    padding: 8px 20px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    min-width: 160px;
+  }
+
+  .filter-label {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 2px;
+  }
+
+  .filter-select {
+    background: transparent;
+    color: var(--text-main);
+    border: none;
+    font-size: 0.9rem;
+    font-weight: 700;
+    outline: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .toolbar-modular {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 35px;
+  }
+
+  /* Buscador tipo Píldora */
+  .search-pill {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    height: 50px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 50px; /* Forma de píldora como en la imagen */
+    transition: all 0.2s ease;
+  }
+
+  .search-pill:focus-within {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-md);
+  }
+
+  .search-icon { color: var(--text-muted); margin-right: 12px; }
+
+  .search-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: var(--text-main);
+    outline: none;
+    font-size: 0.95rem;
+  }
+
+  /* Contenedor de filtros a la derecha */
+  .filters-aside {
+    display: flex;
+    gap: 12px;
+  }
+
+  .filter-item {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 12px; /* Redondeado más suave */
+    padding: 0 15px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    transition: border-color 0.2s;
+  }
+
+  .filter-item:hover {
+    border-color: var(--primary);
+  }
+
+  .minimal-select {
+    background: transparent;
+    color: var(--text-main);
+    border: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+    padding-right: 10px;
+  }
 </style>
