@@ -253,7 +253,7 @@
           <div class="card-body">
             <div class="row-inputs">
               <div class="input-group"><label for="uName"><User size={13}/> Nombre</label><input id="uName" type="text" bind:value={nombreUsuario} placeholder="Ej. Juan Pérez" /></div>
-              <div class="input-group"><label for="uRole"><Briefcase size={13}/> Rol / Privilegio</label><input id="uRole" type="text" bind:value={rolUsuario} placeholder="Ej. Superintendente" /></div>
+              <div class="input-group"><label for="uRole"><Briefcase size={13}/>Responsabilidad</label><input id="uRole" type="text" bind:value={rolUsuario} placeholder="Ej. Superintendente" /></div>
             </div>
             <div class="input-group"><label for="pdfFooter"><FileText size={13}/> Pie de Página (PDF)</label><input id="pdfFooter" type="text" bind:value={piePaginaPDF} placeholder="Texto al final de los informes PDF" /></div>
             <button class="save-profile-btn" on:click={guardarPerfil}><Save size={14} /> Guardar Perfil</button>

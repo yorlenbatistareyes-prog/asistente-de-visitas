@@ -89,6 +89,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())     // Vital para leer PDFs
         .plugin(tauri_plugin_dialog::init()) // Vital para importar
         .plugin(tauri_plugin_opener::init()) // Lo dejamos por si acaso
+        .plugin(tauri_plugin_sql::Builder::default().build()) // <--- NUEVO: Inicializamos SQLite
         // --------------------------------------------------------------------------
 
         .invoke_handler(tauri::generate_handler![

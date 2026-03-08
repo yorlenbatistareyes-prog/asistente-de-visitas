@@ -2,7 +2,7 @@ import { writable } from 'svelte/store';
 
 export interface Congregacion {
   nombre: string;
-  enVisita: boolean; // <--- FALTABA ESTO
+  enVisita: boolean;
   ciudad?: string;
   provincia?: string;
   pais?: string;
@@ -15,8 +15,11 @@ export interface Congregacion {
   diaFinSemana?: string;
 }
 
-export const circuitoActivo = writable("Holguín-14");
+// Inicializamos vacío. Más adelante haremos que recuerde el último circuito abierto.
+export const circuitoActivo = writable<string>(""); 
+
 export const listaCongregaciones = writable<Congregacion[]>([]);
 export const fechaPorCongregacion = writable<Record<string, string>>({});
 export const resumenUltimoAnalisis = writable<Record<string, string>>({});
-export const mostrarCircuitBar = writable(true);
+
+// Eliminamos 'mostrarCircuitBar' porque ya no existirá esa barra lateral.
