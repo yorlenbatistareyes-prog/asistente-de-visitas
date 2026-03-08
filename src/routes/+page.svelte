@@ -273,11 +273,11 @@
     flex: 1;
     display: flex;
     align-items: center;
-    padding: 0 25px;
-    height: 52px;
+    padding: 0 20px;
+    height: 44px; 
     background: var(--bg-panel);
     border: 1px solid var(--border-color);
-    border-radius: 50px; /* Forma de píldora */
+    border-radius: 50px;
     transition: all 0.2s ease;
   }
 
@@ -292,8 +292,8 @@
     background: transparent;
     color: var(--text-main);
     outline: none;
-    font-size: 1rem;
-    margin-left: 12px;
+    font-size: 0.9rem; /* Texto un poco más pequeño */
+    margin-left: 10px;
   }
 
   .filters-aside {
@@ -304,12 +304,11 @@
   .filter-item {
     background: var(--bg-panel);
     border: 1px solid var(--border-color);
-    border-radius: 15px;
-    padding: 0 20px;
-    height: 52px;
+    border-radius: 12px;
+    padding: 0 15px;
+    height: 44px; /* Misma altura que el buscador */
     display: flex;
     align-items: center;
-    transition: all 0.2s ease;
   }
 
   .filter-item:hover { border-color: var(--primary); }
@@ -318,8 +317,8 @@
     background: transparent;
     color: var(--text-main);
     border: none;
-    font-size: 0.95rem;
-    font-weight: 700;
+    font-size: 0.85rem;
+    font-weight: 600;
     outline: none;
     cursor: pointer;
   }
@@ -374,28 +373,56 @@
 
   /* --- ACCIONES --- */
   .actions-wrapper {
-    position: absolute; bottom: 0; left: 0; right: 0; height: 85px; 
-    background: var(--bg-panel); border-top: 1px solid var(--border-color);
-    display: flex; align-items: center; padding: 0 25px;
-    opacity: 0; transform: translateY(20px); transition: all 0.3s ease;
-    pointer-events: none; z-index: 10;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 70px; /* Bajamos de 85px a 70px */
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s ease;
+    pointer-events: none;
+    z-index: 10;
   }
 
   .rassembly-card:hover .actions-wrapper { opacity: 1; transform: translateY(0); pointer-events: auto; }
   .card-actions { display: flex; gap: 12px; width: 100%; }
   
   .btn-delete { 
-    width: 50px; height: 50px; border-radius: 12px; border: none; 
-    background: #fee2e2; color: #ef4444; cursor: pointer; 
-    display: flex; align-items: center; justify-content: center;
+    width: 40px; /* Bajamos de 50px a 40px */
+    height: 40px; 
+    border-radius: 10px; 
+    border: none; 
+    background: #fee2e2; 
+    color: #ef4444; 
+    cursor: pointer; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    flex-shrink: 0; /* Evita que se deforme */
   }
 
   :global(.dark) .btn-delete { background: rgba(239, 68, 68, 0.15); }
 
   .btn-manage { 
-    flex: 1; height: 50px; border-radius: 12px; border: none; 
-    background: var(--primary); color: white; font-weight: 800;
-    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+    flex: 1; 
+    height: 40px; /* Bajamos de 50px a 40px */
+    border-radius: 10px; 
+    border: none; 
+    background: var(--primary); 
+    color: white; 
+    font-weight: 700;
+    font-size: 0.85rem; /* Texto más elegante */
+    cursor: pointer; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    gap: 8px;
   }
 
   /* --- MODAL --- */
