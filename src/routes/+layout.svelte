@@ -1,12 +1,10 @@
 <script lang="ts">
   import TopBar from '$lib/components/layout/TopBar.svelte';
   import '../app.css';
-  
-  let mostrarConfig = false;
 </script>
 
 <div class="app-container">
-  <TopBar on:abrirConfig={() => mostrarConfig = true} />
+  <TopBar />
 
   <main class="main-content">
     <slot />
@@ -24,6 +22,7 @@
   .main-content { 
     flex: 1; 
     overflow-y: auto; 
+    /* Usamos la variable global que definimos para el tema claro/oscuro */
     background: var(--bg-app); 
     padding: 30px; 
     box-sizing: border-box;
