@@ -1,6 +1,5 @@
 import Database from '@tauri-apps/plugin-sql';
 
-// Instancia global en memoria
 let dbInstance: Database | null = null;
 
 // --- INTERFACES ---
@@ -9,11 +8,13 @@ export interface Circuito {
   nombre: string;
   etiquetas?: string; 
   fechaCreacion?: string;
+  fechaInicio?: string; // NUEVO
+  fechaFin?: string;    // NUEVO
 }
 
 export interface Congregacion {
   id?: number;
-  circuito: string; // Opcionalmente en el futuro podemos cambiar esto a circuito_id, por ahora lo dejamos como texto para no romper tu formulario actual
+  circuito: string;
   nombre: string;
   enVisita: boolean;
   ciudad?: string;
@@ -44,17 +45,27 @@ export async function initDB(): Promise<Database> {
   try {
     dbInstance = await Database.load('sqlite:av_database.db');
     
-    // NUEVA TABLA: Circuitos reales
+    // TABLA CIRCUITOS (Actualizada con fechas)
     await dbInstance.execute(`
       CREATE TABLE IF NOT EXISTS circuitos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL UNIQUE,
         etiquetas TEXT,
-        fechaCreacion TEXT
+        fechaCreacion TEXT,
+        fechaInicio TEXT,
+        fechaFin TEXT
       );
     `);
 
-    // Crear tabla de congregaciones
+    // Truco de migración: Si la tabla vieja ya existe, le añadimos las columnas nuevas sin borrar datos
+    try {
+      await dbInstance.execute(`ALTER TABLE circuitos ADD COLUMN fechaInicio TEXT;`);
+      await dbInstance.execute(`ALTER TABLE circuitos ADD COLUMN fechaFin TEXT;`);
+    } catch (e) {
+      // Si da error es porque las columnas ya existen, lo ignoramos en silencio
+    }
+
+    // TABLA CONGREGACIONES
     await dbInstance.execute(`
       CREATE TABLE IF NOT EXISTS congregaciones (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +86,6 @@ export async function initDB(): Promise<Database> {
       );
     `);
 
-    // Crear tabla para el historial de análisis
     await dbInstance.execute(`
       CREATE TABLE IF NOT EXISTS historial_visitas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,7 +98,6 @@ export async function initDB(): Promise<Database> {
       );
     `);
 
-    // Tabla para configuraciones sueltas
     await dbInstance.execute(`
       CREATE TABLE IF NOT EXISTS configuracion (
         clave TEXT PRIMARY KEY,
@@ -96,7 +105,6 @@ export async function initDB(): Promise<Database> {
       );
     `);
 
-    console.log("✅ Motor SQLite inicializado con éxito.");
     return dbInstance;
   } catch (error) {
     console.error("❌ Error inicializando SQLite:", error);
@@ -106,41 +114,34 @@ export async function initDB(): Promise<Database> {
 
 // --- 2. GESTIÓN DE CIRCUITOS ---
 
-export async function crearCircuito(nombre: string, etiquetas: string = "") {
+export async function crearCircuito(nombre: string, etiquetas: string = "", fechaInicio: string = "", fechaFin: string = "") {
   const db = await initDB();
-  const fecha = new Date().toISOString().split('T')[0]; // Guarda la fecha actual YYYY-MM-DD
+  const fecha = new Date().toISOString().split('T')[0]; 
   
-  try {
-    await db.execute(
-      'INSERT INTO circuitos (nombre, etiquetas, fechaCreacion) VALUES ($1, $2, $3)',
-      [nombre.toUpperCase(), etiquetas, fecha]
-    );
-    console.log(`✅ Circuito ${nombre} creado.`);
-  } catch (error) {
-    console.error("Error creando circuito:", error);
-    throw error;
-  }
+  await db.execute(
+    'INSERT INTO circuitos (nombre, etiquetas, fechaCreacion, fechaInicio, fechaFin) VALUES ($1, $2, $3, $4, $5)',
+    [nombre.toUpperCase(), etiquetas, fecha, fechaInicio, fechaFin]
+  );
 }
 
 export async function obtenerTodosLosCircuitos(): Promise<Circuito[]> {
   const db = await initDB();
-  try {
-    return await db.select<Circuito[]>('SELECT * FROM circuitos ORDER BY nombre ASC');
-  } catch (error) {
-    console.error("Error obteniendo circuitos:", error);
-    return [];
-  }
+  return await db.select<Circuito[]>('SELECT * FROM circuitos ORDER BY nombre ASC');
 }
 
 export async function obtenerCircuitoPorId(id: number): Promise<Circuito | null> {
   const db = await initDB();
-  try {
-    const resultado = await db.select<Circuito[]>('SELECT * FROM circuitos WHERE id = $1', [id]);
-    return resultado.length > 0 ? resultado[0] : null;
-  } catch (error) {
-    console.error("Error obteniendo circuito:", error);
-    return null;
-  }
+  const resultado = await db.select<Circuito[]>('SELECT * FROM circuitos WHERE id = $1', [id]);
+  return resultado.length > 0 ? resultado[0] : null;
+}
+
+// NUEVA FUNCIÓN: Elimina el circuito y todas las congregaciones que le pertenecen
+export async function eliminarCircuito(id: number, nombre: string) {
+  const db = await initDB();
+  // Borramos las congregaciones que tengan el nombre de este circuito
+  await db.execute('DELETE FROM congregaciones WHERE circuito = $1', [nombre]);
+  // Borramos el circuito
+  await db.execute('DELETE FROM circuitos WHERE id = $1', [id]);
 }
 
 // --- 3. GESTIÓN DE CONGREGACIONES ---
