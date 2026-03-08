@@ -1,274 +1,220 @@
 <script lang="ts">
-  import { circuitoActivo, listaCongregaciones } from '$lib/stores/appStore';
-  import { X, Clock } from "lucide-svelte";
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
+  import { X, Save } from 'lucide-svelte';
 
   export let datosEdicion: any = null;
 
   const dispatch = createEventDispatcher();
 
-  let nombre = "";
-  let numero = "";
-  let ciudad = "";
-  let provincia = "";
-  let pais = "Cuba";
-  let idioma = "Español";
-  let esLenguaSenas = false;
-  let telefono = "";
+  // Estructura de datos basada en tu base de datos SQLite
+  let formData = {
+    id: undefined,
+    nombre: '',
+    ciudad: '',
+    provincia: '',
+    pais: 'Cuba', // Valor por defecto para ahorrar tiempo
+    idioma: 'Español',
+    esLenguaSenas: false,
+    telefono: '',
+    diaSemana: '',
+    horaSemana: '',
+    diaFinSemana: '',
+    horaFinSemana: '',
+    enVisita: false
+  };
 
-  let horaSemana = "";
-  let horaFinSemana = "";
+  onMount(() => {
+    if (datosEdicion) {
+      formData = { ...datosEdicion };
+    }
+  });
 
-  let diaSemana = "Miércoles";
-  let diaFinSemana = "Domingo";
-
-  // Precargar si estamos editando
-  if (datosEdicion) {
-    nombre = datosEdicion.nombre ?? "";
-    numero = datosEdicion.numero ?? "";
-    ciudad = datosEdicion.ciudad ?? "";
-    provincia = datosEdicion.provincia ?? "";
-    pais = datosEdicion.pais ?? "Cuba";
-    idioma = datosEdicion.idioma ?? "Español";
-    esLenguaSenas = datosEdicion.esLenguaSenas ?? false;
-    telefono = datosEdicion.telefono ?? "";
-    horaSemana = datosEdicion.horaSemana ?? "";
-    horaFinSemana = datosEdicion.horaFinSemana ?? "";
-    diaSemana = datosEdicion.diaSemana ?? "Miércoles";
-    diaFinSemana = datosEdicion.diaFinSemana ?? "Domingo";
+  function guardar() {
+    if (!formData.nombre.trim()) {
+      alert("El nombre de la congregación es obligatorio.");
+      return;
+    }
+    dispatch('save', formData);
   }
 
   function cerrar() {
     dispatch('close');
   }
-
-  function guardar() {
-    const nuevaCong = {
-      id: datosEdicion?.id || Date.now(), // Generamos un ID si es nueva
-      circuito: $circuitoActivo,
-      nombre,
-      numero,
-      ciudad,
-      provincia,
-      pais,
-      idioma,
-      esLenguaSenas,
-      telefono,
-      horaSemana,
-      horaFinSemana,
-      diaSemana,
-      diaFinSemana
-    };
-
-    if (datosEdicion) {
-      // Lógica para actualizar una existente en el store
-      listaCongregaciones.update(lista => 
-        lista.map(c => c.id === datosEdicion.id ? nuevaCong : c)
-      );
-      dispatch('update', nuevaCong);
-    } else {
-      // ESTO ACTUALIZA EL CONTADOR: Añadimos la nueva al store global
-      listaCongregaciones.update(lista => [...lista, nuevaCong]);
-      dispatch('save', nuevaCong);
-    }
-
-    cerrar();
-  }
 </script>
 
-<div 
-  class="modal-overlay" 
-  on:click|self={cerrar}
-  role="dialog"
-  tabindex="0"
-  on:keydown={(e) => e.key === 'Escape' && cerrar()}
->
-  <div class="modal-content">
-    <header>
-      <h3>{datosEdicion ? "Editar Congregación" : "Nueva Congregación"}</h3>
-      <button class="close-btn" on:click={cerrar}><X size={20} /></button>
-    </header>
-
-    <div class="form-grid">
-
-      <div class="field full">
-        <label for="nombre">Nombre de Congregación *</label>
-        <input id="nombre" type="text" bind:value={nombre} placeholder="Ej. Aeropuerto" />
-      </div>
-
-      <div class="field">
-        <label for="numero">Número</label>
-        <input id="numero" type="text" bind:value={numero} placeholder="Número de congregación" />
-      </div>
-
-      <div class="field">
-        <label for="ciudad">Ciudad *</label>
-        <input id="ciudad" type="text" bind:value={ciudad} />
-      </div>
-
-      <div class="field">
-        <label for="provincia">Estado/Provincia</label>
-        <input id="provincia" type="text" bind:value={provincia} />
-      </div>
-
-      <div class="field">
-        <label for="pais">País</label>
-        <select id="pais" bind:value={pais}>
-          <option>Cuba</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="idioma">Idioma</label>
-        <select id="idioma" bind:value={idioma}>
-          <option>Español</option>
-        </select>
-      </div>
-
-      <div class="field checkbox">
-        <input id="lenguaSenas" type="checkbox" bind:checked={esLenguaSenas} />
-        <label for="lenguaSenas">Lengua de señas</label>
-      </div>
-
-      <div class="field">
-        <label for="diaSemana">Día de reunión entre semana</label>
-        <select id="diaSemana" bind:value={diaSemana}>
-          <option>Lunes</option>
-          <option>Martes</option>
-          <option>Miércoles</option>
-          <option>Jueves</option>
-          <option>Viernes</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="horaSemana" class="with-icon">
-          <Clock size={14}/>
-          <span>Hora entre semana</span>
-        </label>
-        <input id="horaSemana" type="time" bind:value={horaSemana} />
-      </div>
-
-      <div class="field">
-        <label for="diaFinSemana">Día de reunión de fin de semana</label>
-        <select id="diaFinSemana" bind:value={diaFinSemana}>
-          <option>Sábado</option>
-          <option>Domingo</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="horaFinSemana" class="with-icon">
-          <Clock size={14}/>
-          <span>Hora fin de semana</span>
-        </label>
-        <input id="horaFinSemana" type="time" bind:value={horaFinSemana} />
-      </div>
-
+<div class="modal-backdrop">
+  <div class="card-global modal-content">
+    
+    <div class="modal-header">
+      <h2>{datosEdicion ? 'Editar Congregación' : 'Añadir Congregación'}</h2>
+      <button class="close-btn" on:click={cerrar} title="Cerrar">
+        <X size={20} />
+      </button>
     </div>
 
-    <footer>
-      <button class="btn-sec" on:click={cerrar}>Cancelar</button>
-      <button class="btn-pri" on:click={guardar}>
-        {datosEdicion ? "Actualizar" : "Guardar"} Congregación
+    <div class="modal-body">
+      <div class="form-group full-width">
+        <label for="nombre">Nombre de la Congregación *</label>
+        <input 
+          id="nombre" type="text" 
+          class="input-global" 
+          placeholder="Ej: Centro, Norte, etc." 
+          bind:value={formData.nombre} 
+        />
+      </div>
+
+      <div class="form-grid">
+        <div class="form-column">
+          <h4 class="section-title">Ubicación y Contacto</h4>
+          
+          <div class="form-group">
+            <label for="ciudad">Ciudad / Municipio</label>
+            <input id="ciudad" type="text" class="input-global" bind:value={formData.ciudad} />
+          </div>
+          
+          <div class="form-group">
+            <label for="provincia">Provincia</label>
+            <input id="provincia" type="text" class="input-global" bind:value={formData.provincia} />
+          </div>
+
+          <div class="form-group">
+            <label for="telefono">Teléfono del Salón</label>
+            <input id="telefono" type="text" class="input-global" placeholder="Ej: +53..." bind:value={formData.telefono} />
+          </div>
+        </div>
+
+        <div class="form-column">
+          <h4 class="section-title">Reuniones e Idioma</h4>
+          
+          <div class="form-group-row">
+            <div class="form-group half">
+              <label for="diaSemana">Día (Semana)</label>
+              <select id="diaSemana" class="input-global" bind:value={formData.diaSemana}>
+                <option value="">Seleccionar...</option>
+                <option value="Lunes">Lunes</option>
+                <option value="Martes">Martes</option>
+                <option value="Miércoles">Miércoles</option>
+                <option value="Jueves">Jueves</option>
+                <option value="Viernes">Viernes</option>
+              </select>
+            </div>
+            <div class="form-group half">
+              <label for="horaSemana">Hora</label>
+              <input id="horaSemana" type="time" class="input-global" bind:value={formData.horaSemana} />
+            </div>
+          </div>
+
+          <div class="form-group-row">
+            <div class="form-group half">
+              <label for="diaFinSemana">Día (Fin de Sem.)</label>
+              <select id="diaFinSemana" class="input-global" bind:value={formData.diaFinSemana}>
+                <option value="">Seleccionar...</option>
+                <option value="Sábado">Sábado</option>
+                <option value="Domingo">Domingo</option>
+              </select>
+            </div>
+            <div class="form-group half">
+              <label for="horaFinSemana">Hora</label>
+              <input id="horaFinSemana" type="time" class="input-global" bind:value={formData.horaFinSemana} />
+            </div>
+          </div>
+
+          <div class="form-group checkbox-group mt-10">
+            <label class="checkbox-label">
+              <input type="checkbox" bind:checked={formData.esLenguaSenas} />
+              <span>Es congregación de Lengua de Señas</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-global" on:click={cerrar}>Cancelar</button>
+      <button class="btn-global btn-primary" on:click={guardar}>
+        <Save size={16} /> Guardar
       </button>
-    </footer>
+    </div>
+
   </div>
 </div>
 
 <style>
-  .modal-overlay { 
-    position: fixed; 
-    top: 0; 
-    left: 0; 
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
-    z-index: 99999;
+  /* FONDO OSCURO BORROSO */
+  .modal-backdrop {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px);
+    display: flex; justify-content: center; align-items: center; z-index: 1000;
   }
+
+  /* CONTENEDOR DEL MODAL */
+  .modal-content {
+    width: 90%; max-width: 700px; /* Más ancho para las 2 columnas */
+    max-height: 90vh; display: flex; flex-direction: column;
+    padding: 0; overflow: hidden; animation: scaleIn 0.2s ease-out;
+  }
+
+  /* CABECERA */
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 20px 25px; border-bottom: 1px solid var(--border-color);
+    background: var(--bg-panel);
+  }
+  .modal-header h2 { margin: 0; font-size: 1.4rem; color: var(--text-main); }
   
-  .modal-content { 
-    background: white; 
-    width: 90%; 
-    max-width: 700px; 
-    border-radius: 16px; 
-    padding: 24px; 
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); 
-    position: relative;
+  .close-btn {
+    background: none; border: none; color: var(--text-muted);
+    cursor: pointer; padding: 5px; border-radius: 5px; transition: 0.2s;
+  }
+  .close-btn:hover { background: var(--bg-app); color: var(--text-main); }
+
+  /* CUERPO Y SCROLL */
+  .modal-body {
+    padding: 25px; overflow-y: auto; background: var(--bg-app);
   }
 
-  header { 
-    display: flex; 
-    justify-content: space-between; 
-    margin-bottom: 20px; 
-    border-bottom: 1px solid #eee; 
-    padding-bottom: 15px; 
+  .section-title {
+    font-size: 0.85rem; color: var(--primary); text-transform: uppercase;
+    letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px; margin-bottom: 15px; margin-top: 0;
   }
 
-  .form-grid { 
-    display: grid; 
-    grid-template-columns: 1fr 1fr; 
-    gap: 15px; 
+  /* GRILLA DEL FORMULARIO */
+  .form-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 30px;
   }
 
-  .field { 
-    display: flex; 
-    flex-direction: column; 
-    gap: 5px; 
+  .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
+  .form-group.full-width { margin-bottom: 25px; }
+  
+  .form-group-row { display: flex; gap: 10px; margin-bottom: 15px; }
+  .form-group.half { margin-bottom: 0; flex: 1; }
+
+  label {
+    font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px;
   }
 
-  .field.full { 
-    grid-column: span 2; 
+  /* CHECKBOX PERSONALIZADO */
+  .checkbox-group { flex-direction: row; align-items: center; }
+  .mt-10 { margin-top: 10px; }
+  .checkbox-label {
+    display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text-main); font-weight: 500;
+  }
+  .checkbox-label input[type="checkbox"] {
+    width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer;
   }
 
-  label { 
-    font-size: 12px; 
-    font-weight: 600; 
-    color: #64748b; 
-    display: flex; 
-    align-items: center; 
-    gap: 5px; 
+  /* ACCIONES (BOTONES) */
+  .modal-actions {
+    padding: 20px 25px; border-top: 1px solid var(--border-color);
+    background: var(--bg-panel); display: flex; justify-content: flex-end; gap: 12px;
   }
 
-  input, select { 
-    padding: 10px; 
-    border: 1px solid #e2e8f0; 
-    border-radius: 8px; 
-    font-size: 14px; 
-  }
+  .btn-primary { background: var(--primary); color: white; border: none; }
+  .btn-primary:hover { background: #be123c; color: white; }
 
-  .checkbox { 
-    flex-direction: row; 
-    align-items: center; 
-    padding-top: 25px; 
-  }
-
-  footer { 
-    display: flex; 
-    justify-content: flex-end; 
-    gap: 10px; 
-    margin-top: 30px; 
-  }
-
-  .btn-pri { 
-    background: #e11d48; 
-    color: white; 
-    border: none; 
-    padding: 10px 20px; 
-    border-radius: 8px; 
-    cursor: pointer; 
-    font-weight: 600; 
-  }
-
-  .btn-sec { 
-    background: #f1f5f9; 
-    color: #64748b; 
-    border: none; 
-    padding: 10px 20px; 
-    border-radius: 8px; 
-    cursor: pointer; 
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
   }
 </style>
