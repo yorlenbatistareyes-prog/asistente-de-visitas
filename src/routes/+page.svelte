@@ -235,6 +235,7 @@
     padding-top: 20px;
   }
 
+  /* --- CABECERA --- */
   .header-section { 
     display: flex; 
     justify-content: space-between; 
@@ -255,22 +256,88 @@
     border: none; 
     padding: 10px 24px; 
     font-weight: 700;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
   }
-  
+
+  /* --- BARRA DE HERRAMIENTAS MODULAR (ESTILO IMAGEN) --- */
+  .toolbar-modular {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 35px;
+  }
+
+  .search-pill {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 0 25px;
+    height: 52px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 50px; /* Forma de píldora */
+    transition: all 0.2s ease;
+  }
+
+  .search-pill:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1);
+  }
+
+  .search-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: var(--text-main);
+    outline: none;
+    font-size: 1rem;
+    margin-left: 12px;
+  }
+
+  .filters-aside {
+    display: flex;
+    gap: 12px;
+  }
+
+  .filter-item {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 15px;
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease;
+  }
+
+  .filter-item:hover { border-color: var(--primary); }
+
+  .minimal-select {
+    background: transparent;
+    color: var(--text-main);
+    border: none;
+    font-size: 0.95rem;
+    font-weight: 700;
+    outline: none;
+    cursor: pointer;
+  }
+
+  /* --- GRID Y TARJETAS --- */
   .grid-circuitos { 
     display: grid; 
     grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); 
     gap: 30px; 
   }
 
-  /* --- TARJETA PRINCIPAL --- */
   .rassembly-card { 
     display: flex; 
     flex-direction: column; 
     padding: 0; 
     overflow: hidden; 
     min-height: 320px;
-    position: relative; /* Clave para el posicionamiento de los botones */
+    position: relative; 
     transition: all 0.3s ease;
     border: 1px solid var(--border-color);
     border-top: 4px solid var(--primary); 
@@ -281,424 +348,74 @@
   .rassembly-card:hover { 
     transform: translateY(-8px);
     box-shadow: var(--shadow-3d);
-    border-color: var(--border-color);
   }
 
-  /* --- ENCABEZADO DE TARJETA --- */
   .card-header { padding: 25px 30px 0 30px; }
-  
-  .top-row { 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
-    margin-bottom: 15px; 
-  }
-
-  .header-divider { 
-    height: 1px; 
-    background-color: var(--border-color); 
-    width: 100%; 
-  }
-
-  .card-content { 
-    padding: 10px 30px 30px 30px; 
-    flex: 1; 
-    display: flex; 
-    flex-direction: column; 
-  }
-
+  .top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+  .header-divider { height: 1px; background-color: var(--border-color); width: 100%; }
+  .card-content { padding: 10px 30px 30px 30px; flex: 1; display: flex; flex-direction: column; }
   .circuit-icon { color: var(--primary); opacity: 0.8; }
 
-  /* --- ETIQUETAS DE ESTADO --- */
+  /* --- ESTADOS --- */
   .badge-status { 
-    display: inline-block; 
-    padding: 6px 16px; 
-    border-radius: 20px; 
-    font-size: 0.75rem; 
-    font-weight: 800; 
-    text-transform: uppercase; 
+    display: inline-block; padding: 6px 16px; border-radius: 20px; 
+    font-size: 0.75rem; font-weight: 800; text-transform: uppercase; 
   }
   .badge-actual { background: #1e3a8a; color: white; }
   .badge-futuro { background: #f59e0b; color: white; }
   .badge-anterior { background: #64748b; color: white; }
 
-  /* --- TEXTOS (MODO OSCURO FIX) --- */
   .circuit-title { 
-    margin: 15px 0 20px 0; 
-    font-size: 1.6rem; 
-    font-weight: 900; 
-    color: var(--text-main); 
-    text-transform: uppercase; 
+    margin: 15px 0 20px 0; font-size: 1.6rem; font-weight: 900; 
+    color: var(--text-main); text-transform: uppercase; 
   }
   
-  .info-container { display: flex; flex-direction: column; gap: 12px; }
+  .meta-row { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; color: var(--text-muted); font-weight: 500; }
 
-  .meta-row { 
-    display: flex; 
-    align-items: center; 
-    gap: 10px; 
-    font-size: 0.95rem; 
-    color: var(--text-muted); 
-    font-weight: 500; 
-  }
-
-  /* --- BARRA DE ACCIONES DESLIZANTE (RASSEMBLY STYLE) --- */
+  /* --- ACCIONES --- */
   .actions-wrapper {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 85px; 
-    background: var(--bg-panel);
-    border-top: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    padding: 0 25px;
-    
-    /* Efecto de aparición */
-    opacity: 0; 
-    transform: translateY(20px);
-    transition: all 0.3s ease;
-    pointer-events: none;
-    z-index: 10;
+    position: absolute; bottom: 0; left: 0; right: 0; height: 85px; 
+    background: var(--bg-panel); border-top: 1px solid var(--border-color);
+    display: flex; align-items: center; padding: 0 25px;
+    opacity: 0; transform: translateY(20px); transition: all 0.3s ease;
+    pointer-events: none; z-index: 10;
   }
 
-  .rassembly-card:hover .actions-wrapper {
-    opacity: 1; 
-    transform: translateY(0);
-    pointer-events: auto;
-  }
-
-  .card-actions { 
-    display: flex; 
-    gap: 12px; 
-    width: 100%; 
-  }
+  .rassembly-card:hover .actions-wrapper { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .card-actions { display: flex; gap: 12px; width: 100%; }
   
-  /* --- BOTONES --- */
   .btn-delete { 
-    width: 50px; 
-    height: 50px; 
-    border-radius: 12px; 
-    border: none; 
-    background: #fee2e2; 
-    color: #ef4444; 
-    cursor: pointer; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center;
-    transition: background 0.2s;
+    width: 50px; height: 50px; border-radius: 12px; border: none; 
+    background: #fee2e2; color: #ef4444; cursor: pointer; 
+    display: flex; align-items: center; justify-content: center;
   }
 
-  :global(.dark) .btn-delete {
-    background: rgba(239, 68, 68, 0.15);
-  }
-
-  .btn-delete:hover { background: #fecaca; }
+  :global(.dark) .btn-delete { background: rgba(239, 68, 68, 0.15); }
 
   .btn-manage { 
-    flex: 1; 
-    height: 50px; 
-    border-radius: 12px; 
-    border: none; 
-    background: var(--primary); 
-    color: white; 
-    font-weight: 800;
-    font-size: 1rem;
-    cursor: pointer; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
-    gap: 10px;
+    flex: 1; height: 50px; border-radius: 12px; border: none; 
+    background: var(--primary); color: white; font-weight: 800;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
   }
 
-  .btn-manage:hover {
-    filter: brightness(1.1);
-    box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);
+  /* --- MODAL --- */
+  .modal-backdrop {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px);
+    display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 20px;
   }
 
-  /* EL FONDO OSCURO: Debe cubrir TODA la pantalla */
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(15, 23, 42, 0.7); /* Oscurecemos más el fondo */
-  backdrop-filter: blur(4px); /* Efecto de desenfoque */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000; /* Por encima de todo */
-  padding: 20px;
-}
-
-/* EL CONTENEDOR: Debe tener un tamaño controlado */
-.modal-content {
-  width: 100%;
-  max-width: 500px; /* Evita que se estire como en la imagen */
-  background: var(--bg-panel);
-  border-radius: var(--radius-lg);
-  padding: 35px;
-  box-shadow: var(--shadow-3d);
-  animation: scaleIn 0.2s ease-out;
-  border-top: 5px solid var(--primary); /* El toque rojizo */
-}
-
-.modal-content h2 {
-  margin: 0 0 25px 0;
-  font-size: 1.5rem;
-  color: var(--text-main);
-  font-weight: 800;
-}
-
-/* LOS CAMPOS: Espaciado vertical */
-.form-group {
-  margin-bottom: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.form-group label {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--text-muted);
-}
-
-/* FILA DE FECHAS: Una al lado de la otra */
-.form-row {
-  display: flex;
-  gap: 15px;
-  margin-bottom: 25px;
-}
-
-.form-group.half {
-  flex: 1;
-}
-
-/* ACCIONES: Botones alineados a la derecha */
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 10px;
-}
-
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-/* --- ESTILOS DE LA BARRA DE BÚSQUEDA --- */
-  .toolbar-circuitos {
-    display: flex;
-    gap: 20px;
-    padding: 15px 25px;
-    margin-bottom: 30px;
-    align-items: center;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
+  .modal-content {
+    width: 100%; max-width: 500px; background: var(--bg-panel);
+    border-radius: var(--radius-lg); padding: 35px; box-shadow: var(--shadow-3d);
+    animation: scaleIn 0.2s ease-out; border-top: 5px solid var(--primary);
   }
 
-  .search-box {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    background: var(--bg-app);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    padding: 0 15px;
-    transition: all 0.2s ease;
-  }
+  .form-group { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .form-group label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); }
+  .form-row { display: flex; gap: 15px; margin-bottom: 25px; }
+  .form-group.half { flex: 1; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px; }
 
-  .search-box:focus-within {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1);
-  }
-
-  .search-icon {
-    color: var(--text-muted);
-    margin-right: 12px;
-  }
-
-  .search-input {
-    width: 100%;
-    border: none;
-    background: transparent;
-    padding: 12px 0;
-    color: var(--text-main);
-    outline: none;
-    font-size: 0.95rem;
-  }
-
-  .filter-group {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .filter-label {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .filter-select {
-    background: var(--bg-app);
-    color: var(--text-main);
-    border: 1px solid var(--border-color);
-    padding: 10px 15px;
-    border-radius: var(--radius-sm);
-    font-size: 0.9rem;
-    font-weight: 600;
-    outline: none;
-    cursor: pointer;
-    transition: border-color 0.2s;
-  }
-
-  .filter-select:hover {
-    border-color: var(--primary);
-  }
-
-  /* Contenedor padre para alinear ambos bloques */
-  .controles-circuitos {
-    display: flex;
-    gap: 15px; /* Espacio entre los dos bloques */
-    margin-bottom: 35px;
-    align-items: stretch;
-  }
-
-  /* BLOQUE DE BÚSQUEDA INDEPENDIENTE */
-  .search-container {
-    flex: 1; /* Toma todo el espacio disponible */
-    display: flex;
-    align-items: center;
-    padding: 0 20px;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    transition: all 0.2s ease;
-  }
-
-  .search-container:focus-within {
-    border-color: var(--primary);
-    box-shadow: var(--shadow-md);
-  }
-
-  .search-icon { color: var(--text-muted); margin-right: 12px; }
-
-  .search-input {
-    width: 100%;
-    border: none;
-    background: transparent;
-    padding: 14px 0;
-    color: var(--text-main);
-    outline: none;
-    font-size: 1rem;
-  }
-
-  /* BLOQUE DE FILTRO INDEPENDIENTE */
-  .filter-container {
-    display: flex;
-    flex-direction: column; /* Apilamos la etiqueta sobre el select para un look más Pro */
-    justify-content: center;
-    padding: 8px 20px;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    min-width: 160px;
-  }
-
-  .filter-label {
-    font-size: 0.65rem;
-    font-weight: 800;
-    color: var(--primary);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 2px;
-  }
-
-  .filter-select {
-    background: transparent;
-    color: var(--text-main);
-    border: none;
-    font-size: 0.9rem;
-    font-weight: 700;
-    outline: none;
-    cursor: pointer;
-    padding: 0;
-  }
-
-  .toolbar-modular {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 20px;
-    margin-bottom: 35px;
-  }
-
-  /* Buscador tipo Píldora */
-  .search-pill {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    padding: 0 20px;
-    height: 50px;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-color);
-    border-radius: 50px; /* Forma de píldora como en la imagen */
-    transition: all 0.2s ease;
-  }
-
-  .search-pill:focus-within {
-    border-color: var(--primary);
-    box-shadow: var(--shadow-md);
-  }
-
-  .search-icon { color: var(--text-muted); margin-right: 12px; }
-
-  .search-input {
-    width: 100%;
-    border: none;
-    background: transparent;
-    color: var(--text-main);
-    outline: none;
-    font-size: 0.95rem;
-  }
-
-  /* Contenedor de filtros a la derecha */
-  .filters-aside {
-    display: flex;
-    gap: 12px;
-  }
-
-  .filter-item {
-    background: var(--bg-panel);
-    border: 1px solid var(--border-color);
-    border-radius: 12px; /* Redondeado más suave */
-    padding: 0 15px;
-    height: 50px;
-    display: flex;
-    align-items: center;
-    transition: border-color 0.2s;
-  }
-
-  .filter-item:hover {
-    border-color: var(--primary);
-  }
-
-  .minimal-select {
-    background: transparent;
-    color: var(--text-main);
-    border: none;
-    font-size: 0.9rem;
-    font-weight: 600;
-    outline: none;
-    cursor: pointer;
-    padding-right: 10px;
-  }
+  @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 </style>
