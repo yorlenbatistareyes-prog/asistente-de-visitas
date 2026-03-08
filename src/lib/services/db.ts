@@ -28,6 +28,19 @@ export interface Congregacion {
   diaSemana?: string;
   diaFinSemana?: string;
 }
+export interface Persona {
+  id?: number;
+  circuito_id: number; // Para vincular la persona al circuito actual
+  nombre: string;
+  segundo_nombre?: string;
+  apellidos: string;
+  privilegio?: string;
+  congregacion?: string;
+  direccion?: string;
+  telefono_celular?: string;
+  telefono_fijo?: string;
+  email?: string;
+}
 
 export interface VisitaHistorial {
   id?: number;
@@ -83,6 +96,24 @@ export async function initDB(): Promise<Database> {
         diaSemana TEXT,
         diaFinSemana TEXT,
         UNIQUE(circuito, nombre)
+      );
+    `);
+
+    // TABLA PERSONAS (Compatible con CSV de JW)
+    await dbInstance.execute(`
+      CREATE TABLE IF NOT EXISTS personas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        circuito_id INTEGER,
+        nombre TEXT NOT NULL,
+        segundo_nombre TEXT,
+        apellidos TEXT NOT NULL,
+        privilegio TEXT,
+        congregacion TEXT,
+        direccion TEXT,
+        telefono_celular TEXT,
+        telefono_fijo TEXT,
+        email TEXT,
+        FOREIGN KEY(circuito_id) REFERENCES circuitos(id) ON DELETE CASCADE
       );
     `);
 
@@ -212,4 +243,42 @@ export async function cargarConfig(clave: string): Promise<string | null> {
   const db = await initDB();
   const res = await db.select<{ valor: string }[]>('SELECT valor FROM configuracion WHERE clave = $1', [clave]);
   return res.length > 0 ? res[0].valor : null;
+}
+
+// --- 5. GESTIÓN DE PERSONAS ---
+
+export async function obtenerPersonasPorCircuito(circuitoId: number): Promise<Persona[]> {
+  const db = await initDB();
+  return await db.select<Persona[]>(
+    'SELECT * FROM personas WHERE circuito_id = $1 ORDER BY apellidos ASC',
+    [circuitoId]
+  );
+}
+
+export async function guardarPersona(p: Persona) {
+  const db = await initDB();
+  if (p.id) {
+    await db.execute(
+      `UPDATE personas SET 
+        nombre = $1, segundo_nombre = $2, apellidos = $3, privilegio = $4, 
+        congregacion = $5, direccion = $6, telefono_celular = $7, 
+        telefono_fijo = $8, email = $9
+       WHERE id = $10`,
+      [p.nombre, p.segundo_nombre, p.apellidos, p.privilegio, p.congregacion, 
+       p.direccion, p.telefono_celular, p.telefono_fijo, p.email, p.id]
+    );
+  } else {
+    await db.execute(
+      `INSERT INTO personas 
+        (circuito_id, nombre, segundo_nombre, apellidos, privilegio, congregacion, direccion, telefono_celular, telefono_fijo, email) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [p.circuito_id, p.nombre, p.segundo_nombre, p.apellidos, p.privilegio, p.congregacion, 
+       p.direccion, p.telefono_celular, p.telefono_fijo, p.email]
+    );
+  }
+}
+
+export async function eliminarPersona(id: number) {
+  const db = await initDB();
+  await db.execute('DELETE FROM personas WHERE id = $1', [id]);
 }
