@@ -155,7 +155,7 @@
               {obtenerEstado(circuito).texto}
             </div>
             <div class="circuit-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round">
+              <svg xmlns="http://www.w3.org/2000/svg" width="47" height="47" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="3.0" r="2.2" />
                 <path d="M8.5 10.0 v-1.5 l1.5 -1.5 h4 l1.5 1.5 v1.5" />
                 <line x1="12" y1="7.0" x2="12" y2="10.0" />
@@ -369,7 +369,7 @@
   .top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
   .header-divider { height: 1px; background-color: var(--border-color); width: 100%; }
   .card-content { padding: 10px 30px 30px 30px; flex: 1; display: flex; flex-direction: column; }
-  .circuit-icon { color: var(--primary); opacity: 0.8; }
+  .circuit-icon { color: var(--text-main); opacity: 0.8; }
 
   /* --- ESTADOS --- */
   .badge-status { 
