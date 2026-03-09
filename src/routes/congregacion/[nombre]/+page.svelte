@@ -180,74 +180,143 @@
 
 <style>
   /* ESTILOS DEL CONTENEDOR PRINCIPAL */
-  .focus-view { display: flex; flex-direction: column; height: 100%; background: #f8fafc; font-family: system-ui; }
-  .focus-header { background: white; padding: 20px 40px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 30px; }
-  .btn-back { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #64748b; font-weight: 600; font-size: 0.9rem; padding: 8px 16px; border: 1px solid #e2e8f0; border-radius: 8px; transition: all 0.2s; }
-  .btn-back:hover { background: #f1f5f9; color: #0f172a; }
-  .title-group h1 { margin: 0; font-size: 1.8rem; color: #0f172a; font-weight: 800; }
-  .title-group p { margin: 0; color: #64748b; font-size: 0.9rem; }
-  .focus-content { flex: 1; padding: 40px; overflow-y: auto; }
-
-  /* ESTILOS DEL DASHBOARD */
-  .dashboard-layout { max-width: 1000px; margin: 0 auto; animation: fadeIn 0.3s ease; }
-  .loading { color: #64748b; font-style: italic; text-align: center; margin-top: 50px; }
-  .grid-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 25px; }
-  .dash-card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); display: flex; flex-direction: column; overflow: hidden; }
-  .card-header { display: flex; align-items: center; gap: 15px; padding: 20px 25px; border-bottom: 1px solid #f1f5f9; }
-  .card-header h3 { margin: 0; font-size: 1.2rem; color: #1e293b; font-weight: 700; }
-  .icon-box { width: 45px; height: 45px; border-radius: 12px; display: flex; justify-content: center; align-items: center; }
-  .icon-box.red { background: #fff1f2; color: #e11d48; }
-  .icon-box.blue { background: #eff6ff; color: #2563eb; }
-  .card-body { padding: 25px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 20px; }
-
-  .estado-borrador { display: flex; flex-direction: column; gap: 15px; }
-  .fecha-label { margin: 0; display: flex; align-items: center; gap: 8px; color: #475569; font-size: 0.95rem; }
-  .progreso-container { background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #f1f5f9;}
-  .progreso-text { display: flex; justify-content: space-between; font-size: 0.85rem; color: #64748b; margin-bottom: 8px; }
-  .progreso-text strong { color: #0f172a; }
-  .progreso-barra-fondo { background: #e2e8f0; height: 8px; border-radius: 10px; overflow: hidden; }
-  .progreso-barra-llena { background: #10b981; height: 100%; border-radius: 10px; transition: width 0.5s ease-out; }
-
-  .lista-historial { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
-  .historial-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; background: #f8fafc; border-radius: 10px; border: 1px solid #f1f5f9; }
-  .historial-info { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; color: #334155; }
-  .btn-icon { background: transparent; border: none; color: #94a3b8; cursor: pointer; padding: 5px; }
-  .btn-icon:hover { color: #2563eb; }
-
-  .estado-vacio { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; text-align: center; padding: 20px 0; }
-  .estado-vacio p { margin: 0; font-size: 0.95rem; }
-
-  .btn-accion { width: 100%; height: 48px; border-radius: 12px; font-weight: 700; font-size: 1rem; display: flex; justify-content: center; align-items: center; gap: 8px; cursor: pointer; transition: all 0.2s; border: none; }
-  .btn-primary { background: #e11d48; color: white; }
-  .btn-primary:hover { background: #be123c; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(225, 29, 72, 0.2); }
-  .btn-outline { background: white; border: 2px solid #cbd5e1; color: #475569; }
-  .btn-outline:hover { border-color: #2563eb; color: #2563eb; background: #f8fafc; }
-
-  /* ESTILOS DEL CONTENEDOR DEL FORMULARIO E HISTORIAL */
-  .form-container { max-width: 1200px; margin: 0 auto; background: transparent; }
-  .btn-text { background: none; border: none; color: #e11d48; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; margin-bottom: 20px; }
-  .btn-text:hover { color: #be123c; text-decoration: underline; }
+  .focus-view { 
+    display: flex; 
+    flex-direction: column; 
+    height: 100%; 
+    background: var(--bg-app); /* Cambiado de #f8fafc */
+    color: var(--text-main); 
+    font-family: var(--font-family); 
+  }
   
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .focus-header { 
+    background: var(--bg-panel); /* Cambiado de white */
+    padding: 20px 40px; 
+    border-bottom: var(--border-thin); 
+    display: flex; 
+    align-items: center; 
+    gap: 30px; 
+  }
 
   .btn-back { 
     display: flex; 
     align-items: center; 
     gap: 8px; 
-    background: white; /* Fondo blanco */
-    color: #64748b; 
+    background: var(--bg-panel); 
+    color: var(--text-main); 
     font-weight: 600; 
     font-size: 0.9rem; 
     padding: 8px 16px; 
-    border: 1px solid #e2e8f0; 
-    border-radius: 8px; 
-    cursor: pointer; /* Cambia el cursor a la mano */
+    border: var(--border-thin); 
+    border-radius: var(--radius-md); 
+    cursor: pointer; 
     transition: all 0.2s; 
   }
 
   .btn-back:hover { 
-    background: #f1f5f9; 
-    color: #0f172a; 
+    background: var(--bg-app); 
+    color: var(--text-main); 
   }
 
+  .title-group h1 { margin: 0; font-size: 1.8rem; color: var(--text-main); font-weight: 800; }
+  .title-group p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
+  .focus-content { flex: 1; padding: 40px; overflow-y: auto; }
+
+  /* ESTILOS DEL DASHBOARD */
+  .dashboard-layout { max-width: 1000px; margin: 0 auto; animation: fadeIn 0.3s ease; }
+  .loading { color: var(--text-muted); font-style: italic; text-align: center; margin-top: 50px; }
+  .grid-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 25px; }
+  
+  .dash-card { 
+    background: var(--bg-panel); 
+    border-radius: var(--radius-lg); 
+    border: var(--border-thin); 
+    box-shadow: var(--shadow-sm); 
+    display: flex; 
+    flex-direction: column; 
+    overflow: hidden; 
+  }
+
+  .card-header { 
+    display: flex; 
+    align-items: center; 
+    gap: 15px; 
+    padding: 20px 25px; 
+    border-bottom: var(--border-thin); 
+  }
+
+  .card-header h3 { margin: 0; font-size: 1.2rem; color: var(--text-main); font-weight: 700; }
+  
+  .icon-box { 
+    width: 45px; height: 45px; 
+    border-radius: var(--radius-md); 
+    display: flex; justify-content: center; align-items: center; 
+  }
+  /* Mantenemos los colores de los iconos para que resalten */
+  .icon-box.red { background: rgba(225, 29, 72, 0.1); color: var(--primary); }
+  .icon-box.blue { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
+
+  .card-body { padding: 25px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 20px; }
+
+  .estado-borrador { display: flex; flex-direction: column; gap: 15px; }
+  .fecha-label { margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main); font-size: 0.95rem; }
+  
+  .progreso-container { 
+    background: var(--bg-app); 
+    padding: 15px; 
+    border-radius: var(--radius-md); 
+    border: var(--border-thin);
+  }
+
+  .progreso-text { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; }
+  .progreso-text strong { color: var(--text-main); }
+  
+  .progreso-barra-fondo { background: var(--border-color); height: 8px; border-radius: 10px; overflow: hidden; }
+  .progreso-barra-llena { background: #10b981; height: 100%; border-radius: 10px; transition: width 0.5s ease-out; }
+
+  .lista-historial { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+  
+  .historial-item { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    padding: 12px 15px; 
+    background: var(--bg-app); 
+    border-radius: var(--radius-md); 
+    border: var(--border-thin); 
+  }
+
+  .historial-info { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; color: var(--text-main); }
+  .btn-icon { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 5px; }
+  .btn-icon:hover { color: var(--primary); }
+
+  .estado-vacio { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); text-align: center; padding: 20px 0; }
+  .estado-vacio p { margin: 0; font-size: 0.95rem; }
+
+  .btn-accion { 
+    width: 100%; height: 48px; 
+    border-radius: var(--radius-md); 
+    font-weight: 700; font-size: 1rem; 
+    display: flex; justify-content: center; align-items: center; 
+    gap: 8px; cursor: pointer; transition: all 0.2s; border: none; 
+  }
+
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: #be123c; transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  
+  .btn-outline { 
+    background: var(--bg-panel); 
+    border: var(--border-thin); 
+    color: var(--text-main); 
+  }
+  .btn-outline:hover { background: var(--bg-app); border-color: var(--primary); color: var(--primary); }
+
+  .form-container { max-width: 1200px; margin: 0 auto; background: transparent; }
+  .btn-text { 
+    background: none; border: none; color: var(--primary); font-weight: 700; 
+    cursor: pointer; display: flex; align-items: center; gap: 6px; margin-bottom: 20px; 
+  }
+  .btn-text:hover { color: #be123c; text-decoration: underline; }
+  
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>

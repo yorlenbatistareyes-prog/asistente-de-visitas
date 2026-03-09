@@ -314,7 +314,7 @@
       alert("✅ Informe PDF generado correctamente."); 
     }
   }
-  
+
 </script>
 
 <div class="contenedor-analisis">
@@ -411,22 +411,71 @@
 {/if}
 
 <style>
-  .contenedor-analisis { padding: 20px; font-family: system-ui; background: #f8fafc; border-radius: 12px; min-height: 100%; }
+  /* 1. CONTENEDOR PRINCIPAL */
+  .contenedor-analisis { 
+    padding: 20px; 
+    font-family: var(--font-family); 
+    background: var(--bg-app); /* Cambiado de #f8fafc */
+    border-radius: var(--radius-lg); 
+    min-height: 100%; 
+    color: var(--text-main);
+  }
   
-  .cabecera-principal { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px;}
-  .info-cabecera h2 { margin: 0 0 10px 0; font-size: 1.4rem; color: #1e293b; font-weight: 800; }
-  .fecha-seccion { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; color: #64748b; font-weight: 600; }
-  .fecha-seccion input { border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; color: #333; font-weight: bold; background: #fff;}
-  
-  .instruccion { color: #64748b; font-size: 0.9rem; margin-bottom: 20px; }
+  .cabecera-principal { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: flex-end; 
+    margin-bottom: 10px; 
+    border-bottom: var(--border-thin); /* Cambiado de sólido fijo */
+    padding-bottom: 15px;
+  }
 
-  .grupo-acciones { display: flex; gap: 8px; }
-  button { cursor: pointer; font-weight: 600; border-radius: 8px; border: none; padding: 8px 14px; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; transition: all 0.2s; }
-  button:hover { transform: translateY(-1px); }
-  .btn-rojo { background-color: #e11d48; color: white; }
-  .btn-gris { background-color: #64748b; color: white; }
+  .info-cabecera h2 { 
+    margin: 0 0 10px 0; 
+    font-size: 1.4rem; 
+    color: var(--text-main); /* Cambiado de #1e293b */
+    font-weight: 800; 
+  }
+
+  .fecha-seccion { 
+    display: flex; 
+    align-items: center; 
+    gap: 10px; 
+    font-size: 0.9rem; 
+    color: var(--text-muted); 
+    font-weight: 600; 
+  }
+
+  .fecha-seccion input { 
+    border: var(--border-thin); 
+    border-radius: var(--radius-sm); 
+    padding: 4px 8px; 
+    color: var(--text-main); 
+    font-weight: bold; 
+    background: var(--bg-panel);
+  }
+  
+  .instruccion { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px; }
+
+  /* 2. BOTONES */
+  button { 
+    cursor: pointer; 
+    font-weight: 600; 
+    border-radius: var(--radius-md); 
+    border: none; 
+    padding: 8px 14px; 
+    display: flex; 
+    align-items: center; 
+    gap: 6px; 
+    font-size: 0.85rem; 
+    transition: all 0.2s; 
+  }
+
+  button:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  .btn-gris { background-color: var(--text-muted); color: white; }
   .btn-azul { background-color: #2563eb; color: white; }
 
+  /* 3. GRID Y TARJETAS */
   .muro-grid { 
     display: grid; 
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); 
@@ -434,90 +483,78 @@
   }
 
   .nota-card {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
+    background: var(--bg-panel); /* Cambiado de blanco fijo */
+    border: var(--border-thin);
+    border-radius: var(--radius-md);
     padding: 15px;
     height: 110px;
     cursor: pointer;
     display: flex;
     flex-direction: column;
     transition: all 0.2s ease;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    box-shadow: var(--shadow-sm);
   }
 
   .nota-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    border-color: #cbd5e1;
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary); /* Resalte con tu rojo en hover */
   }
 
   .nota-card.completada { border-left: 4px solid #10b981; }
-  .nota-card.vacia { border-left: 4px solid #cbd5e1; }
+  .nota-card.vacia { border-left: 4px solid var(--border-color); }
 
-  .nota-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-  .nota-header h4 { margin: 0; font-size: 0.9rem; color: #334155; font-weight: 700; line-height: 1.2; padding-right: 5px;}
-
-  /* ESTILOS DE LOS CHIPS */
-  .indicador-estado { display: flex; align-items: center; }
-  .chip { 
-    font-size: 0.65rem; 
-    padding: 3px 8px; 
-    border-radius: 10px; 
+  .nota-header h4 { 
+    margin: 0; 
+    font-size: 0.9rem; 
+    color: var(--text-main); 
     font-weight: 700; 
-    text-transform: uppercase; 
-    letter-spacing: 0.5px; 
-  }
-  .chip.guardando { background: #fef08a; color: #854d0e; animation: pulse 1s infinite; }
-  .chip.guardado { background: #dcfce7; color: #166534; }
-
-  @keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.6; }
-    100% { opacity: 1; }
+    line-height: 1.2; 
   }
 
-  .nota-body { flex: 1; overflow: hidden; }
-  .preview-text { 
-    margin: 0; font-size: 0.8rem; color: #475569; display: -webkit-box;
-    -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  }
-  .empty-text { margin: 0; font-size: 0.8rem; color: #94a3b8; font-style: italic; }
-
+  /* 4. MODAL Y FORMULARIO */
   .modal-backdrop {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(2px);
+    background: rgba(15, 23, 42, 0.6); /* Oscurecemos más el fondo */
+    backdrop-filter: blur(4px);
     display: flex; justify-content: center; align-items: center; z-index: 9999;
   }
 
   .focus-modal {
-    background: white; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto;
-    border-radius: 12px; padding: 25px; box-sizing: border-box;
-    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+    background: var(--bg-panel); /* Cambiado de blanco */
+    color: var(--text-main);
+    width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto;
+    border-radius: var(--radius-lg); padding: 25px; box-sizing: border-box;
+    box-shadow: var(--shadow-3d);
     display: flex; flex-direction: column; gap: 15px; animation: zoomIn 0.2s ease-out;
   }
 
-  .modal-header { display: flex; justify-content: space-between; align-items: center; }
-  .modal-header h3 { margin: 0; font-size: 1.3rem; color: #0f172a; font-weight: 800; }
-  .btn-close { background: transparent; padding: 5px; color: #64748b; }
-  .btn-close:hover { background: #f1f5f9; color: #ef4444; border-radius: 5px;}
-
-  .guia-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px 15px; border-radius: 8px; }
-  .guia-titulo { margin: 0 0 5px 0; font-size: 0.8rem; font-weight: 700; color: #166534; }
-  .guia-box ul { margin: 0; padding-left: 20px; font-size: 0.85rem; color: #15803d; }
-  .guia-box li { margin-bottom: 3px; }
+  .modal-header h3 { margin: 0; font-size: 1.3rem; color: var(--text-main); font-weight: 800; }
+  
+  .guia-box { 
+    background: rgba(22, 101, 52, 0.1); /* Fondo verde traslúcido */
+    border: 1px solid rgba(22, 101, 52, 0.2); 
+    padding: 12px 15px; 
+    border-radius: var(--radius-sm); 
+  }
 
   .focus-textarea {
     width: 100%; min-height: 200px; box-sizing: border-box;
-    border-radius: 8px; border: 2px solid #e2e8f0; padding: 15px; 
-    font-size: 1rem; line-height: 1.5; font-family: inherit;
+    background: var(--bg-app); /* Un tono más oscuro que el panel */
+    color: var(--text-main);
+    border-radius: var(--radius-sm); 
+    border: var(--border-thin); 
+    padding: 15px; font-size: 1rem; line-height: 1.5; font-family: inherit;
     resize: vertical; outline: none; transition: border-color 0.2s;
   }
-  .focus-textarea:focus { border-color: #3b82f6; }
 
-  .modal-footer { display: flex; justify-content: flex-end; margin-top: 5px;}
-  .btn-primary { background: #3b82f6; color: white; padding: 10px 20px; font-size: 0.95rem; }
-  .btn-primary:hover { background: #2563eb; }
+  .focus-textarea:focus { border-color: var(--primary); }
+
+  .btn-primary { background: var(--primary); color: white; padding: 10px 20px; }
+
+  /* CHIPS */
+  .chip.guardado { background: rgba(22, 163, 74, 0.2); color: #4ade80; }
+  .chip.guardando { background: rgba(234, 179, 8, 0.2); color: #facc15; }
 
   @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 </style>

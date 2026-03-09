@@ -140,44 +140,98 @@
 </div>
 
 <style>
-  .historial-layout { max-width: 900px; margin: 0 auto; animation: fadeIn 0.3s ease; }
+  .historial-layout { 
+    max-width: 900px; 
+    margin: 0 auto; 
+    animation: fadeIn 0.3s ease; 
+  }
   
-  .estado-vacio { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: #64748b; text-align: center; background: white; border-radius: 16px; border: 1px dashed #cbd5e1; }
-  .estado-vacio h3 { margin: 15px 0 5px; color: #1e293b; font-size: 1.2rem; }
+  .estado-vacio { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center; 
+    padding: 60px 20px; 
+    color: var(--text-muted); 
+    text-align: center; 
+    background: var(--bg-panel); 
+    border-radius: var(--radius-lg); 
+    border: 1px dashed var(--border-color); 
+  }
+  
+  .estado-vacio h3 { margin: 15px 0 5px; color: var(--text-main); font-size: 1.2rem; }
   .estado-vacio p { margin: 0; font-size: 0.95rem; }
 
   .timeline { display: flex; flex-direction: column; gap: 15px; }
 
-  .historial-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
-  .historial-card:hover { border-color: #cbd5e1; }
-  .historial-card.expandida { border-color: #93c5fd; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-
-  .card-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px; background: #f8fafc; cursor: pointer; user-select: none; }
-  .header-info { display: flex; align-items: center; gap: 10px; font-size: 1.05rem; color: #334155; }
-  .header-info strong { color: #0f172a; }
-
-  .card-body { padding: 25px 20px; border-top: 1px solid #e2e8f0; animation: slideDown 0.2s ease-out; }
+  .historial-card { 
+    background: var(--bg-panel); 
+    border: var(--border-thin); 
+    border-radius: var(--radius-md); 
+    overflow: hidden; 
+    transition: all 0.2s; 
+    box-shadow: var(--shadow-sm); 
+  }
   
-  /* ESTO ES MAGIA: Respeta los saltos de línea del texto guardado */
+  .historial-card:hover { border-color: var(--primary); }
+  .historial-card.expandida { border-color: var(--primary); box-shadow: var(--shadow-md); }
+
+  .card-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    padding: 18px 20px; 
+    background: var(--bg-app); 
+    cursor: pointer; 
+    user-select: none; 
+  }
+  
+  .header-info { display: flex; align-items: center; gap: 10px; font-size: 1.05rem; color: var(--text-main); }
+  .header-info strong { color: var(--text-main); }
+
+  .card-body { 
+    padding: 25px 20px; 
+    border-top: var(--border-thin); 
+    animation: slideDown 0.2s ease-out; 
+  }
+  
   .contenido-texto { 
     white-space: pre-wrap; 
     font-size: 0.95rem; 
     line-height: 1.8; 
-    color: #334155; 
+    color: var(--text-main); 
     margin-bottom: 25px;
-    background: #f1f5f9; /* Fondo gris muy suave para el área de texto */
+    background: var(--bg-app); 
     padding: 20px;
-    border-radius: 12px;
-    border-left: 4px solid #2563eb; /* Una línea azul que le da elegancia */
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--primary); 
   }
 
-  .card-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 15px; border-top: 1px dashed #e2e8f0; }
+  .card-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 15px; border-top: 1px dashed var(--border-color); }
   
-  .btn-accion { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s; border: none; }
-  .btn-outline { background: white; border: 1px solid #cbd5e1; color: #475569; }
-  .btn-outline:hover { background: #f1f5f9; color: #0f172a; }
-  .btn-danger { background: #fff1f2; color: #e11d48; }
-  .btn-danger:hover { background: #ffe4e6; color: #be123c; }
+  .btn-accion { 
+    display: flex; 
+    align-items: center; 
+    gap: 6px; 
+    padding: 8px 14px; 
+    border-radius: var(--radius-sm); 
+    font-size: 0.85rem; 
+    font-weight: 600; 
+    cursor: pointer; 
+    transition: 0.2s; 
+    border: none; 
+  }
+  
+  .btn-outline { 
+    background: var(--bg-panel); 
+    border: var(--border-thin); 
+    color: var(--text-main); 
+  }
+  
+  .btn-outline:hover { background: var(--bg-app); color: var(--primary); border-color: var(--primary); }
+  
+  .btn-danger { background: rgba(225, 29, 72, 0.1); color: var(--primary); }
+  .btn-danger:hover { background: var(--primary); color: white; }
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
