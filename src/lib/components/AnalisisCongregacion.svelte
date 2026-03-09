@@ -40,9 +40,13 @@
   const store = new LazyStore('registro_circuito_v1.json');
   let mapaObservaciones: Record<string, any> = {};
 
+  // --- ESTADO DE LOS CHIPS VISUALES ---
+  let estadoTarjetas: Record<string, 'guardando' | 'guardado' | null> = {};
+
   // --- LAS 10 TARJETAS DEL MURO DE NOTAS ---
   type ClaveRegistro = keyof Omit<RegistroCongregacion, 'fechaVisita'>;
   
+  // TUS MÓDULOS INTACTOS
   const modulos: { id: ClaveRegistro, titulo: string, guias: string[] }[] = [
     { 
       id: 'opinionAncianos', 
@@ -150,21 +154,51 @@
     } catch (e) { registro = { ...valoresPorDefecto }; }
   }
 
-  async function guardarCambios() {
+  // --- LÓGICA DE GUARDADO MEJORADA CON CHIPS ---
+  async function guardarCambios(idModificado?: string) {
     if (!nombreCongregacion) return;
+
+    if (idModificado) {
+      estadoTarjetas[idModificado] = 'guardando';
+      estadoTarjetas = { ...estadoTarjetas }; 
+    }
+
     try {
       const obs = await store.get<Record<string, any>>('observaciones') || {};
       mapaObservaciones = obs;
       mapaObservaciones[nombreCongregacion] = registro;
       await store.set('observaciones', mapaObservaciones);
+      
+      if (idModificado) await new Promise(r => setTimeout(r, 400));
+      
       await store.save();
-      if (moduloActivo) moduloActivo = null;
-    } catch (error) { alert("❌ Error al guardar en disco."); }
+
+      if (idModificado) {
+        estadoTarjetas[idModificado] = 'guardado';
+        estadoTarjetas = { ...estadoTarjetas };
+
+        setTimeout(() => {
+          if (estadoTarjetas[idModificado] === 'guardado') {
+            estadoTarjetas[idModificado] = null;
+            estadoTarjetas = { ...estadoTarjetas };
+          }
+        }, 2500);
+      }
+    } catch (error) { 
+      alert("❌ Error al guardar en disco."); 
+      if (idModificado) {
+        estadoTarjetas[idModificado] = null;
+        estadoTarjetas = { ...estadoTarjetas };
+      }
+    }
   }
 
   async function cerrarYGuardar() {
-    moduloActivo = null;
-    await guardarCambios();
+    if (moduloActivo) {
+      const idActual = moduloActivo.id;
+      moduloActivo = null; 
+      await guardarCambios(idActual); 
+    }
   }
 
   async function finalizarInforme() {
@@ -173,7 +207,6 @@
 
     try {
       const resumen = Object.entries(registro).filter(([key]) => key !== 'fechaVisita' && key !== 'id').map(([k, v]) => {
-          // Separa las palabras unidas por mayúsculas (Ej: ministerioCristiano -> Ministerio Cristiano)
           const nombreModulo = k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
           return `${nombreModulo}: ${v || 'Sin observaciones'}`;
         }).join('\n\n');
@@ -241,12 +274,17 @@
       <h2>Muro de Análisis: {nombreCongregacion}</h2>
       <div class="fecha-seccion">
         <label for="fv">Semana de visita:</label>
-        <input type="date" id="fv" bind:value={registro.fechaVisita} />
+        <input type="date" id="fv" bind:value={registro.fechaVisita} on:change={() => guardarCambios('fecha')} />
+        
+        {#if estadoTarjetas['fecha'] === 'guardando'}
+          <span class="chip guardando">Guardando...</span>
+        {:else if estadoTarjetas['fecha'] === 'guardado'}
+          <span class="chip guardado">Guardado</span>
+        {/if}
       </div>
     </div>
     
     <div class="grupo-acciones">
-      <button class="btn-rojo" title="Guardar Borrador en disco" on:click={guardarCambios}><Save size={16} /> Borrador</button>
       <button class="btn-gris" on:click={generarPDF}><FileText size={16} /> PDF</button>
       <button class="btn-azul" title="Guardar en historial y limpiar" on:click={finalizarInforme}><CheckCircle size={16} /> Finalizar</button>
     </div>
@@ -262,11 +300,18 @@
       >
         <div class="nota-header">
           <h4>{mod.titulo}</h4>
-          {#if registro[mod.id] && registro[mod.id].trim() !== ''}
-            <CheckCircle2 size={18} color="#10b981" />
-          {:else}
-            <Circle size={18} color="#cbd5e1" />
-          {/if}
+          
+          <div class="indicador-estado">
+            {#if estadoTarjetas[mod.id] === 'guardando'}
+              <span class="chip guardando">Guardando...</span>
+            {:else if estadoTarjetas[mod.id] === 'guardado'}
+              <span class="chip guardado">Guardado</span>
+            {:else if registro[mod.id] && registro[mod.id].trim() !== ''}
+              <CheckCircle2 size={18} color="#10b981" />
+            {:else}
+              <Circle size={18} color="#cbd5e1" />
+            {/if}
+          </div>
         </div>
         
         <div class="nota-body">
@@ -362,6 +407,25 @@
 
   .nota-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
   .nota-header h4 { margin: 0; font-size: 0.9rem; color: #334155; font-weight: 700; line-height: 1.2; padding-right: 5px;}
+
+  /* ESTILOS DE LOS CHIPS */
+  .indicador-estado { display: flex; align-items: center; }
+  .chip { 
+    font-size: 0.65rem; 
+    padding: 3px 8px; 
+    border-radius: 10px; 
+    font-weight: 700; 
+    text-transform: uppercase; 
+    letter-spacing: 0.5px; 
+  }
+  .chip.guardando { background: #fef08a; color: #854d0e; animation: pulse 1s infinite; }
+  .chip.guardado { background: #dcfce7; color: #166534; }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+  }
 
   .nota-body { flex: 1; overflow: hidden; }
   .preview-text { 
