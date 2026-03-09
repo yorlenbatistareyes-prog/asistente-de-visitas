@@ -156,22 +156,22 @@
             </div>
             <div class="circuit-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round">
-  <circle cx="12" cy="3.0" r="2.2" />
-  <path d="M8.5 10.0 v-1.5 l1.5 -1.5 h4 l1.5 1.5 v1.5" />
-  <line x1="12" y1="7.0" x2="12" y2="10.0" />
+                <circle cx="12" cy="3.0" r="2.2" />
+                <path d="M8.5 10.0 v-1.5 l1.5 -1.5 h4 l1.5 1.5 v1.5" />
+                <line x1="12" y1="7.0" x2="12" y2="10.0" />
 
-  <line x1="6.5" y1="11.5" x2="17.5" y2="11.5" />
-  <path d="M8.5 11.5 L9.5 14 h5 L15.5 11.5" />
+                <line x1="6.5" y1="11.5" x2="17.5" y2="11.5" />
+                <path d="M8.5 11.5 L9.5 14 h5 L15.5 11.5" />
 
-  <path d="M6.8 19.5 A 1.6 1.9 0 1 1 9.6 19.5" />
-  <path d="M10.6 19.5 A 1.6 1.9 0 1 1 13.4 19.5" />
-  <path d="M14.4 19.5 A 1.6 1.9 0 1 1 17.2 19.5" />
+                <path d="M6.2 19.5 A 1.6 1.9 0 1 1 9.0 19.5" />
+                <path d="M10.6 19.5 A 1.6 1.9 0 1 1 13.4 19.5" />
+                <path d="M15.0 19.5 A 1.6 1.9 0 1 1 17.8 19.5" />
 
-  <path d="M4.9 22.5 A 1.6 1.9 0 1 1 7.7 22.5" />
-  <path d="M8.7 22.5 A 1.6 1.9 0 1 1 11.5 22.5" />
-  <path d="M12.5 22.5 A 1.6 1.9 0 1 1 15.3 22.5" />
-  <path d="M16.3 22.5 A 1.6 1.9 0 1 1 19.1 22.5" />
-</svg>
+                <path d="M4.0 22.5 A 1.6 1.9 0 1 1 6.8 22.5" />
+                <path d="M8.4 22.5 A 1.6 1.9 0 1 1 11.2 22.5" />
+                <path d="M12.8 22.5 A 1.6 1.9 0 1 1 15.6 22.5" />
+                <path d="M17.2 22.5 A 1.6 1.9 0 1 1 20.0 22.5" />
+              </svg>
             </div>
           </div>
           <div class="header-divider"></div>
