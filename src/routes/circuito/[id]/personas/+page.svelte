@@ -134,9 +134,9 @@
     </div>
 
     <div class="filters-aside">
-      <label class="filter-item btn-secundario card-global">
-        <Upload size={18} /> <span>Importar JW</span>
-        <input type="file" accept=".csv" on:change={importarCSV} hidden />
+      <label class="btn-importar card-global">
+           <Upload size={18} /> <span>Importar CSV</span>
+           <input type="file" accept=".csv" on:change={importarCSV} hidden />
       </label>
       
       <button class="btn-primary-fino" on:click={() => (mostrandoModalPersona = true)}>
@@ -364,4 +364,21 @@
     color: var(--primary);
     transition: color 0.2s;
   }
+
+  .btn-importar {
+  background: #16a34a;
+  color: white;
+  border: none;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.btn-importar:hover { background: #15803d; }
 </style>

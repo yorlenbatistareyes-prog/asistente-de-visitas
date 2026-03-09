@@ -123,9 +123,9 @@
     </div>
     
     <div style="display: flex; gap: 10px;">
-      <label class="btn-secundario">
-        <Upload size={18} /> <span>Importar JW</span>
-        <input type="file" accept=".csv" on:change={importarCSV} hidden />
+      <label class="btn-importar">
+         <Upload size={18} /> <span>Importar CSV</span>
+         <input type="file" accept=".csv" on:change={importarCSV} hidden />
       </label>
 
       <button class="btn-global btn-primary" on:click={abrirModal}>
@@ -387,4 +387,21 @@
   }
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .btn-importar {
+  background: #16a34a;
+  color: white;
+  border: none;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.btn-importar:hover { background: #15803d; }
 </style>
