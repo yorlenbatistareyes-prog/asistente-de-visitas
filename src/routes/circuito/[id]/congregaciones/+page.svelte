@@ -2,7 +2,7 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { Plus, Users, MapPin, Calendar, Upload, Edit, Trash2 } from "lucide-svelte"; 
+  import { Plus, Users, MapPin, Calendar, Upload, Edit, Trash2, Search } from "lucide-svelte"; 
   import Papa from 'papaparse'; 
   
   import { fechaPorCongregacion } from '$lib/stores/appStore'; 
@@ -24,12 +24,18 @@
   let lista: Congregacion[] = [];
   let mostrarModal = false;
   let datosEdicion: Congregacion | null = null;
+  let busqueda = "";
+
+  // --- FILTRADO REACTIVO ---
+  $: listaFiltrada = lista.filter(cong =>
+    cong.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+    (cong.ciudad || "").toLowerCase().includes(busqueda.toLowerCase())
+  );
 
   // --- CARGA DE DATOS ---
   async function cargarDatos() {
     circuitoActual = await obtenerCircuitoPorId(idCircuito);
     if (circuitoActual) {
-      // Forzamos reactividad creando un nuevo array
       const resultados = await obtenerCongregaciones(circuitoActual.nombre);
       lista = [...resultados];
     }
@@ -52,15 +58,14 @@
   }
 
   function editarCongregacion(cong: Congregacion) {
-    datosEdicion = { ...cong }; // Copiamos los datos al modal
+    datosEdicion = { ...cong };
     mostrarModal = true;
   }
 
   async function borrar(id: number | undefined, nombre: string) {
-    // Usamos window.confirm para bloquear la ejecución obligatoriamente
     if (id && window.confirm(`¿Estás seguro de que deseas eliminar la congregación "${nombre}"?`)) {
       await eliminarCongregacion(id);
-      await cargarDatos(); // Recarga la cuadrícula
+      await cargarDatos();
     }
   }
 
@@ -129,8 +134,18 @@
     </div>
   </div>
 
+  <!-- BARRA DE BÚSQUEDA -->
+  <div class="search-bar">
+    <Search size={16} />
+    <input
+      type="text"
+      placeholder="Buscar congregación o ciudad..."
+      bind:value={busqueda}
+    />
+  </div>
+
   <div class="grid-congregaciones">
-    {#each lista as cong}
+    {#each listaFiltrada as cong}
       <div class="card-global cong-card" on:click={() => entrarACongregacion(cong.nombre)}>
         <div class="card-icon">
           <Users size={30} />
@@ -160,10 +175,16 @@
       </div>
     {/each}
 
-    {#if lista.length === 0}
+    {#if listaFiltrada.length === 0}
       <div class="card-global empty-state">
         <Users size={48} color="#cbd5e1" />
-        <p>Aún no hay congregaciones en este circuito.<br>Haz clic en "Añadir Congregación" o "Importar JW" para comenzar.</p>
+        <p>
+          {#if busqueda}
+            No se encontraron resultados para "<strong>{busqueda}</strong>".
+          {:else}
+            Aún no hay congregaciones en este circuito.<br>Haz clic en "Añadir Congregación" o "Importar JW" para comenzar.
+          {/if}
+        </p>
       </div>
     {/if}
   </div>
@@ -222,7 +243,6 @@
   .header-section h3 { margin: 0 0 5px 0; font-size: 1.5rem; color: var(--text-main); font-weight: 800; }
   .header-section p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
 
-  /* Estilos para los botones principales */
   .btn-primary {
     background-color: var(--primary);
     color: white;
@@ -254,13 +274,40 @@
     font-size: 0.85rem;
   }
 
+  /* BARRA DE BÚSQUEDA */
+  .search-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0 16px;
+    height: 44px;
+    margin-bottom: 24px;
+    color: var(--text-muted);
+    max-width: 1200px;
+  }
+
+  .search-bar input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    width: 100%;
+  }
+
+  .search-bar input::placeholder {
+    color: var(--text-muted);
+  }
+
   .grid-congregaciones {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 20px;
   }
 
-  /* La tarjeta ahora es un div en lugar de un button para permitir botones internos */
   .cong-card {
     display: flex;
     align-items: center;
@@ -268,9 +315,9 @@
     padding: 20px;
     text-align: left;
     cursor: pointer;
-    border: 2px solid var(--border-color);
+    border: 1px solid var(--border-color);
     background: var(--bg-panel); 
-    position: relative; /* Importante para organizar su contenido */
+    position: relative;
   }
 
   .cong-card:hover { border-color: #fecaca; }
@@ -300,7 +347,6 @@
     margin-bottom: 5px;
   }
 
-  /* Estilos para las acciones de la tarjeta */
   .card-actions {
     display: flex;
     flex-direction: column;
