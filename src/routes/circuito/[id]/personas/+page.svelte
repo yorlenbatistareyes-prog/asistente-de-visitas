@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { page } from '$app/stores'; // SvelteKit nos da acceso a la URL
   import { Search, Upload, Plus, Trash2, Phone, Mail, User, MapPin } from "lucide-svelte";
   import Papa from 'papaparse';
   import { 
@@ -9,31 +10,51 @@
     type Persona 
   } from '$lib/services/db';
 
-  export let circuitoId: number; 
+  // 1. CAPTURAMOS EL ID DIRECTAMENTE DE LA URL (Ej: /circuito/3 -> ID = 3)
+  $: circuitoId = Number($page.params.id);
 
   let personas: Persona[] = [];
   let busqueda = "";
   let mostrandoModalPersona = false;
 
-  let nuevaP: Persona = {
-    circuito_id: circuitoId,
-    nombre: "", segundo_nombre: "", apellidos: "",
-    privilegio: "", congregacion: "", direccion: "",
-    telefono_celular: "", telefono_fijo: "", email: ""
+  const resetForm = () => {
+    nuevaP = {
+      circuito_id: circuitoId,
+      nombre: "", segundo_nombre: "", apellidos: "",
+      privilegio: "", congregacion: "", direccion: "",
+      telefono_celular: "", telefono_fijo: "", email: ""
+    };
   };
 
-  async function cargar() {
-    personas = await obtenerPersonasPorCircuito(circuitoId);
+  let nuevaP: Persona;
+
+  // 2. REACTIVIDAD: Si el ID cambia, recargamos la lista automáticamente
+  $: if (circuitoId) {
+    resetForm();
+    cargar();
   }
 
-  onMount(cargar);
+  async function cargar() {
+    if (!circuitoId) return;
+    try {
+      const resultados = await obtenerPersonasPorCircuito(circuitoId);
+      personas = [...resultados]; 
+    } catch (error) {
+      console.error("Error al cargar personas:", error);
+    }
+  }
 
   $: filtradas = personas.filter(p => 
     `${p.nombre} ${p.apellidos}`.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.congregacion?.toLowerCase().includes(busqueda.toLowerCase())
+    (p.congregacion || "").toLowerCase().includes(busqueda.toLowerCase())
   );
 
   async function importarCSV(e: any) {
+    if (!circuitoId) {
+      alert("Error: No se pudo detectar el ID del circuito.");
+      return;
+    }
+
     const file = e.target.files[0];
     if (!file) return;
 
@@ -41,36 +62,48 @@
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
-        for (const fila of results.data) {
+        const datosCSV = results.data as Record<string, string>[];
+        for (const fila of datosCSV) {
           if (!fila["Nombre"]) continue;
-          await guardarPersona({
-            circuito_id: circuitoId,
-            nombre: fila["Nombre"] || "",
-            segundo_nombre: fila["Segundo nombre"] || "",
-            apellidos: fila["Apellidos"] || "",
-            privilegio: fila["Tipo de privilegio"] || "",
-            congregacion: fila["Congregación"] || "",
-            direccion: fila["Dirección completa (Postal)"] || "",
-            telefono_celular: fila["Teléfono (Celular)"] || "",
-            telefono_fijo: fila["Teléfono"] || "",
-            email: fila["Correo electrónico (Correo electrónico (jw.org))"] || ""
-          });
+          try {
+            await guardarPersona({
+              circuito_id: circuitoId, // Guardado con el ID robusto
+              nombre: fila["Nombre"] || "",
+              segundo_nombre: fila["Segundo nombre"] || "",
+              apellidos: fila["Apellidos"] || "",
+              privilegio: fila["Tipo de privilegio"] || "",
+              congregacion: fila["Congregación"] || "",
+              direccion: fila["Dirección completa (Postal)"] || "",
+              telefono_celular: fila["Teléfono (Celular)"] || "",
+              telefono_fijo: fila["Teléfono"] || "",
+              email: fila["Correo electrónico (Correo electrónico (jw.org))"] || ""
+            });
+          } catch (err) {
+            console.error("Error guardando a:", fila["Nombre"], err);
+          }
         }
-        await cargar();
-        alert("✅ Importación de JW completada");
+        await cargar(); 
+        alert("✅ Importación completada");
+        e.target.value = ""; 
       }
     });
   }
 
   async function guardarManual() {
-    if (!nuevaP.nombre || !nuevaP.apellidos) {
+    if (!nuevaP.nombre.trim() || !nuevaP.apellidos.trim()) {
       alert("El nombre y los apellidos son obligatorios");
       return;
     }
-    await guardarPersona(nuevaP);
-    mostrandoModalPersona = false;
-    nuevaP = { circuito_id: circuitoId, nombre: "", segundo_nombre: "", apellidos: "", privilegio: "", congregacion: "", direccion: "", telefono_celular: "", telefono_fijo: "", email: "" };
-    await cargar();
+    
+    try {
+      nuevaP.circuito_id = circuitoId; // Aseguramos el ID antes de guardar
+      await guardarPersona(nuevaP);
+      mostrandoModalPersona = false;
+      resetForm();
+      await cargar(); 
+    } catch (err) {
+      console.error("Error al guardar manual:", err);
+    }
   }
 
   async function borrar(id: number | undefined, nombre: string) {
