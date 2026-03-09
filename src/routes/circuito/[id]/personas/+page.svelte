@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores'; // SvelteKit nos da acceso a la URL
-  import { Search, Upload, Plus, Trash2, Phone, Mail, User, MapPin } from "lucide-svelte";
+  import { Search, Upload, Plus, Trash2, Phone, Mail, User, MapPin, Edit } from "lucide-svelte";
   import Papa from 'papaparse';
   import { 
     obtenerPersonasPorCircuito, 
@@ -89,6 +89,13 @@
     });
   }
 
+  // 2. Añade esta función nueva:
+  function abrirEdicion(persona: Persona) {
+    // Copiamos los datos de la persona seleccionada al formulario
+    nuevaP = { ...persona }; 
+    mostrandoModalPersona = true;
+  }
+
   async function guardarManual() {
     if (!nuevaP.nombre.trim() || !nuevaP.apellidos.trim()) {
       alert("El nombre y los apellidos son obligatorios");
@@ -141,17 +148,24 @@
   <div class="tabla-personas card-global">
     {#each filtradas as p}
       <div class="persona-row">
-        <div class="p-info">
+        <div class="p-info" on:click={() => { nuevaP = { ...p }; mostrandoModalPersona = true; }} style="cursor: pointer;">
           <span class="p-nombre">{p.nombre} {p.apellidos}</span>
           <span class="p-meta">{p.privilegio || 'Publicador'} • {p.congregacion || 'Sin Congregación'}</span>
         </div>
+        
         <div class="p-contacto">
           {#if p.telefono_celular}<span title="Celular"><Phone size={14}/> {p.telefono_celular}</span>{/if}
           {#if p.email}<span title="Email"><Mail size={14}/> {p.email}</span>{/if}
         </div>
-        <button class="btn-icon-delete" on:click={() => borrar(p.id, p.nombre)}>
-          <Trash2 size={16} />
-        </button>
+        
+        <div class="p-acciones">
+          <button class="btn-icon-edit" title="Editar" on:click={() => { nuevaP = { ...p }; mostrandoModalPersona = true; }}>
+            <Edit size={16} />
+          </button>
+          <button class="btn-icon-delete" title="Eliminar" on:click={() => borrar(p.id, p.nombre)}>
+            <Trash2 size={16} />
+          </button>
+        </div>
       </div>
     {:else}
       <p class="vacio">No hay personas registradas en este circuito.</p>
@@ -162,7 +176,8 @@
 {#if mostrandoModalPersona}
   <div class="modal-backdrop">
     <div class="card-global modal-content persona-modal">
-      <h2>Registrar Nueva Persona</h2>
+      
+      <h2>{nuevaP.id ? 'Editar Persona' : 'Registrar Nueva Persona'}</h2>
       
       <div class="form-grid">
         <div class="col">
@@ -205,8 +220,11 @@
       </div>
 
       <div class="modal-actions">
-        <button class="btn-global" on:click={() => (mostrandoModalPersona = false)}>Cancelar</button>
-        <button class="btn-global btn-primary" on:click={guardarManual}>Guardar Persona</button>
+        <button class="btn-global" on:click={() => { mostrandoModalPersona = false; resetForm(); }}>Cancelar</button>
+        
+        <button class="btn-global btn-primary" on:click={guardarManual}>
+          {nuevaP.id ? 'Actualizar Datos' : 'Guardar Persona'}
+        </button>
       </div>
     </div>
   </div>
@@ -316,4 +334,34 @@
   }
 
   @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+
+  .p-acciones { display: flex; gap: 8px; align-items: center; }
+  .btn-icon-edit { background: transparent; border: none; color: var(--primary); cursor: pointer; opacity: 0.5; transition: opacity 0.2s; }
+  .btn-icon-edit:hover { opacity: 1; }
+
+.p-acciones { 
+    display: flex; 
+    gap: 8px; 
+    align-items: center; 
+  }
+  
+  .btn-icon-edit { 
+    background: transparent; 
+    border: none; 
+    color: var(--primary); /* Usa el color principal para destacar que es una acción segura */
+    cursor: pointer; 
+    opacity: 0.5; 
+    transition: opacity 0.2s; 
+    padding: 5px;
+  }
+  
+  .btn-icon-edit:hover { 
+    opacity: 1; 
+  }
+  
+  /* Hacemos que la fila muestre que es interactiva */
+  .p-info:hover .p-nombre {
+    color: var(--primary);
+    transition: color 0.2s;
+  }
 </style>
