@@ -228,43 +228,93 @@
     } catch (e) { alert("❌ Error al finalizar."); }
   }
 
-  async function generarPDF() {
-    let firmaUsuario = "";
-    let textoPiePagina = "Informe generado por Asistente de Visitas"; 
+ async function generarPDF() {
+    let firmaUsuario = "Superintendente de Circuito";
+    let textoPiePagina = "Informe generado por RAssembly"; 
+    
     try {
       if (await exists('config_usuario.json', { baseDir: BaseDirectory.AppLocalData })) {
         const content = await readTextFile('config_usuario.json', { baseDir: BaseDirectory.AppLocalData });
         const config = JSON.parse(content);
-        if (config.nombre) firmaUsuario = `Generado por: ${config.nombre}`;
+        if (config.nombre) firmaUsuario = config.nombre;
         if (config.piePagina) textoPiePagina = config.piePagina;
       }
     } catch (e) {}
 
     const doc = new jsPDF();
-    doc.setFontSize(18); doc.text(`Análisis: ${nombreCongregacion}`, 14, 20);
-    doc.setFontSize(11); doc.text(`Fecha de la visita: ${registro.fechaVisita || 'No especificada'}`, 14, 27);
+    
+    // --- ENCABEZADO ESTILIZADO (SIN IMÁGENES) ---
+    doc.setFillColor(225, 29, 72); // Rojo RAssembly
+    doc.rect(0, 0, 210, 40, 'F');
+    
+    // "Logo" de texto AV
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("courier", "bold");
+    doc.setFontSize(32);
+    doc.text("AV", 14, 25); 
+    
+    // Línea divisoria blanca vertical sutil
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(0.5);
+    doc.line(35, 10, 35, 30);
 
-    const bodyData = Object.entries(registro).filter(([k]) => k !== 'fechaVisita').map(([k, v]) => {
-         let label = k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-         return [label, v || 'Sin observaciones'];
-      });
+    // Título del Informe
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("INFORME DE ANÁLISIS", 42, 20);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`CONGREGACIÓN: ${nombreCongregacion.toUpperCase()}`, 42, 30);
+    doc.text(`VISITA: ${registro.fechaVisita || '---'}`, 196, 30, { align: 'right' });
+
+    // --- TABLA DE CONTENIDO ---
+    const bodyData = modulos.map(mod => [
+      mod.titulo.toUpperCase(), 
+      registro[mod.id] || 'Sin observaciones registradas.'
+    ]);
 
     autoTable(doc, { 
-      startY: 35, head: [['Módulo', 'Observaciones']], body: bodyData, theme: 'grid', 
-      headStyles: { fillColor: [225, 29, 72] }, columnStyles: { 0: { fontStyle: 'bold', cellWidth: 60 } },
+      startY: 45, 
+      head: [['SECCIÓN', 'OBSERVACIONES Y NOTAS']], 
+      body: bodyData,
+      theme: 'grid',
+      headStyles: { fillColor: [51, 65, 85], halign: 'center' },
+      columnStyles: { 
+        0: { fontStyle: 'bold', cellWidth: 50, fillColor: [248, 250, 252] },
+        1: { fontSize: 10 }
+      },
+      margin: { top: 45 },
       didDrawPage: (data) => {
         const pageSize = doc.internal.pageSize;
         doc.setFontSize(8); doc.setTextColor(150, 150, 150);
-        if (firmaUsuario) doc.text(firmaUsuario, 14, pageSize.height - 10);
+        doc.text(`Firma: ${firmaUsuario}`, 14, pageSize.height - 10);
         const ancho = doc.getTextWidth(textoPiePagina);
         doc.text(textoPiePagina, pageSize.width - 14 - ancho, pageSize.height - 10);
       }
     });
 
+    // --- ESPACIO DE FIRMA FINAL ---
+    const finalY = (doc as any).lastAutoTable.finalY + 30;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(70, finalY, 140, finalY);
+    doc.setFontSize(9);
+    doc.text(firmaUsuario, 105, finalY + 5, { align: 'center' });
+    doc.text("Superintendente de Circuito", 105, finalY + 10, { align: 'center' });
+
+    // --- GUARDADO ---
     const nombreSeguro = nombreCongregacion.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, "_");
-    const res = await save({ defaultPath: `Analisis_${nombreSeguro}_${registro.fechaVisita}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
-    if (res) { await writeFile(res, new Uint8Array(doc.output('arraybuffer'))); alert("✅ PDF exportado."); }
+    const res = await save({ 
+      defaultPath: `Analisis_${nombreSeguro}_${registro.fechaVisita}.pdf`, 
+      filters: [{ name: 'PDF', extensions: ['pdf'] }] 
+    });
+
+    if (res) { 
+      await writeFile(res, new Uint8Array(doc.output('arraybuffer'))); 
+      alert("✅ Informe PDF generado correctamente."); 
+    }
   }
+  
 </script>
 
 <div class="contenedor-analisis">
