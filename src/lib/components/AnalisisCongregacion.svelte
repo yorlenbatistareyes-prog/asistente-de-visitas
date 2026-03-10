@@ -458,13 +458,19 @@
   .instruccion { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px; }
 
   /* 2. BOTONES */
+  .grupo-acciones {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
   button { 
     cursor: pointer; 
     font-weight: 600; 
     border-radius: var(--radius-md); 
     border: none; 
     padding: 8px 14px; 
-    display: flex; 
+    display: inline-flex; /* Esto evita que se apilen */
     align-items: center; 
     gap: 6px; 
     font-size: 0.85rem; 
