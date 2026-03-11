@@ -2,7 +2,9 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { ArrowLeft, History, ClipboardEdit, Calendar, ChevronRight, Play, CheckCircle2, Clock } from "lucide-svelte";
-  import { LazyStore } from '@tauri-apps/plugin-store';
+  
+  // IMPORTAMOS SQLITE EN VEZ DE LAZYSTORE
+  import { initDB } from '$lib/db';
   
   // TUS DOS COMPONENTES HIJOS
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
@@ -13,8 +15,6 @@
 
   let modo: 'dashboard' | 'nuevo' | 'historial' = 'dashboard';
   let datosParaEditar: any = null;
-
-  const store = new LazyStore('registro_circuito_v1.json');
 
   let progreso = 0;
   let hayBorrador = false;
@@ -31,11 +31,17 @@
   async function cargarDatosDashboard() {
     cargando = true;
     try {
-      // Borrador actual
-      const obs = await store.get<Record<string, any>>('observaciones') || {};
-      const borrador = obs[nombreCongregacion];
+      const db = await initDB();
+
+      // 1. CARGAR BORRADOR DESDE SQLITE
+      const claveBorrador = `borrador_${nombreCongregacion}`;
+      const resBorrador = await db.select<{valor: string}[]>(
+        'SELECT valor FROM configuracion WHERE clave = $1', 
+        [claveBorrador]
+      );
       
-      if (borrador) {
+      if (resBorrador.length > 0) {
+        const borrador = JSON.parse(resBorrador[0].valor);
         let llenos = 0;
         camposMuro.forEach(c => {
           if (borrador[c] && borrador[c].trim() !== '') llenos++;
@@ -44,15 +50,28 @@
         hayBorrador = llenos > 0 || (borrador.fechaVisita && borrador.fechaVisita !== '');
         fechaBorrador = borrador.fechaVisita || 'Sin fecha asignada';
       } else {
-        progreso = 0; hayBorrador = false;
+        progreso = 0; 
+        hayBorrador = false;
+        fechaBorrador = '';
       }
 
-      // Historial reciente
-      const histStore = await store.get<Record<string, any>>('historial') || {};
-      const historialCong = histStore[nombreCongregacion] || [];
-      historialReciente = historialCong
-        .sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-        .slice(0, 3);
+      // 2. OBTENER ID DE LA CONGREGACIÓN Y CARGAR HISTORIAL RECIENTE
+      const resCong = await db.select<{id: number}[]>(
+        'SELECT id FROM congregaciones WHERE nombre = $1 LIMIT 1', 
+        [nombreCongregacion]
+      );
+      
+      if (resCong.length > 0) {
+        const congregacionId = resCong[0].id;
+        
+        historialReciente = await db.select<any[]>(
+          // 👇 AQUÍ: Cambiamos LIMIT 3 por LIMIT 6
+          'SELECT * FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC LIMIT 6',
+          [congregacionId]
+        );
+      } else {
+        historialReciente = [];
+      }
 
     } catch (e) {
       console.error("Error cargando dashboard:", e);
@@ -69,6 +88,30 @@
     modo = 'dashboard';
     datosParaEditar = null;
     cargarDatosDashboard(); 
+  }
+
+  // --- FUNCIÓN QUE ATRAPA EL INFORME FINALIZADO Y LO GUARDA ---
+  async function handleGuardarEnHistorial(e: CustomEvent) {
+    const { congregacion, fecha, contenido } = e.detail;
+    try {
+      const db = await initDB();
+      const resCong = await db.select<{id: number}[]>(
+        'SELECT id FROM congregaciones WHERE nombre = $1 LIMIT 1', 
+        [congregacion]
+      );
+
+      if (resCong.length > 0) {
+        const congregacionId = resCong[0].id;
+        await db.execute(
+          `INSERT INTO historial_visitas (congregacion_id, fecha, tipo, completado, contenido) 
+           VALUES ($1, $2, $3, $4, $5)`,
+          [congregacionId, fecha, 'Visita Regular', 1, contenido]
+        );
+      }
+    } catch (error) {
+      console.error("Error al guardar en el historial SQLite:", error);
+      alert("Error al guardar el informe en la base de datos.");
+    }
   }
 </script>
 
@@ -148,21 +191,7 @@
           {nombreCongregacion} 
           datosEdicion={datosParaEditar}
           on:limpiarFormulario={volverAlMenu}
-          on:guardarEnHistorial={async (e) => {
-            // AQUÍ ATRAPAMOS EL INFORME FINALIZADO Y LO GUARDAMOS EN EL HISTORIAL
-            const histStore = await store.get<Record<string, any>>('historial') || {};
-            if (!histStore[nombreCongregacion]) {
-              histStore[nombreCongregacion] = [];
-            }
-            
-            histStore[nombreCongregacion].push({ 
-              fecha: e.detail.fecha, 
-              contenido: e.detail.contenido 
-            });
-            
-            await store.set('historial', histStore);
-            await store.save();
-          }}
+          on:guardarEnHistorial={handleGuardarEnHistorial}
         />
       </div>
 
@@ -184,13 +213,13 @@
     display: flex; 
     flex-direction: column; 
     height: 100%; 
-    background: var(--bg-app); /* Cambiado de #f8fafc */
+    background: var(--bg-app); 
     color: var(--text-main); 
     font-family: var(--font-family); 
   }
   
   .focus-header { 
-    background: var(--bg-panel); /* Cambiado de white */
+    background: var(--bg-panel); 
     padding: 20px 40px; 
     border-bottom: var(--border-thin); 
     display: flex; 
@@ -252,7 +281,6 @@
     border-radius: var(--radius-md); 
     display: flex; justify-content: center; align-items: center; 
   }
-  /* Mantenemos los colores de los iconos para que resalten */
   .icon-box.red { background: rgba(225, 29, 72, 0.1); color: var(--primary); }
   .icon-box.blue { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
 

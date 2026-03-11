@@ -13,9 +13,10 @@
     obtenerCongregaciones, 
     guardarCongregacion,
     eliminarCongregacion,
+    initDB, // <-- IMPORTANTE: Añadimos initDB para las fechas
     type Circuito,
     type Congregacion 
-  } from '$lib/services/db';
+  } from '$lib/services/db'; // Ajusta la ruta si tu archivo db.ts está en otra carpeta
 
   $: idCircuito = Number($page.params.id);
 
@@ -32,12 +33,36 @@
     (cong.ciudad || "").toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  // --- CARGA DE DATOS ---
+  // --- CARGA DE DATOS Y FECHAS (SQLITE) ---
   async function cargarDatos() {
     circuitoActual = await obtenerCircuitoPorId(idCircuito);
+    
     if (circuitoActual) {
       const resultados = await obtenerCongregaciones(circuitoActual.nombre);
       lista = [...resultados];
+
+      // NUEVO: Buscar la última visita de cada congregación en el historial real
+      try {
+        const db = await initDB();
+        let fechasActualizadas: Record<string, string> = {};
+        
+        for (const cong of lista) {
+          if (cong.id) {
+            // Buscamos solo la fecha más reciente (LIMIT 1)
+            const res = await db.select<{fecha: string}[]>(
+              'SELECT fecha FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC LIMIT 1',
+              [cong.id]
+            );
+            if (res.length > 0) {
+              fechasActualizadas[cong.nombre] = res[0].fecha;
+            }
+          }
+        }
+        // Llenamos el Store visual con la verdad de la base de datos
+        fechaPorCongregacion.set(fechasActualizadas);
+      } catch (e) {
+        console.error("Error al cargar fechas del historial:", e);
+      }
     }
   }
 
@@ -63,9 +88,41 @@
   }
 
   async function borrar(id: number | undefined, nombre: string) {
-    if (id && window.confirm(`¿Estás seguro de que deseas eliminar la congregación "${nombre}"?`)) {
+    if (id && window.confirm(`¿Estás seguro de que deseas eliminar la congregación "${nombre}"? Todo su historial también se borrará.`)) {
       await eliminarCongregacion(id);
       await cargarDatos();
+    }
+  }
+
+  // Lógica del Modal extraída para mayor limpieza
+  async function handleGuardarCongregacion(e: CustomEvent) {
+    try {
+      const nueva = e.detail;
+      
+      if (circuitoActual) {
+        await guardarCongregacion({
+          id: nueva.id, 
+          circuito: circuitoActual.nombre,
+          nombre: nueva.nombre,
+          enVisita: nueva.enVisita || false,
+          ciudad: nueva.ciudad || "",
+          provincia: nueva.provincia || "",
+          pais: nueva.pais || "",
+          idioma: nueva.idioma || "Español",
+          esLenguaSenas: nueva.esLenguaSenas || false,
+          telefono: nueva.telefono || "",
+          horaSemana: nueva.horaSemana || "",
+          horaFinSemana: nueva.horaFinSemana || "",
+          diaSemana: nueva.diaSemana || "",
+          diaFinSemana: nueva.diaFinSemana || ""
+        });
+        
+        mostrarModal = false;
+        await cargarDatos(); 
+      }
+    } catch (err) {
+      console.error("❌ Error guardando la congregación manualmente:", err);
+      alert("Ocurrió un error al guardar. Revisa que el nombre no esté duplicado.");
     }
   }
 
@@ -134,7 +191,6 @@
     </div>
   </div>
 
-  <!-- BARRA DE BÚSQUEDA -->
   <div class="search-bar">
     <Search size={16} />
     <input
@@ -177,7 +233,7 @@
 
     {#if listaFiltrada.length === 0}
       <div class="card-global empty-state">
-        <Users size={48} color="#cbd5e1" />
+        <Users size={48} color="var(--text-muted)" />
         <p>
           {#if busqueda}
             No se encontraron resultados para "<strong>{busqueda}</strong>".
@@ -194,36 +250,7 @@
   <NuevaCongregacionModal 
     {datosEdicion}
     on:close={() => { mostrarModal = false; }}
-    on:save={async (e) => {
-      try {
-        const nueva = e.detail;
-        
-        if (circuitoActual) {
-          await guardarCongregacion({
-            id: nueva.id, 
-            circuito: circuitoActual.nombre,
-            nombre: nueva.nombre,
-            enVisita: nueva.enVisita || false,
-            ciudad: nueva.ciudad || "",
-            provincia: nueva.provincia || "",
-            pais: nueva.pais || "",
-            idioma: nueva.idioma || "Español",
-            esLenguaSenas: nueva.esLenguaSenas || false,
-            telefono: nueva.telefono || "",
-            horaSemana: nueva.horaSemana || "",
-            horaFinSemana: nueva.horaFinSemana || "",
-            diaSemana: nueva.diaSemana || "",
-            diaFinSemana: nueva.diaFinSemana || ""
-          });
-          
-          mostrarModal = false;
-          await cargarDatos(); 
-        }
-      } catch (err) {
-        console.error("❌ Error guardando la congregación manualmente:", err);
-        alert("Ocurrió un error al guardar. Revisa que el nombre no esté duplicado.");
-      }
-    }}
+    on:save={handleGuardarCongregacion}
   />
 {/if}
 
@@ -258,21 +285,6 @@
     font-size: 0.85rem;
   }
   .btn-primary:hover { background-color: #be123c; color: white; }
-
-  .btn-secundario {
-    background: var(--bg-panel);
-    color: var(--text-main);
-    border: 1px solid var(--border-color);
-    height: 44px;
-    padding: 0 18px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-weight: 700;
-    font-size: 0.85rem;
-  }
 
   /* BARRA DE BÚSQUEDA */
   .search-bar {
@@ -320,10 +332,10 @@
     position: relative;
   }
 
-  .cong-card:hover { border-color: #fecaca; }
+  .cong-card:hover { border-color: var(--primary); }
 
   .card-icon {
-    background: #f1f5f9;
+    background: rgba(100, 116, 139, 0.1); /* Dinámico para modo oscuro/claro */
     color: var(--text-muted);
     padding: 15px;
     border-radius: 12px;
@@ -331,7 +343,7 @@
   }
 
   .cong-card:hover .card-icon {
-    background: #fff1f2;
+    background: rgba(225, 29, 72, 0.1);
     color: var(--primary);
   }
 
@@ -389,19 +401,19 @@
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
   .btn-importar {
-  background: #16a34a;
-  color: white;
-  border: none;
-  height: 44px;
-  padding: 0 18px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 0.85rem;
-}
+    background: #16a34a;
+    color: white;
+    border: none;
+    height: 44px;
+    padding: 0 18px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
 
-.btn-importar:hover { background: #15803d; }
+  .btn-importar:hover { background: #15803d; }
 </style>

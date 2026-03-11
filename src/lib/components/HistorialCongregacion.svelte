@@ -1,35 +1,51 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { LazyStore } from '@tauri-apps/plugin-store';
   import { Calendar, ChevronDown, ChevronUp, Trash2, FileText, Clock } from 'lucide-svelte';
   import jsPDF from 'jspdf';
   import { save } from '@tauri-apps/plugin-dialog';
   import { writeFile } from '@tauri-apps/plugin-fs';
+  
+  // IMPORTAMOS TU MOTOR DE BASE DE DATOS
+  import { initDB } from '$lib/db';
 
   export let nombreCongregacion: string;
-  const store = new LazyStore('registro_circuito_v1.json');
 
   let historial: any[] = [];
   let cargando = true;
+  let congregacionId: number | null = null;
   
-  // Controla qué tarjetas están abiertas (por su índice)
+  // Controla qué tarjetas están abiertas (por su índice de array)
   let expandidos: Record<number, boolean> = {};
 
   async function cargarHistorial() {
     cargando = true;
     try {
-      const histStore = await store.get<Record<string, any>>('historial') || {};
-      const datos = histStore[nombreCongregacion] || [];
+      const db = await initDB();
       
-      // Ordenamos para que la visita más reciente salga arriba
-      historial = datos.sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-      
-      // Expandimos automáticamente la visita más reciente
-      if (historial.length > 0) {
-        expandidos[0] = true;
+      // 1. Primero buscamos el ID real de esta congregación
+      const resCong = await db.select<{id: number}[]>(
+        'SELECT id FROM congregaciones WHERE nombre = $1 LIMIT 1', 
+        [nombreCongregacion]
+      );
+
+      if (resCong.length > 0) {
+        congregacionId = resCong[0].id;
+        
+        // 2. Buscamos todo su historial ordenado por fecha (más reciente primero)
+        historial = await db.select<any[]>(
+          'SELECT * FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC', 
+          [congregacionId]
+        );
+        
+        // Expandimos automáticamente la visita más reciente
+        if (historial.length > 0) {
+          expandidos[0] = true;
+        }
+      } else {
+        historial = [];
       }
     } catch (e) {
-      console.error(e);
+      console.error("Error cargando historial desde SQLite:", e);
     } finally {
       cargando = false;
     }
@@ -41,19 +57,18 @@
     expandidos[index] = !expandidos[index];
   }
 
-  async function eliminarVisita(index: number) {
+  // Ahora recibe el ID real de la base de datos, no la posición del array
+  async function eliminarVisita(idVisita: number) {
     if (!confirm("¿Seguro que deseas eliminar este registro del historial? Esta acción no se puede deshacer.")) return;
     
     try {
-      const histStore = await store.get<Record<string, any>>('historial') || {};
-      histStore[nombreCongregacion] = historial.filter((_, i) => i !== index);
-      
-      await store.set('historial', histStore);
-      await store.save();
+      const db = await initDB();
+      // Borramos usando el ID único del registro
+      await db.execute('DELETE FROM historial_visitas WHERE id = $1', [idVisita]);
       
       await cargarHistorial(); // Recargamos la lista visual
     } catch(e) {
-      alert("Error al eliminar del historial.");
+      alert("Error al eliminar del historial en la base de datos.");
     }
   }
 
@@ -70,7 +85,6 @@
     doc.setFontSize(10);
     doc.setTextColor(51, 65, 85);
     
-    // Divide el texto largo en líneas para que quepa en el ancho del PDF
     const lineas = doc.splitTextToSize(visita.contenido, 180);
     doc.text(lineas, 14, 40);
     
@@ -127,7 +141,7 @@
                 <button class="btn-accion btn-outline" on:click={() => exportarPDF(visita)}>
                   <FileText size={16} /> Exportar PDF
                 </button>
-                <button class="btn-accion btn-danger" on:click={() => eliminarVisita(i)}>
+                <button class="btn-accion btn-danger" on:click={() => eliminarVisita(visita.id)}>
                   <Trash2 size={16} /> Eliminar
                 </button>
               </div>

@@ -2,8 +2,8 @@
   import { FileText, Save, CheckCircle, CheckCircle2, Circle, X } from "lucide-svelte";
   import { createEventDispatcher, onMount } from 'svelte';
   
-  import { LazyStore } from '@tauri-apps/plugin-store'; 
-  import { writeFile, readTextFile, BaseDirectory, exists } from "@tauri-apps/plugin-fs";
+  // IMPORTAMOS SQLITE Y EL DIALOGO DE GUARDADO (Eliminamos LazyStore y fs)
+  import DatabasePlugin from '@tauri-apps/plugin-sql';
   import { save } from "@tauri-apps/plugin-dialog";
   import jsPDF from "jspdf";
   import autoTable from "jspdf-autotable";
@@ -14,7 +14,6 @@
   export let nombreCongregacion: string;
   export let datosEdicion: any = null;
 
-  // NUEVA ESTRUCTURA SIMPLIFICADA (10 Campos)
   interface RegistroCongregacion {
     fechaVisita: string;
     opinionAncianos: string;
@@ -37,16 +36,13 @@
 
   let registro: RegistroCongregacion = { ...valoresPorDefecto };
   let congregacionActual = "";
-  const store = new LazyStore('registro_circuito_v1.json');
-  let mapaObservaciones: Record<string, any> = {};
 
   // --- ESTADO DE LOS CHIPS VISUALES ---
   let estadoTarjetas: Record<string, 'guardando' | 'guardado' | null> = {};
 
-  // --- LAS 10 TARJETAS DEL MURO DE NOTAS ---
   type ClaveRegistro = keyof Omit<RegistroCongregacion, 'fechaVisita'>;
   
-  // TUS MÓDULOS INTACTOS
+  // TUS MÓDULOS INTACTOS (Formato original restaurado)
   const modulos: { id: ClaveRegistro, titulo: string, guias: string[] }[] = [
     { 
       id: 'opinionAncianos', 
@@ -145,16 +141,25 @@
   }
   $: if (datosEdicion) registro = { ...valoresPorDefecto, ...datosEdicion };
 
+  // --- CARGAR BORRADOR DESDE SQLITE ---
   async function cargarDatosBorrador() {
     try {
-      const obs = await store.get<Record<string, any>>('observaciones');
-      mapaObservaciones = obs || {};
-      const guardado = mapaObservaciones[nombreCongregacion];
-      registro = guardado ? { ...valoresPorDefecto, ...guardado } : { ...valoresPorDefecto };
-    } catch (e) { registro = { ...valoresPorDefecto }; }
+      const db = await DatabasePlugin.load('sqlite:av_database.db');
+      const claveBorrador = `borrador_${nombreCongregacion}`;
+      const res = await db.select<{ valor: string }[]>('SELECT valor FROM configuracion WHERE clave = $1', [claveBorrador]);
+      
+      if (res.length > 0) {
+        registro = { ...valoresPorDefecto, ...JSON.parse(res[0].valor) };
+      } else {
+        registro = { ...valoresPorDefecto };
+      }
+    } catch (e) { 
+      console.error("Error cargando borrador SQLite:", e);
+      registro = { ...valoresPorDefecto }; 
+    }
   }
 
-  // --- LÓGICA DE GUARDADO MEJORADA CON CHIPS ---
+  // --- GUARDAR BORRADOR EN SQLITE ---
   async function guardarCambios(idModificado?: string) {
     if (!nombreCongregacion) return;
 
@@ -164,15 +169,17 @@
     }
 
     try {
-      const obs = await store.get<Record<string, any>>('observaciones') || {};
-      mapaObservaciones = obs;
-      mapaObservaciones[nombreCongregacion] = registro;
-      await store.set('observaciones', mapaObservaciones);
+      const db = await DatabasePlugin.load('sqlite:av_database.db');
+      const claveBorrador = `borrador_${nombreCongregacion}`;
+      const valorJSON = JSON.stringify(registro);
+
+      await db.execute(
+        'INSERT INTO configuracion (clave, valor) VALUES ($1, $2) ON CONFLICT(clave) DO UPDATE SET valor = $2',
+        [claveBorrador, valorJSON]
+      );
       
       if (idModificado) await new Promise(r => setTimeout(r, 400));
       
-      await store.save();
-
       if (idModificado) {
         estadoTarjetas[idModificado] = 'guardado';
         estadoTarjetas = { ...estadoTarjetas };
@@ -185,7 +192,8 @@
         }, 2500);
       }
     } catch (error) { 
-      alert("❌ Error al guardar en disco."); 
+      console.error(error);
+      alert("❌ Error al guardar borrador en base de datos."); 
       if (idModificado) {
         estadoTarjetas[idModificado] = null;
         estadoTarjetas = { ...estadoTarjetas };
@@ -201,6 +209,7 @@
     }
   }
 
+  // --- FINALIZAR: LIMPIAR BORRADOR EN SQLITE Y ENVIAR AL HISTORIAL ---
   async function finalizarInforme() {
     if (!nombreCongregacion || !registro.fechaVisita) { alert("⚠️ Ingresa la fecha antes de finalizar."); return; }
     if (!confirm("¿Finalizar y limpiar formulario?")) return;
@@ -213,14 +222,13 @@
       
       resumenUltimoAnalisis.update(r => ({ ...r, [nombreCongregacion]: resumen }));
       fechaPorCongregacion.update(f => ({ ...f, [nombreCongregacion]: registro.fechaVisita }));
+      
+      // Enviamos el evento para que el componente padre lo guarde en la tabla 'historial_visitas'
       dispatch('guardarEnHistorial', { congregacion: nombreCongregacion, fecha: registro.fechaVisita, contenido: resumen });
       
-      const obs = await store.get<Record<string, any>>('observaciones') || {};
-      if (obs[nombreCongregacion]) {
-        obs[nombreCongregacion] = { ...valoresPorDefecto };
-        await store.set('observaciones', obs);
-        await store.save();
-      }
+      // Borramos el borrador temporal de SQLite
+      const db = await DatabasePlugin.load('sqlite:av_database.db');
+      await db.execute('DELETE FROM configuracion WHERE clave = $1', [`borrador_${nombreCongregacion}`]);
       
       registro = { ...valoresPorDefecto };
       dispatch('limpiarFormulario');
@@ -228,37 +236,43 @@
     } catch (e) { alert("❌ Error al finalizar."); }
   }
 
- async function generarPDF() {
+  // --- GENERAR PDF LEYENDO PERFIL DESDE SQLITE ---
+  async function generarPDF() {
     let firmaUsuario = "Superintendente de Circuito";
-    let textoPiePagina = "Informe generado por RAssembly"; 
+    let cargoPdf = "Superintendente de Circuito";
+    let textoPiePagina = "Informe generado por Asistente de Visitas"; 
     
     try {
-      if (await exists('config_usuario.json', { baseDir: BaseDirectory.AppLocalData })) {
-        const content = await readTextFile('config_usuario.json', { baseDir: BaseDirectory.AppLocalData });
-        const config = JSON.parse(content);
-        if (config.nombre) firmaUsuario = config.nombre;
-        if (config.piePagina) textoPiePagina = config.piePagina;
-      }
-    } catch (e) {}
+      const db = await DatabasePlugin.load('sqlite:av_database.db');
+      
+      const resNombre = await db.select<{valor: string}[]>('SELECT valor FROM configuracion WHERE clave = "nombreUsuario"');
+      if (resNombre.length > 0 && resNombre[0].valor) firmaUsuario = resNombre[0].valor;
+
+      const resCargo = await db.select<{valor: string}[]>('SELECT valor FROM configuracion WHERE clave = "cargoUsuario"');
+      if (resCargo.length > 0 && resCargo[0].valor) cargoPdf = resCargo[0].valor;
+
+      const resPie = await db.select<{valor: string}[]>('SELECT valor FROM configuracion WHERE clave = "piePagina"');
+      if (resPie.length > 0 && resPie[0].valor) textoPiePagina = resPie[0].valor;
+
+    } catch (e) {
+      console.error("Error al cargar configuración para PDF", e);
+    }
 
     const doc = new jsPDF();
     
-    // --- ENCABEZADO ESTILIZADO (SIN IMÁGENES) ---
-    doc.setFillColor(225, 29, 72); // Rojo RAssembly
+    // --- ENCABEZADO ESTILIZADO ---
+    doc.setFillColor(225, 29, 72); 
     doc.rect(0, 0, 210, 40, 'F');
     
-    // "Logo" de texto AV
     doc.setTextColor(255, 255, 255);
     doc.setFont("courier", "bold");
     doc.setFontSize(32);
     doc.text("AV", 14, 25); 
     
-    // Línea divisoria blanca vertical sutil
     doc.setDrawColor(255, 255, 255);
     doc.setLineWidth(0.5);
     doc.line(35, 10, 35, 30);
 
-    // Título del Informe
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
     doc.text("INFORME DE ANÁLISIS", 42, 20);
@@ -300,9 +314,9 @@
     doc.line(70, finalY, 140, finalY);
     doc.setFontSize(9);
     doc.text(firmaUsuario, 105, finalY + 5, { align: 'center' });
-    doc.text("Superintendente de Circuito", 105, finalY + 10, { align: 'center' });
+    doc.text(cargoPdf, 105, finalY + 10, { align: 'center' });
 
-    // --- GUARDADO ---
+    // --- GUARDADO NATIVO ---
     const nombreSeguro = nombreCongregacion.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, "_");
     const res = await save({ 
       defaultPath: `Analisis_${nombreSeguro}_${registro.fechaVisita}.pdf`, 
@@ -310,7 +324,8 @@
     });
 
     if (res) { 
-      await writeFile(res, new Uint8Array(doc.output('arraybuffer'))); 
+      // Usamos el doc.save nativo de jsPDF en lugar del fs de Tauri, que suele ser más estable
+      doc.save(res); 
       alert("✅ Informe PDF generado correctamente."); 
     }
   }
@@ -415,7 +430,7 @@
   .contenedor-analisis { 
     padding: 20px; 
     font-family: var(--font-family); 
-    background: var(--bg-app); /* Cambiado de #f8fafc */
+    background: var(--bg-app);
     border-radius: var(--radius-lg); 
     min-height: 100%; 
     color: var(--text-main);
@@ -426,14 +441,14 @@
     justify-content: space-between; 
     align-items: flex-end; 
     margin-bottom: 10px; 
-    border-bottom: var(--border-thin); /* Cambiado de sólido fijo */
+    border-bottom: var(--border-thin); 
     padding-bottom: 15px;
   }
 
   .info-cabecera h2 { 
     margin: 0 0 10px 0; 
     font-size: 1.4rem; 
-    color: var(--text-main); /* Cambiado de #1e293b */
+    color: var(--text-main); 
     font-weight: 800; 
   }
 
@@ -470,7 +485,7 @@
     border-radius: var(--radius-md); 
     border: none; 
     padding: 8px 14px; 
-    display: inline-flex; /* Esto evita que se apilen */
+    display: inline-flex; 
     align-items: center; 
     gap: 6px; 
     font-size: 0.85rem; 
@@ -489,7 +504,7 @@
   }
 
   .nota-card {
-    background: var(--bg-panel); /* Cambiado de blanco fijo */
+    background: var(--bg-panel); 
     border: var(--border-thin);
     border-radius: var(--radius-md);
     padding: 15px;
@@ -504,7 +519,7 @@
   .nota-card:hover {
     transform: translateY(-3px);
     box-shadow: var(--shadow-md);
-    border-color: var(--primary); /* Resalte con tu rojo en hover */
+    border-color: var(--primary); 
   }
 
   .nota-card.completada { border-left: 4px solid #10b981; }
@@ -521,13 +536,13 @@
   /* 4. MODAL Y FORMULARIO */
   .modal-backdrop {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background: rgba(15, 23, 42, 0.6); /* Oscurecemos más el fondo */
+    background: rgba(15, 23, 42, 0.6); 
     backdrop-filter: blur(4px);
     display: flex; justify-content: center; align-items: center; z-index: 9999;
   }
 
   .focus-modal {
-    background: var(--bg-panel); /* Cambiado de blanco */
+    background: var(--bg-panel); 
     color: var(--text-main);
     width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto;
     border-radius: var(--radius-lg); padding: 25px; box-sizing: border-box;
@@ -538,7 +553,7 @@
   .modal-header h3 { margin: 0; font-size: 1.3rem; color: var(--text-main); font-weight: 800; }
   
   .guia-box { 
-    background: rgba(22, 101, 52, 0.1); /* Fondo verde traslúcido */
+    background: rgba(22, 101, 52, 0.1); 
     border: 1px solid rgba(22, 101, 52, 0.2); 
     padding: 12px 15px; 
     border-radius: var(--radius-sm); 
@@ -546,7 +561,7 @@
 
   .focus-textarea {
     width: 100%; min-height: 200px; box-sizing: border-box;
-    background: var(--bg-app); /* Un tono más oscuro que el panel */
+    background: var(--bg-app); 
     color: var(--text-main);
     border-radius: var(--radius-sm); 
     border: var(--border-thin); 

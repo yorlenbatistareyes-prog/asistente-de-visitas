@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  // Añadimos Search a las importaciones
   import { Plus, MapPin, Calendar, Users, Trash2, ArrowRight, Map, Search } from "lucide-svelte";
   
   import { 
@@ -22,27 +21,40 @@
   // NUEVAS VARIABLES PARA BÚSQUEDA Y FILTRO
   let busqueda = "";
   let filtroEstado = "todos";
+  let ordenamiento = "recientes"; // <--- NUEVO: Variable para controlar el orden
   
   let nuevoNombre = "";
   let nuevasEtiquetas = "";
   let nuevaFechaInicio = "";
   let nuevaFechaFin = "";
 
-  // LÓGICA REACTIVA DE FILTRADO
-  // Esta lista se actualiza sola cada vez que escribes o cambias el filtro
-  $: circuitosFiltrados = (circuitos || []).filter(c => {
-    const nombre = c.nombre?.toLowerCase() || "";
-    const etiquetas = c.etiquetas?.toLowerCase() || "";
-    const textoBusqueda = busqueda.toLowerCase();
-    
-    // Filtro por nombre o ubicación
-    const coincideTexto = nombre.includes(textoBusqueda) || etiquetas.includes(textoBusqueda);
-    
-    // Filtro por estado (Actual, Futuro, Anterior)
-    if (filtroEstado === "todos") return coincideTexto;
-    const estadoActual = obtenerEstado(c).texto.toLowerCase(); 
-    return coincideTexto && estadoActual === filtroEstado.toLowerCase();
-  });
+  // LÓGICA REACTIVA DE FILTRADO Y ORDENAMIENTO
+  // Esta lista se actualiza sola cada vez que escribes, cambias el filtro o el orden
+  $: circuitosFiltrados = (circuitos || [])
+    .filter(c => {
+      const nombre = c.nombre?.toLowerCase() || "";
+      const etiquetas = c.etiquetas?.toLowerCase() || "";
+      const textoBusqueda = busqueda.toLowerCase();
+      
+      // Filtro por nombre o ubicación
+      const coincideTexto = nombre.includes(textoBusqueda) || etiquetas.includes(textoBusqueda);
+      
+      // Filtro por estado (Actual, Futuro, Anterior)
+      if (filtroEstado === "todos") return coincideTexto;
+      const estadoActual = obtenerEstado(c).texto.toLowerCase(); 
+      return coincideTexto && estadoActual === filtroEstado.toLowerCase();
+    })
+    .sort((a, b) => {
+      // NUEVO: Lógica matemática para ordenar las tarjetas
+      if (ordenamiento === "recientes") {
+        return (b.fechaInicio || "").localeCompare(a.fechaInicio || "");
+      } else if (ordenamiento === "antiguos") {
+        return (a.fechaInicio || "").localeCompare(b.fechaInicio || "");
+      } else if (ordenamiento === "nombre") {
+        return (a.nombre || "").localeCompare(b.nombre || "");
+      }
+      return 0;
+    });
 
   async function cargarCircuitos() {
     try {
@@ -116,35 +128,35 @@
   </div>
 
   <div class="toolbar-modular">
-  <div class="search-pill card-global">
-    <Search size={18} class="search-icon" />
-    <input 
-      type="text" 
-      placeholder="Buscar circuitos por nombre, ubicación o fecha..." 
-      bind:value={busqueda}
-      class="search-input"
-    />
-  </div>
-
-  <div class="filters-aside">
-    <div class="filter-item card-global">
-      <select bind:value={filtroEstado} class="minimal-select">
-        <option value="todos">Todos los circuitos</option>
-        <option value="actual">Actuales</option>
-        <option value="futuro">Futuros</option>
-        <option value="anterior">Pasados</option>
-      </select>
+    <div class="search-pill card-global">
+      <Search size={18} class="search-icon" />
+      <input 
+        type="text" 
+        placeholder="Buscar circuitos por nombre, ubicación o fecha..." 
+        bind:value={busqueda}
+        class="search-input"
+      />
     </div>
 
-    <div class="filter-item card-global">
-      <select class="minimal-select">
-        <option>Fecha (Recientes primero)</option>
-        <option>Fecha (Antiguos primero)</option>
-        <option>Nombre (A-Z)</option>
-      </select>
+    <div class="filters-aside">
+      <div class="filter-item card-global">
+        <select bind:value={filtroEstado} class="minimal-select">
+          <option value="todos">Todos los circuitos</option>
+          <option value="actual">Actuales</option>
+          <option value="futuro">Futuros</option>
+          <option value="anterior">Pasados</option>
+        </select>
+      </div>
+
+      <div class="filter-item card-global">
+        <select bind:value={ordenamiento} class="minimal-select">
+          <option value="recientes">Fecha (Recientes primero)</option>
+          <option value="antiguos">Fecha (Antiguos primero)</option>
+          <option value="nombre">Nombre (A-Z)</option>
+        </select>
+      </div>
     </div>
   </div>
-</div>
 
   <div class="grid-circuitos">
     {#each circuitosFiltrados as circuito}
@@ -197,10 +209,11 @@
 
         <div class="actions-wrapper">
           <div class="card-actions">
-            <button class="btn-delete" on:click={() => eliminar(circuito.id, circuito.nombre)} title="Eliminar">
+            <button class="btn-delete" on:click={() => eliminar(circuito.id!, circuito.nombre)} title="Eliminar">
               <Trash2 size={18} />
             </button>
-            <button class="btn-manage" on:click={() => entrarAlCircuito(circuito.id)}>
+            
+            <button class="btn-manage" on:click={() => entrarAlCircuito(circuito.id!)}>
               Gestionar Circuito <ArrowRight size={16} />
             </button>
           </div>
@@ -276,7 +289,7 @@
     cursor: pointer;
   }
 
-  /* --- BARRA DE HERRAMIENTAS MODULAR (ESTILO IMAGEN) --- */
+  /* --- BARRA DE HERRAMIENTAS MODULAR --- */
   .toolbar-modular {
     display: flex;
     justify-content: space-between;
@@ -308,7 +321,7 @@
     background: transparent;
     color: var(--text-main);
     outline: none;
-    font-size: 0.9rem; /* Texto un poco más pequeño */
+    font-size: 0.9rem;
     margin-left: 10px;
   }
 
@@ -322,7 +335,7 @@
     border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 0 15px;
-    height: 44px; /* Misma altura que el buscador */
+    height: 44px;
     display: flex;
     align-items: center;
   }
@@ -393,7 +406,7 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 70px; /* Bajamos de 85px a 70px */
+    height: 70px;
     background: var(--bg-panel);
     border-top: 1px solid var(--border-color);
     display: flex;
@@ -410,7 +423,7 @@
   .card-actions { display: flex; gap: 12px; width: 100%; }
   
   .btn-delete { 
-    width: 40px; /* Bajamos de 50px a 40px */
+    width: 40px;
     height: 40px; 
     border-radius: 10px; 
     border: none; 
@@ -420,20 +433,20 @@
     display: flex; 
     align-items: center; 
     justify-content: center;
-    flex-shrink: 0; /* Evita que se deforme */
+    flex-shrink: 0; 
   }
 
   :global(.dark) .btn-delete { background: rgba(239, 68, 68, 0.15); }
 
   .btn-manage { 
     flex: 1; 
-    height: 40px; /* Bajamos de 50px a 40px */
+    height: 40px;
     border-radius: 10px; 
     border: none; 
     background: var(--primary); 
     color: white; 
     font-weight: 700;
-    font-size: 0.85rem; /* Texto más elegante */
+    font-size: 0.85rem; 
     cursor: pointer; 
     display: flex; 
     align-items: center; 
