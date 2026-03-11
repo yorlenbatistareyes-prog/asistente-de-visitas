@@ -1,4 +1,5 @@
 import Database from '@tauri-apps/plugin-sql';
+import { invoke } from '@tauri-apps/api/core'; // <--- NUEVO: El mensajero de Rust
 
 let dbInstance: Database | null = null;
 
@@ -8,8 +9,8 @@ export interface Circuito {
   nombre: string;
   etiquetas?: string; 
   fechaCreacion?: string;
-  fechaInicio?: string; // NUEVO
-  fechaFin?: string;    // NUEVO
+  fechaInicio?: string; 
+  fechaFin?: string;    
 }
 
 export interface Congregacion {
@@ -30,7 +31,7 @@ export interface Congregacion {
 }
 export interface Persona {
   id?: number;
-  circuito_id: number; // Para vincular la persona al circuito actual
+  circuito_id: number; 
   nombre: string;
   segundo_nombre?: string;
   apellidos: string;
@@ -229,20 +230,24 @@ export async function eliminarCongregacion(id: number) {
   await db.execute('DELETE FROM congregaciones WHERE id = $1', [id]);
 }
 
-// --- 4. GESTIÓN DE CONFIGURACIÓN GLOBAL ---
+// --- 4. GESTIÓN DE CONFIGURACIÓN GLOBAL (AHORA EN RUST PURO) ---
 
 export async function guardarConfig(clave: string, valor: string) {
-  const db = await initDB();
-  await db.execute(
-    'INSERT INTO configuracion (clave, valor) VALUES ($1, $2) ON CONFLICT(clave) DO UPDATE SET valor = $2',
-    [clave, valor]
-  );
+  try {
+    await invoke('guardar_config_rust', { clave, valor });
+  } catch (error) {
+    console.error("Error guardando config en Rust:", error);
+    throw error;
+  }
 }
 
 export async function cargarConfig(clave: string): Promise<string | null> {
-  const db = await initDB();
-  const res = await db.select<{ valor: string }[]>('SELECT valor FROM configuracion WHERE clave = $1', [clave]);
-  return res.length > 0 ? res[0].valor : null;
+  try {
+    return await invoke<string | null>('cargar_config_rust', { clave });
+  } catch (error) {
+    console.error("Error cargando config de Rust:", error);
+    return null;
+  }
 }
 
 // --- 5. GESTIÓN DE PERSONAS ---

@@ -1,5 +1,7 @@
+pub mod database; // <--- NUEVO: Conectamos tu archivo database.rs con las tablas
+
 use serde::{Deserialize, Serialize};
-use std::process::Command; // <--- NUEVO: Necesario para abrir Word/Excel
+use std::process::Command; // Necesario para abrir Word/Excel
 
 // --- 1. ESTRUCTURAS (Igual que antes) ---
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -23,7 +25,7 @@ pub struct DocRecord {
 
 // --- 2. COMANDOS ---
 
-// NUEVA FUNCIÓN: Abre archivos saltándose la seguridad estricta de Tauri
+// Abre archivos saltándose la seguridad estricta de Tauri
 #[tauri::command]
 fn abrir_archivo_nativo(ruta: String) -> Result<(), String> {
     println!("Abriendo nativamente: {}", ruta);
@@ -67,14 +69,12 @@ fn get_personal_agenda() -> Vec<PersonalTask> {
 
 #[tauri::command]
 fn add_personal_task(title: String, date: String, _priority: String) -> String {
-    // CORRECCIÓN: Agregamos 'date' al mensaje para que Rust vea que se usa
     println!("AGENDA: {} - Fecha: {}", title, date);
     "OK".to_string()
 }
 
 #[tauri::command]
 fn save_document_record(name: String, path: String, doc_type: String, _size: String, _date: String) -> String {
-    // CORRECCIÓN: Agregamos 'doc_type' y 'path' al mensaje
     println!("DOC: {} (Tipo: {}) guardado en: {}", name, doc_type, path);
     "OK".to_string()
 }
@@ -82,6 +82,11 @@ fn save_document_record(name: String, path: String, doc_type: String, _size: Str
 // --- 3. MAIN ---
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // --- NUEVO: Inicializamos la base de datos de Rust puro al arrancar ---
+    if let Err(e) = database::inicializar_bd() {
+        eprintln!("Error crítico al inicializar la base de datos SQLite: {}", e);
+    }
+
     tauri::Builder::default()
         // --- PLUGINS: Mantenemos TODOS para que los PDF y la BD sigan funcionando ---
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -89,7 +94,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())     // Vital para leer PDFs
         .plugin(tauri_plugin_dialog::init()) // Vital para importar
         .plugin(tauri_plugin_opener::init()) // Lo dejamos por si acaso
-        .plugin(tauri_plugin_sql::Builder::default().build()) // <--- NUEVO: Inicializamos SQLite
+        .plugin(tauri_plugin_sql::Builder::default().build()) // Mantenido por compatibilidad temporal
         // --------------------------------------------------------------------------
 
         .invoke_handler(tauri::generate_handler![
@@ -97,7 +102,9 @@ pub fn run() {
             get_personal_agenda,
             add_personal_task,
             save_document_record,
-            abrir_archivo_nativo // <--- Agregamos la nueva a la lista
+            abrir_archivo_nativo,
+            database::guardar_config_rust, // <--- NUEVO
+            database::cargar_config_rust   // <--- NUEV 
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
