@@ -1,4 +1,10 @@
-pub mod database; // <--- NUEVO: Conectamos tu archivo database.rs con las tablas
+// 1. DECLARAMOS LOS MÓDULOS DE NUESTRA ARQUITECTURA LIMPIA
+pub mod database;
+pub mod configuracion; // <--- NUEVO: Conectamos configuracion.rs
+pub mod circuitos;     // <--- NUEVO: Conectamos circuitos.rs
+pub mod congregaciones;
+pub mod personas;
+pub mod historial;
 
 use serde::{Deserialize, Serialize};
 use std::process::Command; // Necesario para abrir Word/Excel
@@ -82,7 +88,7 @@ fn save_document_record(name: String, path: String, doc_type: String, _size: Str
 // --- 3. MAIN ---
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // --- NUEVO: Inicializamos la base de datos de Rust puro al arrancar ---
+    // Inicializamos la base de datos (creación de tablas) al arrancar
     if let Err(e) = database::inicializar_bd() {
         eprintln!("Error crítico al inicializar la base de datos SQLite: {}", e);
     }
@@ -94,7 +100,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())     // Vital para leer PDFs
         .plugin(tauri_plugin_dialog::init()) // Vital para importar
         .plugin(tauri_plugin_opener::init()) // Lo dejamos por si acaso
-        .plugin(tauri_plugin_sql::Builder::default().build()) // Mantenido por compatibilidad temporal
+        .plugin(tauri_plugin_sql::Builder::default().build()) // Mantenido temporalmente
         // --------------------------------------------------------------------------
 
         .invoke_handler(tauri::generate_handler![
@@ -103,8 +109,26 @@ pub fn run() {
             add_personal_task,
             save_document_record,
             abrir_archivo_nativo,
-            database::guardar_config_rust, // <--- NUEVO
-            database::cargar_config_rust   // <--- NUEV 
+            
+            // --- REGISTRAMOS LOS COMANDOS DESDE SUS NUEVOS ARCHIVOS ---
+            configuracion::guardar_config_rust,
+            configuracion::cargar_config_rust,
+            circuitos::crear_circuito_rust,
+            circuitos::obtener_todos_los_circuitos_rust,
+            circuitos::obtener_circuito_por_id_rust,
+            circuitos::eliminar_circuito_rust,
+            // --- NUEVOS COMANDOS DE CONGREGACIONES ---
+            congregaciones::obtener_congregaciones_rust,
+            congregaciones::guardar_congregacion_rust,
+            congregaciones::eliminar_congregacion_rust,
+            // --- NUEVOS COMANDOS DE PERSONAS ---
+            personas::obtener_personas_por_circuito_rust,
+            personas::guardar_persona_rust,
+            personas::eliminar_persona_rust,
+            // --- NUEVOS COMANDOS DEL HISTORIAL ---
+            historial::obtener_historial_rust,
+            historial::guardar_historial_rust,
+            historial::eliminar_historial_rust
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

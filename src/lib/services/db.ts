@@ -144,47 +144,57 @@ export async function initDB(): Promise<Database> {
   }
 }
 
-// --- 2. GESTIÓN DE CIRCUITOS ---
+// --- 2. GESTIÓN DE CIRCUITOS (MIGRADA A RUST PURO) ---
 
 export async function crearCircuito(nombre: string, etiquetas: string = "", fechaInicio: string = "", fechaFin: string = "") {
-  const db = await initDB();
-  const fecha = new Date().toISOString().split('T')[0]; 
-  
-  await db.execute(
-    'INSERT INTO circuitos (nombre, etiquetas, fechaCreacion, fechaInicio, fechaFin) VALUES ($1, $2, $3, $4, $5)',
-    [nombre.toUpperCase(), etiquetas, fecha, fechaInicio, fechaFin]
-  );
+  const fechaCreacion = new Date().toISOString().split('T')[0]; 
+  try {
+    // Nota: Tauri convierte automáticamente camelCase (fechaCreacion) a snake_case (fecha_creacion) para Rust
+    await invoke('crear_circuito_rust', { 
+      nombre, 
+      etiquetas, 
+      fechaCreacion, 
+      fechaInicio, 
+      fechaFin 
+    });
+  } catch (error) {
+    console.error("Error creando circuito en Rust:", error);
+    throw error;
+  }
 }
 
 export async function obtenerTodosLosCircuitos(): Promise<Circuito[]> {
-  const db = await initDB();
-  return await db.select<Circuito[]>('SELECT * FROM circuitos ORDER BY nombre ASC');
+  try {
+    return await invoke<Circuito[]>('obtener_todos_los_circuitos_rust');
+  } catch (error) {
+    console.error("Error obteniendo circuitos desde Rust:", error);
+    return [];
+  }
 }
 
 export async function obtenerCircuitoPorId(id: number): Promise<Circuito | null> {
-  const db = await initDB();
-  const resultado = await db.select<Circuito[]>('SELECT * FROM circuitos WHERE id = $1', [id]);
-  return resultado.length > 0 ? resultado[0] : null;
+  try {
+    return await invoke<Circuito | null>('obtener_circuito_por_id_rust', { id });
+  } catch (error) {
+    console.error(`Error obteniendo el circuito ${id} desde Rust:`, error);
+    return null;
+  }
 }
 
-// NUEVA FUNCIÓN: Elimina el circuito y todas las congregaciones que le pertenecen
 export async function eliminarCircuito(id: number, nombre: string) {
-  const db = await initDB();
-  // Borramos las congregaciones que tengan el nombre de este circuito
-  await db.execute('DELETE FROM congregaciones WHERE circuito = $1', [nombre]);
-  // Borramos el circuito
-  await db.execute('DELETE FROM circuitos WHERE id = $1', [id]);
+  try {
+    await invoke('eliminar_circuito_rust', { id, nombre });
+  } catch (error) {
+    console.error("Error eliminando circuito en Rust:", error);
+    throw error;
+  }
 }
 
-// --- 3. GESTIÓN DE CONGREGACIONES ---
+// --- 3. GESTIÓN DE CONGREGACIONES (MIGRADA A RUST PURO) ---
 
 export async function obtenerCongregaciones(circuito: string): Promise<Congregacion[]> {
-  const db = await initDB();
   try {
-    return await db.select<Congregacion[]>(
-      'SELECT * FROM congregaciones WHERE circuito = $1 ORDER BY nombre ASC',
-      [circuito]
-    );
+    return await invoke<Congregacion[]>('obtener_congregaciones_rust', { circuito });
   } catch (error) {
     console.error("Error obteniendo congregaciones:", error);
     return [];
@@ -192,42 +202,22 @@ export async function obtenerCongregaciones(circuito: string): Promise<Congregac
 }
 
 export async function guardarCongregacion(cong: Congregacion) {
-  const db = await initDB();
   try {
-    if (cong.id) {
-      await db.execute(
-        `UPDATE congregaciones SET 
-          nombre = $1, enVisita = $2, ciudad = $3, provincia = $4, pais = $5, 
-          idioma = $6, esLenguaSenas = $7, telefono = $8, horaSemana = $9, 
-          horaFinSemana = $10, diaSemana = $11, diaFinSemana = $12
-         WHERE id = $13`,
-        [
-          cong.nombre.toUpperCase(), cong.enVisita ? 1 : 0, cong.ciudad, cong.provincia, cong.pais,
-          cong.idioma, cong.esLenguaSenas ? 1 : 0, cong.telefono, cong.horaSemana,
-          cong.horaFinSemana, cong.diaSemana, cong.diaFinSemana, cong.id
-        ]
-      );
-    } else {
-      await db.execute(
-        `INSERT INTO congregaciones 
-          (circuito, nombre, enVisita, ciudad, provincia, pais, idioma, esLenguaSenas, telefono, horaSemana, horaFinSemana, diaSemana, diaFinSemana) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-        [
-          cong.circuito, cong.nombre.toUpperCase(), cong.enVisita ? 1 : 0, cong.ciudad, cong.provincia, cong.pais,
-          cong.idioma, cong.esLenguaSenas ? 1 : 0, cong.telefono, cong.horaSemana,
-          cong.horaFinSemana, cong.diaSemana, cong.diaFinSemana
-        ]
-      );
-    }
+    // Le pasamos el objeto completo a Rust para que él decida si inserta o actualiza
+    await invoke('guardar_congregacion_rust', { cong });
   } catch (error) {
-    console.error("Error guardando congregación:", error);
+    console.error("Error guardando congregación en Rust:", error);
     throw error;
   }
 }
 
 export async function eliminarCongregacion(id: number) {
-  const db = await initDB();
-  await db.execute('DELETE FROM congregaciones WHERE id = $1', [id]);
+  try {
+    await invoke('eliminar_congregacion_rust', { id });
+  } catch (error) {
+    console.error("Error eliminando congregación en Rust:", error);
+    throw error;
+  }
 }
 
 // --- 4. GESTIÓN DE CONFIGURACIÓN GLOBAL (AHORA EN RUST PURO) ---
@@ -250,40 +240,60 @@ export async function cargarConfig(clave: string): Promise<string | null> {
   }
 }
 
-// --- 5. GESTIÓN DE PERSONAS ---
+// --- 5. GESTIÓN DE PERSONAS (MIGRADA A RUST PURO) ---
 
 export async function obtenerPersonasPorCircuito(circuitoId: number): Promise<Persona[]> {
-  const db = await initDB();
-  return await db.select<Persona[]>(
-    'SELECT * FROM personas WHERE circuito_id = $1 ORDER BY apellidos ASC',
-    [circuitoId]
-  );
+  try {
+    return await invoke<Persona[]>('obtener_personas_por_circuito_rust', { circuitoId });
+  } catch (error) {
+    console.error("Error obteniendo personas:", error);
+    return [];
+  }
 }
 
 export async function guardarPersona(p: Persona) {
-  const db = await initDB();
-  if (p.id) {
-    await db.execute(
-      `UPDATE personas SET 
-        nombre = $1, segundo_nombre = $2, apellidos = $3, privilegio = $4, 
-        congregacion = $5, direccion = $6, telefono_celular = $7, 
-        telefono_fijo = $8, email = $9
-       WHERE id = $10`,
-      [p.nombre, p.segundo_nombre, p.apellidos, p.privilegio, p.congregacion, 
-       p.direccion, p.telefono_celular, p.telefono_fijo, p.email, p.id]
-    );
-  } else {
-    await db.execute(
-      `INSERT INTO personas 
-        (circuito_id, nombre, segundo_nombre, apellidos, privilegio, congregacion, direccion, telefono_celular, telefono_fijo, email) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [p.circuito_id, p.nombre, p.segundo_nombre, p.apellidos, p.privilegio, p.congregacion, 
-       p.direccion, p.telefono_celular, p.telefono_fijo, p.email]
-    );
+  try {
+    await invoke('guardar_persona_rust', { p });
+  } catch (error) {
+    console.error("Error guardando persona en Rust:", error);
+    throw error;
   }
 }
 
 export async function eliminarPersona(id: number) {
-  const db = await initDB();
-  await db.execute('DELETE FROM personas WHERE id = $1', [id]);
+  try {
+    await invoke('eliminar_persona_rust', { id });
+  } catch (error) {
+    console.error("Error eliminando persona en Rust:", error);
+    throw error;
+  }
+}
+
+// --- 6. GESTIÓN DE HISTORIAL / ANÁLISIS DE CONGREGACIÓN (RUST PURO) ---
+
+export async function obtenerHistorialPorCongregacion(congregacion_id: number): Promise<VisitaHistorial[]> {
+  try {
+    return await invoke<VisitaHistorial[]>('obtener_historial_rust', { congregacionId: congregacion_id });
+  } catch (error) {
+    console.error("Error obteniendo historial:", error);
+    return [];
+  }
+}
+
+export async function guardarHistorial(visita: VisitaHistorial) {
+  try {
+    await invoke('guardar_historial_rust', { visita });
+  } catch (error) {
+    console.error("Error guardando historial en Rust:", error);
+    throw error;
+  }
+}
+
+export async function eliminarHistorial(id: number) {
+  try {
+    await invoke('eliminar_historial_rust', { id });
+  } catch (error) {
+    console.error("Error eliminando historial en Rust:", error);
+    throw error;
+  }
 }
