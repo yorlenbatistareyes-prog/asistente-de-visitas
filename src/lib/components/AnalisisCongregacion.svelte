@@ -29,13 +29,27 @@
     seguimiento: string;
     recomendaciones: string; // <--- NUEVO
     localReunion: string;    // <--- NUEVO
+    checklist: boolean[]; // <--- NUEVO: Para guardar las palomitas
   }
+
+  // --- LOS PUNTOS DE TU LISTA ---
+  const puntosChecklist = [
+    "Verificar que se siguen los procedimientos de contabilidad.",
+    "Revisar Formularios Movimiento mensual de publicaciones (S-28).",
+    "Revisar S-303 de la última visita para ver aspectos en los que se dejó a trabajar.",
+    "Verificar que tengan seleccionados los territorios a trabajar durante la semana.",
+    "Solicitar lista de temas propuestos para incluir en la agenda de la reunión con los ancianos; confeccionarla.",
+    "Verificar si alguien solicitó salir a predicar con nosotros.",
+    "Verificar el programa de la semana.",
+    "Verificar las visitas de pastoreo programadas para la semana."
+  ];
 
   const valoresPorDefecto: RegistroCongregacion = {
     fechaVisita: "", opinionAncianos: "", ministerioCristiano: "", reunionesCongregacion: "",
     pastoreo: "", precursores: "", irregularesInactivos: "", responsabilidades: "",
     contabilidad: "", miscelaneos: "", seguimiento: "",
-    recomendaciones: "", localReunion: "" // <--- NUEVO
+    recomendaciones: "", localReunion: "", // <--- NUEVO
+    checklist: new Array(8).fill(false) // <--- NUEVO: Inicia con 8 casillas vacías
   };
 
   let registro: RegistroCongregacion = { ...valoresPorDefecto };
@@ -44,7 +58,7 @@
   // --- ESTADO DE LOS CHIPS VISUALES ---
   let estadoTarjetas: Record<string, 'guardando' | 'guardado' | null> = {};
 
-  type ClaveRegistro = keyof Omit<RegistroCongregacion, 'fechaVisita'>;
+  type ClaveRegistro = keyof Omit<RegistroCongregacion, 'fechaVisita' | 'checklist'>;
   
   // --- LISTA DE MÓDULOS ACTUALIZADA (AHORA SON 12) ---
   const modulos: { id: ClaveRegistro, titulo: string, guias: string[] }[] = [
@@ -187,7 +201,7 @@
     }
   }
 
-  // --- GUARDAR BORRADOR USANDO RUST PURO ---
+ // --- GUARDAR BORRADOR USANDO RUST PURO ---
   async function guardarCambios(idModificado?: string) {
     if (!nombreCongregacion) return;
 
@@ -208,13 +222,7 @@
       if (idModificado) {
         estadoTarjetas[idModificado] = 'guardado';
         estadoTarjetas = { ...estadoTarjetas };
-
-        setTimeout(() => {
-          if (estadoTarjetas[idModificado] === 'guardado') {
-            estadoTarjetas[idModificado] = null;
-            estadoTarjetas = { ...estadoTarjetas };
-          }
-        }, 2500);
+        // ¡LISTO! Aquí eliminamos el temporizador. Ahora se queda en 'guardado' para siempre.
       }
     } catch (error) { 
       console.error(error);
@@ -331,6 +339,28 @@
       }
     });
 
+    // --- NUEVO: TABLA DE CHECKLIST EN EL PDF ---
+    const finalYModulos = (doc as any).lastAutoTable.finalY + 15;
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("TAREAS DE VERIFICACIÓN PREVIAS", 14, finalYModulos);
+    
+    const checklistBody = puntosChecklist.map((punto, i) => [
+      registro.checklist && registro.checklist[i] ? "[ X ]" : "[   ]",
+      punto
+    ]);
+
+    autoTable(doc, {
+      startY: finalYModulos + 5,
+      body: checklistBody,
+      theme: 'plain',
+      styles: { fontSize: 9 },
+      columnStyles: { 
+        0: { cellWidth: 15, fontStyle: 'bold', halign: 'center' } 
+      }
+    });
+
     // --- ESPACIO DE FIRMA FINAL ---
     const finalY = (doc as any).lastAutoTable.finalY + 30;
     doc.setDrawColor(200, 200, 200);
@@ -411,9 +441,31 @@
       </div>
     {/each}
   </div>
-</div>
 
-{#if moduloActivo}
+  <div class="seccion-checklist">
+    <div class="checklist-header">
+      <h3><CheckCircle2 size={18} color="#10b981" /> Tareas de Verificación Previas</h3>
+      {#if estadoTarjetas['checklist'] === 'guardando'}
+        <span class="chip guardando">Guardando...</span>
+      {:else if estadoTarjetas['checklist'] === 'guardado'}
+        <span class="chip guardado">Guardado</span>
+      {/if}
+    </div>
+    
+    <div class="checklist-grid">
+      {#each puntosChecklist as punto, i}
+        <label class="check-item {registro.checklist && registro.checklist[i] ? 'marcado' : ''}">
+          <input 
+            type="checkbox" 
+            bind:checked={registro.checklist[i]} 
+            on:change={() => guardarCambios('checklist')}
+          />
+          <span class="check-texto">{punto}</span>
+        </label>
+      {/each}
+    </div>
+  </div>
+  </div> {#if moduloActivo}
   <div class="modal-backdrop" on:click={cerrarYGuardar}>
     <div class="modal-content focus-modal" on:click|stopPropagation>
       
@@ -595,9 +647,101 @@
 
   .btn-primary { background: var(--primary); color: white; padding: 10px 20px; }
 
-  /* CHIPS */
-  .chip.guardado { background: rgba(22, 163, 74, 0.2); color: #4ade80; }
-  .chip.guardando { background: rgba(234, 179, 8, 0.2); color: #facc15; }
+  /* CHIPS (Ahora más finos y estilizados) */
+  .chip {
+    /* Reducimos el primer número (arriba/abajo) de 4px a 2px */
+    padding: 2px 10px; 
+    
+    border-radius: 50px; /* Mismo borde redondeado bonito */
+    
+    /* Reducimos un poquito la letra para que no se vea gigante en el chip fino */
+    font-size: 0.75rem; 
+    
+    font-weight: 700; /* Mantenemos la negrita */
+    display: inline-block;
+    letter-spacing: 0.2px;
+    
+    /* Aseguramos que el texto esté perfectamente centrado verticalmente */
+    line-height: 1.2; 
+    vertical-align: middle;
+  }
+
+  .chip.guardado { 
+    background-color: #22c55e; /* Mismo verde vibrante de tu imagen */
+    color: #ffffff; /* Mismo texto blanco puro */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.12); /* Sombrita aún más sutil */
+  }
+
+  .chip.guardando { 
+    background-color: #facc15; /* Fondo amarillo */
+    color: #713f12; /* Texto marrón oscuro */
+  }
 
   @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+  /* 5. CHECKLIST */
+  .seccion-checklist {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: var(--border-thin);
+  }
+
+  .checklist-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 15px;
+  }
+
+  .checklist-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .checklist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 12px;
+  }
+
+  .check-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: var(--bg-panel);
+    padding: 12px 15px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .check-item:hover {
+    border-color: var(--primary);
+  }
+
+  .check-item.marcado {
+    background: rgba(16, 185, 129, 0.05);
+    border-color: #10b981;
+  }
+
+  .check-item input[type="checkbox"] {
+    margin-top: 3px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #10b981;
+  }
+
+  .check-texto {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: var(--text-main);
+    user-select: none;
+  }
+
 </style>
