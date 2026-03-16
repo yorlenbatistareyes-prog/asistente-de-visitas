@@ -4,7 +4,7 @@
   import { ArrowLeft, History, ClipboardEdit, Calendar, ChevronRight, Play, CheckCircle2, Clock } from "lucide-svelte";
   
   // IMPORTAMOS SQLITE EN VEZ DE LAZYSTORE
-  import { initDB } from '$lib/db';
+  import { initDB } from '$lib/services/db';
   
   // TUS DOS COMPONENTES HIJOS
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';

@@ -6,7 +6,7 @@
   import { writeFile } from '@tauri-apps/plugin-fs';
   
   // IMPORTAMOS TU MOTOR DE BASE DE DATOS
-  import { initDB } from '$lib/db';
+  import { initDB } from '$lib/services/db';
 
   export let nombreCongregacion: string;
 

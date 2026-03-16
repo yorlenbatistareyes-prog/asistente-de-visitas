@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 // Importamos la interfaz directamente desde tu base de datos para no duplicar código
-import type { Congregacion } from '$lib/db'; 
+import type { Congregacion } from '$lib/services/db';
 
 // Inicializamos vacío. Más adelante haremos que recuerde el último circuito abierto.
 export const circuitoActivo = writable<string>(""); 
