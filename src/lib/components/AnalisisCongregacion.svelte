@@ -2,8 +2,9 @@
   import { FileText, Save, CheckCircle, CheckCircle2, Circle, X } from "lucide-svelte";
   import { createEventDispatcher, onMount } from 'svelte';
   
-  // IMPORTAMOS SQLITE Y EL DIALOGO DE GUARDADO (Eliminamos LazyStore y fs)
-  import DatabasePlugin from '@tauri-apps/plugin-sql';
+  // --- NUESTRA ARQUITECTURA LIMPIA: Importamos el mensajero de Rust ---
+  import { guardarConfig, cargarConfig } from '$lib/services/db';
+  
   import { save } from "@tauri-apps/plugin-dialog";
   import jsPDF from "jspdf";
   import autoTable from "jspdf-autotable";
@@ -42,7 +43,7 @@
 
   type ClaveRegistro = keyof Omit<RegistroCongregacion, 'fechaVisita'>;
   
-  // TUS MÓDULOS INTACTOS (Formato original restaurado)
+  // TUS MÓDULOS INTACTOS
   const modulos: { id: ClaveRegistro, titulo: string, guias: string[] }[] = [
     { 
       id: 'opinionAncianos', 
@@ -141,25 +142,24 @@
   }
   $: if (datosEdicion) registro = { ...valoresPorDefecto, ...datosEdicion };
 
-  // --- CARGAR BORRADOR DESDE SQLITE ---
+  // --- CARGAR BORRADOR USANDO RUST PURO ---
   async function cargarDatosBorrador() {
     try {
-      const db = await DatabasePlugin.load('sqlite:av_database.db');
       const claveBorrador = `borrador_${nombreCongregacion}`;
-      const res = await db.select<{ valor: string }[]>('SELECT valor FROM configuracion WHERE clave = $1', [claveBorrador]);
+      const valor = await cargarConfig(claveBorrador);
       
-      if (res.length > 0) {
-        registro = { ...valoresPorDefecto, ...JSON.parse(res[0].valor) };
+      if (valor && valor !== "{}") {
+        registro = { ...valoresPorDefecto, ...JSON.parse(valor) };
       } else {
         registro = { ...valoresPorDefecto };
       }
     } catch (e) { 
-      console.error("Error cargando borrador SQLite:", e);
+      console.error("Error cargando borrador vía Rust:", e);
       registro = { ...valoresPorDefecto }; 
     }
   }
 
-  // --- GUARDAR BORRADOR EN SQLITE ---
+  // --- GUARDAR BORRADOR USANDO RUST PURO ---
   async function guardarCambios(idModificado?: string) {
     if (!nombreCongregacion) return;
 
@@ -169,14 +169,11 @@
     }
 
     try {
-      const db = await DatabasePlugin.load('sqlite:av_database.db');
       const claveBorrador = `borrador_${nombreCongregacion}`;
       const valorJSON = JSON.stringify(registro);
 
-      await db.execute(
-        'INSERT INTO configuracion (clave, valor) VALUES ($1, $2) ON CONFLICT(clave) DO UPDATE SET valor = $2',
-        [claveBorrador, valorJSON]
-      );
+      // Usamos nuestro puente de Rust en lugar de una consulta SQL directa
+      await guardarConfig(claveBorrador, valorJSON);
       
       if (idModificado) await new Promise(r => setTimeout(r, 400));
       
@@ -193,7 +190,7 @@
       }
     } catch (error) { 
       console.error(error);
-      alert("❌ Error al guardar borrador en base de datos."); 
+      alert("❌ Error al guardar borrador."); 
       if (idModificado) {
         estadoTarjetas[idModificado] = null;
         estadoTarjetas = { ...estadoTarjetas };
@@ -209,7 +206,7 @@
     }
   }
 
-  // --- FINALIZAR: LIMPIAR BORRADOR EN SQLITE Y ENVIAR AL HISTORIAL ---
+  // --- FINALIZAR: LIMPIAR BORRADOR EN RUST Y ENVIAR AL HISTORIAL ---
   async function finalizarInforme() {
     if (!nombreCongregacion || !registro.fechaVisita) { alert("⚠️ Ingresa la fecha antes de finalizar."); return; }
     if (!confirm("¿Finalizar y limpiar formulario?")) return;
@@ -226,9 +223,8 @@
       // Enviamos el evento para que el componente padre lo guarde en la tabla 'historial_visitas'
       dispatch('guardarEnHistorial', { congregacion: nombreCongregacion, fecha: registro.fechaVisita, contenido: resumen });
       
-      // Borramos el borrador temporal de SQLite
-      const db = await DatabasePlugin.load('sqlite:av_database.db');
-      await db.execute('DELETE FROM configuracion WHERE clave = $1', [`borrador_${nombreCongregacion}`]);
+      // Borramos el borrador temporal guardando un JSON vacío usando Rust
+      await guardarConfig(`borrador_${nombreCongregacion}`, "{}");
       
       registro = { ...valoresPorDefecto };
       dispatch('limpiarFormulario');
@@ -236,23 +232,22 @@
     } catch (e) { alert("❌ Error al finalizar."); }
   }
 
-  // --- GENERAR PDF LEYENDO PERFIL DESDE SQLITE ---
+  // --- GENERAR PDF LEYENDO PERFIL DESDE RUST PURO ---
   async function generarPDF() {
     let firmaUsuario = "Superintendente de Circuito";
     let cargoPdf = "Superintendente de Circuito";
     let textoPiePagina = "Informe generado por Asistente de Visitas"; 
     
     try {
-      const db = await DatabasePlugin.load('sqlite:av_database.db');
-      
-      const resNombre = await db.select<{valor: string}[]>('SELECT valor FROM configuracion WHERE clave = "nombreUsuario"');
-      if (resNombre.length > 0 && resNombre[0].valor) firmaUsuario = resNombre[0].valor;
+      // Cargamos la info del PDF de la misma forma limpia
+      const resNombre = await cargarConfig("nombreUsuario");
+      if (resNombre) firmaUsuario = resNombre;
 
-      const resCargo = await db.select<{valor: string}[]>('SELECT valor FROM configuracion WHERE clave = "cargoUsuario"');
-      if (resCargo.length > 0 && resCargo[0].valor) cargoPdf = resCargo[0].valor;
+      const resCargo = await cargarConfig("cargoUsuario");
+      if (resCargo) cargoPdf = resCargo;
 
-      const resPie = await db.select<{valor: string}[]>('SELECT valor FROM configuracion WHERE clave = "piePagina"');
-      if (resPie.length > 0 && resPie[0].valor) textoPiePagina = resPie[0].valor;
+      const resPie = await cargarConfig("piePagina");
+      if (resPie) textoPiePagina = resPie;
 
     } catch (e) {
       console.error("Error al cargar configuración para PDF", e);
@@ -324,7 +319,6 @@
     });
 
     if (res) { 
-      // Usamos el doc.save nativo de jsPDF en lugar del fs de Tauri, que suele ser más estable
       doc.save(res); 
       alert("✅ Informe PDF generado correctamente."); 
     }
