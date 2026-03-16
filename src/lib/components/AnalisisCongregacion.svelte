@@ -27,12 +27,15 @@
     contabilidad: string;
     miscelaneos: string;
     seguimiento: string;
+    recomendaciones: string; // <--- NUEVO
+    localReunion: string;    // <--- NUEVO
   }
 
   const valoresPorDefecto: RegistroCongregacion = {
     fechaVisita: "", opinionAncianos: "", ministerioCristiano: "", reunionesCongregacion: "",
     pastoreo: "", precursores: "", irregularesInactivos: "", responsabilidades: "",
-    contabilidad: "", miscelaneos: "", seguimiento: ""
+    contabilidad: "", miscelaneos: "", seguimiento: "",
+    recomendaciones: "", localReunion: "" // <--- NUEVO
   };
 
   let registro: RegistroCongregacion = { ...valoresPorDefecto };
@@ -43,7 +46,7 @@
 
   type ClaveRegistro = keyof Omit<RegistroCongregacion, 'fechaVisita'>;
   
-  // TUS MÓDULOS INTACTOS
+  // --- LISTA DE MÓDULOS ACTUALIZADA (AHORA SON 12) ---
   const modulos: { id: ClaveRegistro, titulo: string, guias: string[] }[] = [
     { 
       id: 'opinionAncianos', 
@@ -53,6 +56,7 @@
         'Necesidades o tendencias que les preocupan.'
       ] 
     },
+
     { 
       id: 'ministerioCristiano', 
       titulo: '2. Ministerio Cristiano', 
@@ -62,14 +66,17 @@
         'Entusiasmo de los publicadores.'
       ] 
     },
+
     { 
       id: 'reunionesCongregacion', 
       titulo: '3. Reuniones de Congregación', 
       guias: [
         'Asistencia, y participación.',
-        'Calidad en la enseñanza.'
+        'Calidad en la enseñanza.',
+        'Procedimientos / Sugerencias.'
       ] 
     },
+
     { 
       id: 'pastoreo', 
       titulo: '4. Pastoreo', 
@@ -78,6 +85,7 @@
         'Progreso espiritual, adoración en familia y metas de los hermanos.'
       ] 
     },
+
     { 
       id: 'precursores', 
       titulo: '5. Precursores', 
@@ -87,6 +95,7 @@
         'Apoyo de los ancianos.'
       ] 
     },
+
     { 
       id: 'irregularesInactivos', 
       titulo: '6. Irregulares e Inactivos', 
@@ -95,6 +104,7 @@
         'Ayuda específica del cuerpo de ancianos.'
       ] 
     },
+
     { 
       id: 'responsabilidades', 
       titulo: '7. Responsabilidades', 
@@ -114,13 +124,31 @@
         '¿Uso adecuado de la contabilidad en línea?'
       ] 
     },
+
+    { 
+      id: 'recomendaciones', 
+      titulo: '11. Recomendaciones / Nombramientos y Bajas', 
+      guias: [
+        'Nombramientos recomendados (Ancianos, Siervos Ministeriales).',
+        'Bajas o eliminaciones de privilegios.'
+      ] 
+    },
+
+    { 
+      id: 'localReunion', 
+      titulo: '12. Local de Reunión / Mantenimiento', 
+      guias: [
+        'Condición general del Salón del Reino.',
+        'Necesidades de mantenimiento, seguridad o limpieza.'
+      ] 
+    },
+
     { 
       id: 'miscelaneos', 
       titulo: '9. Misceláneos', 
       guias: [
         'Atención a pecados graves u otros asuntos no cubiertos.',
-        'Condición, limpieza y mantenimiento del local de reunión.',
-        'Hermanos y hermanas con potencial para mayores privilegios.'
+        'Hermanos y hermanas con potencial para mayores privilegios.' // (Limpieza y mantenimiento se movió al módulo 12)
       ] 
     },
     { 
