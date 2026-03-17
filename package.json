@@ -25,6 +25,7 @@
     "lucide-svelte": "^0.562.0",
     "pako": "^2.1.0",
     "papaparse": "^5.5.3",
+    "pdfmake": "0.2.10",
     "sql.js": "^1.13.0"
   },
   "devDependencies": {
@@ -36,6 +37,7 @@
     "@types/node": "^25.0.3",
     "@types/pako": "^2.0.4",
     "@types/papaparse": "^5.5.2",
+    "@types/pdfmake": "^0.3.2",
     "@types/sql.js": "^1.4.9",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",

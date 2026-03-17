@@ -74,26 +74,93 @@
 
   async function exportarPDF(visita: any) {
     const doc = new jsPDF();
+    
+    // --- ENCABEZADO ---
+    doc.setFillColor(225, 29, 72);
+    doc.rect(0, 0, 210, 35, 'F');
+    
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(18);
-    doc.setTextColor(15, 23, 42);
-    doc.text(`Historial: ${nombreCongregacion}`, 14, 20);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Historial: ${nombreCongregacion}`, 14, 15);
     
     doc.setFontSize(11);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Visita de la semana: ${visita.fecha}`, 14, 27);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Semana del: ${visita.fecha}`, 14, 25);
     
-    doc.setFontSize(10);
+    // --- CONTENIDO ---
     doc.setTextColor(51, 65, 85);
+    doc.setFontSize(10);
     
-    const lineas = doc.splitTextToSize(visita.contenido, 180);
-    doc.text(lineas, 14, 40);
+    let yPos = 45;
+    const margenIzq = 14;
+    const margenDer = 196;
+    const anchoTexto = margenDer - margenIzq;
+    const altoPagina = 280;
     
-    const nombreSeguro = nombreCongregacion.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, "_");
-    const res = await save({ defaultPath: `Historial_${nombreSeguro}_${visita.fecha}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+    // Dividir el contenido por secciones (separadas por \n\n)
+    const secciones = visita.contenido.split('\n\n');
     
-    if (res) {
-      await writeFile(res, new Uint8Array(doc.output('arraybuffer')));
-      alert("✅ PDF del historial exportado.");
+    for (const seccion of secciones) {
+      // Verificar si necesitamos nueva página
+      if (yPos > altoPagina - 20) {
+        doc.addPage();
+        yPos = 20;
+      }
+      
+      // Si la sección tiene formato "Título: contenido"
+      if (seccion.includes(':')) {
+        const [titulo, ...resto] = seccion.split(':');
+        const contenido = resto.join(':').trim();
+        
+        // Título en negrita
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        const lineasTitulo = doc.splitTextToSize(titulo + ':', anchoTexto);
+        doc.text(lineasTitulo, margenIzq, yPos);
+        yPos += lineasTitulo.length * 5;
+        
+        // Contenido normal
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        const lineasContenido = doc.splitTextToSize(contenido, anchoTexto);
+        doc.text(lineasContenido, margenIzq, yPos);
+        yPos += lineasContenido.length * 5 + 5; // Espacio extra entre secciones
+        
+      } else {
+        // Texto normal sin formato especial
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        const lineas = doc.splitTextToSize(seccion, anchoTexto);
+        doc.text(lineas, margenIzq, yPos);
+        yPos += lineas.length * 5 + 5;
+      }
+    }
+    
+    // --- PIE DE PÁGINA ---
+    const totalPaginas = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPaginas; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Página ${i} de ${totalPaginas}`, 105, 290, { align: 'center' });
+    }
+    
+    // --- GUARDAR ---
+    try {
+      const nombreSeguro = nombreCongregacion.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, "_");
+      const res = await save({ 
+        defaultPath: `Historial_${nombreSeguro}_${visita.fecha}.pdf`, 
+        filters: [{ name: 'PDF', extensions: ['pdf'] }] 
+      });
+      
+      if (res) {
+        await writeFile(res, new Uint8Array(doc.output('arraybuffer')));
+        alert("✅ PDF del historial exportado correctamente.");
+      }
+    } catch (error) {
+      console.error("Error al guardar PDF:", error);
+      alert("❌ Error al exportar el PDF");
     }
   }
 </script>

@@ -2,14 +2,15 @@
   import { FileText, Save, CheckCircle, CheckCircle2, Circle, X } from "lucide-svelte";
   import { createEventDispatcher, onMount } from 'svelte';
   
-  // --- NUESTRA ARQUITECTURA LIMPIA: Importamos el mensajero de Rust ---
   import { guardarConfig, cargarConfig } from '$lib/services/db';
   
   import { save } from "@tauri-apps/plugin-dialog";
-  import jsPDF from "jspdf";
-  import autoTable from "jspdf-autotable";
+  import { writeFile } from "@tauri-apps/plugin-fs";
+  
+  import type { TDocumentDefinitions, TableCell } from 'pdfmake/interfaces';
+  import { createPdf } from '$lib/utils/pdfConfig';
+  
   import { fechaPorCongregacion, resumenUltimoAnalisis } from '$lib/stores/appStore';
-
   const dispatch = createEventDispatcher();
   
   export let nombreCongregacion: string;
@@ -27,9 +28,9 @@
     contabilidad: string;
     miscelaneos: string;
     seguimiento: string;
-    recomendaciones: string; // <--- NUEVO
-    localReunion: string;    // <--- NUEVO
-    checklist: boolean[]; // <--- NUEVO: Para guardar las palomitas
+    recomendaciones: string; 
+    localReunion: string;    
+    checklist: boolean[];
   }
 
   // --- LOS PUNTOS DE TU LISTA ---
@@ -48,8 +49,8 @@
     fechaVisita: "", opinionAncianos: "", ministerioCristiano: "", reunionesCongregacion: "",
     pastoreo: "", precursores: "", irregularesInactivos: "", responsabilidades: "",
     contabilidad: "", miscelaneos: "", seguimiento: "",
-    recomendaciones: "", localReunion: "", // <--- NUEVO
-    checklist: new Array(8).fill(false) // <--- NUEVO: Inicia con 8 casillas vacías
+    recomendaciones: "", localReunion: "", 
+    checklist: new Array(8).fill(false) 
   };
 
   let registro: RegistroCongregacion = { ...valoresPorDefecto };
@@ -60,7 +61,7 @@
 
   type ClaveRegistro = keyof Omit<RegistroCongregacion, 'fechaVisita' | 'checklist'>;
   
-  // --- LISTA DE MÓDULOS ACTUALIZADA (AHORA SON 12) ---
+  // --- LISTA DE MÓDULOS EXPANDIDA Y ORDENADA ---
   const modulos: { id: ClaveRegistro, titulo: string, guias: string[] }[] = [
     { 
       id: 'opinionAncianos', 
@@ -70,7 +71,6 @@
         'Necesidades o tendencias que les preocupan.'
       ] 
     },
-
     { 
       id: 'ministerioCristiano', 
       titulo: '2. Ministerio Cristiano', 
@@ -80,7 +80,6 @@
         'Entusiasmo de los publicadores.'
       ] 
     },
-
     { 
       id: 'reunionesCongregacion', 
       titulo: '3. Reuniones de Congregación', 
@@ -90,7 +89,6 @@
         'Procedimientos / Sugerencias.'
       ] 
     },
-
     { 
       id: 'pastoreo', 
       titulo: '4. Pastoreo', 
@@ -99,7 +97,6 @@
         'Progreso espiritual, adoración en familia y metas de los hermanos.'
       ] 
     },
-
     { 
       id: 'precursores', 
       titulo: '5. Precursores', 
@@ -109,7 +106,6 @@
         'Apoyo de los ancianos.'
       ] 
     },
-
     { 
       id: 'irregularesInactivos', 
       titulo: '6. Irregulares e Inactivos', 
@@ -118,7 +114,6 @@
         'Ayuda específica del cuerpo de ancianos.'
       ] 
     },
-
     { 
       id: 'responsabilidades', 
       titulo: '7. Responsabilidades', 
@@ -138,31 +133,12 @@
         '¿Uso adecuado de la contabilidad en línea?'
       ] 
     },
-
-    { 
-      id: 'recomendaciones', 
-      titulo: '11. Recomendaciones / Nombramientos y Bajas', 
-      guias: [
-        'Nombramientos recomendados (Ancianos, Siervos Ministeriales).',
-        'Bajas o eliminaciones de privilegios.'
-      ] 
-    },
-
-    { 
-      id: 'localReunion', 
-      titulo: '12. Local de Reunión / Mantenimiento', 
-      guias: [
-        'Condición general del Salón del Reino.',
-        'Necesidades de mantenimiento, seguridad o limpieza.'
-      ] 
-    },
-
     { 
       id: 'miscelaneos', 
       titulo: '9. Misceláneos', 
       guias: [
         'Atención a pecados graves u otros asuntos no cubiertos.',
-        'Hermanos y hermanas con potencial para mayores privilegios.' // (Limpieza y mantenimiento se movió al módulo 12)
+        'Hermanos y hermanas con potencial para mayores privilegios.'
       ] 
     },
     { 
@@ -172,36 +148,48 @@
         'Asuntos pendientes antes de la próxima visita.', 
         'Asuntos que deben enviarse a la sucursal.'
       ] 
+    },
+    { 
+      id: 'recomendaciones', 
+      titulo: '11. Recomendaciones / Nombramientos y Bajas', 
+      guias: [
+        'Nombramientos recomendados (Ancianos, Siervos Ministeriales).',
+        'Bajas o eliminaciones de privilegios.'
+      ] 
+    },
+    { 
+      id: 'localReunion', 
+      titulo: '12. Local de Reunión / Mantenimiento', 
+      guias: [
+        'Condición general del Salón del Reino.',
+        'Necesidades de mantenimiento, seguridad o limpieza.'
+      ] 
     }
   ];
 
   let moduloActivo: typeof modulos[0] | null = null;
 
-  // Reactividad
   $: if (nombreCongregacion && nombreCongregacion !== congregacionActual) {
     congregacionActual = nombreCongregacion;
     if (!datosEdicion) cargarDatosBorrador();
   }
   $: if (datosEdicion) registro = { ...valoresPorDefecto, ...datosEdicion };
 
-  // --- CARGAR BORRADOR USANDO RUST PURO ---
   async function cargarDatosBorrador() {
     try {
       const claveBorrador = `borrador_${nombreCongregacion}`;
       const valor = await cargarConfig(claveBorrador);
-      
       if (valor && valor !== "{}") {
         registro = { ...valoresPorDefecto, ...JSON.parse(valor) };
       } else {
         registro = { ...valoresPorDefecto };
       }
     } catch (e) { 
-      console.error("Error cargando borrador vía Rust:", e);
+      console.error("Error cargando borrador:", e);
       registro = { ...valoresPorDefecto }; 
     }
   }
 
- // --- GUARDAR BORRADOR USANDO RUST PURO ---
   async function guardarCambios(idModificado?: string) {
     if (!nombreCongregacion) return;
 
@@ -213,8 +201,6 @@
     try {
       const claveBorrador = `borrador_${nombreCongregacion}`;
       const valorJSON = JSON.stringify(registro);
-
-      // Usamos nuestro puente de Rust en lugar de una consulta SQL directa
       await guardarConfig(claveBorrador, valorJSON);
       
       if (idModificado) await new Promise(r => setTimeout(r, 400));
@@ -222,7 +208,6 @@
       if (idModificado) {
         estadoTarjetas[idModificado] = 'guardado';
         estadoTarjetas = { ...estadoTarjetas };
-        // ¡LISTO! Aquí eliminamos el temporizador. Ahora se queda en 'guardado' para siempre.
       }
     } catch (error) { 
       console.error(error);
@@ -242,146 +227,171 @@
     }
   }
 
-  // --- FINALIZAR: LIMPIAR BORRADOR EN RUST Y ENVIAR AL HISTORIAL ---
   async function finalizarInforme() {
     if (!nombreCongregacion || !registro.fechaVisita) { alert("⚠️ Ingresa la fecha antes de finalizar."); return; }
     if (!confirm("¿Finalizar y limpiar formulario?")) return;
 
     try {
-      const resumen = Object.entries(registro).filter(([key]) => key !== 'fechaVisita' && key !== 'id').map(([k, v]) => {
+      let resumen = Object.entries(registro)
+        .filter(([key]) => key !== 'fechaVisita' && key !== 'id' && key !== 'checklist')
+        .map(([k, v]) => {
           const nombreModulo = k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
           return `${nombreModulo}: ${v || 'Sin observaciones'}`;
         }).join('\n\n');
+
+      resumen += "\n\n--- LISTA DE VERIFICACIÓN ---\n";
+      puntosChecklist.forEach((punto, i) => {
+         const marcado = registro.checklist && registro.checklist[i];
+         const simbolo = marcado ? "[X]" : "[  ]";
+         resumen += `${simbolo} ${punto}\n`;
+      });
       
       resumenUltimoAnalisis.update(r => ({ ...r, [nombreCongregacion]: resumen }));
       fechaPorCongregacion.update(f => ({ ...f, [nombreCongregacion]: registro.fechaVisita }));
       
-      // Enviamos el evento para que el componente padre lo guarde en la tabla 'historial_visitas'
-      dispatch('guardarEnHistorial', { congregacion: nombreCongregacion, fecha: registro.fechaVisita, contenido: resumen });
+      dispatch('guardarEnHistorial', { 
+        congregacion: nombreCongregacion, 
+        fecha: registro.fechaVisita, 
+        contenido: resumen 
+      });
       
-      // Borramos el borrador temporal guardando un JSON vacío usando Rust
       await guardarConfig(`borrador_${nombreCongregacion}`, "{}");
-      
       registro = { ...valoresPorDefecto };
       dispatch('limpiarFormulario');
-      alert("✅ Informe finalizado.");
+      alert("✅ Informe finalizado y guardado en historial.");
     } catch (e) { alert("❌ Error al finalizar."); }
   }
 
-  // --- GENERAR PDF LEYENDO PERFIL DESDE RUST PURO ---
+// --- GENERAR PDF CON PDFMAKE (ESTILO ASSEMBLY SEGURO) ---
   async function generarPDF() {
     let firmaUsuario = "Superintendente de Circuito";
     let cargoPdf = "Superintendente de Circuito";
     let textoPiePagina = "Informe generado por Asistente de Visitas"; 
     
     try {
-      // Cargamos la info del PDF de la misma forma limpia
       const resNombre = await cargarConfig("nombreUsuario");
       if (resNombre) firmaUsuario = resNombre;
-
       const resCargo = await cargarConfig("cargoUsuario");
       if (resCargo) cargoPdf = resCargo;
-
       const resPie = await cargarConfig("piePagina");
       if (resPie) textoPiePagina = resPie;
-
     } catch (e) {
       console.error("Error al cargar configuración para PDF", e);
     }
 
-    const doc = new jsPDF();
-    
-    // --- ENCABEZADO ESTILIZADO ---
-    doc.setFillColor(225, 29, 72); 
-    doc.rect(0, 0, 210, 40, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("courier", "bold");
-    doc.setFontSize(32);
-    doc.text("AV", 14, 25); 
-    
-    doc.setDrawColor(255, 255, 255);
-    doc.setLineWidth(0.5);
-    doc.line(35, 10, 35, 30);
+    // 1. Tabla de Módulos
+    const modulosBody: TableCell[][] = [
+      [
+        { text: 'SECCIÓN', style: 'tableHeader', alignment: 'center' }, 
+        { text: 'OBSERVACIONES Y NOTAS', style: 'tableHeader', alignment: 'center' }
+      ]
+    ];
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
-    doc.text("INFORME DE ANÁLISIS", 42, 20);
-    
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(`CONGREGACIÓN: ${nombreCongregacion.toUpperCase()}`, 42, 30);
-    doc.text(`VISITA: ${registro.fechaVisita || '---'}`, 196, 30, { align: 'right' });
+    modulos.forEach(mod => {
+      modulosBody.push([
+        { text: mod.titulo.toUpperCase(), bold: true, fillColor: '#f8fafc', margin: [0, 5, 0, 5] },
+        { text: (registro as any)[mod.id] || 'Sin observaciones registradas.', margin: [0, 5, 0, 5] }
+      ]);
+    });
 
-    // --- TABLA DE CONTENIDO ---
-    const bodyData = modulos.map(mod => [
-      mod.titulo.toUpperCase(), 
-      registro[mod.id] || 'Sin observaciones registradas.'
-    ]);
+    // 2. Tabla del Checklist
+    const checklistBody: TableCell[][] = [];
+    puntosChecklist.forEach((punto, i) => {
+      const estaMarcado = registro.checklist && registro.checklist[i];
+      checklistBody.push([
+        { text: estaMarcado ? 'SÍ' : 'NO', color: estaMarcado ? '#16a34a' : '#dc2626', bold: true, alignment: 'center', margin: [0, 3, 0, 3] },
+        { text: punto, margin: [0, 3, 0, 3] }
+      ]);
+    });
 
-    autoTable(doc, { 
-      startY: 45, 
-      head: [['SECCIÓN', 'OBSERVACIONES Y NOTAS']], 
-      body: bodyData,
-      theme: 'grid',
-      headStyles: { fillColor: [51, 65, 85], halign: 'center' },
-      columnStyles: { 
-        0: { fontStyle: 'bold', cellWidth: 50, fillColor: [248, 250, 252] },
-        1: { fontSize: 10 }
+    // 3. Definición del documento (Aseguramos la fuente Roboto que inyectamos)
+    const docDefinition: TDocumentDefinitions = {
+      content: [
+        { text: 'INFORME DE ANÁLISIS', style: 'header' },
+        {
+          columns: [
+            { text: `CONGREGACIÓN: ${nombreCongregacion.toUpperCase()}`, bold: true },
+            { text: `VISITA: ${registro.fechaVisita || '---'}`, alignment: 'right' }
+          ],
+          margin: [0, 0, 0, 15]
+        },
+        {
+          table: {
+            headerRows: 1,
+            widths: ['35%', '65%'],
+            body: modulosBody
+          },
+          layout: 'lightHorizontalLines',
+          margin: [0, 0, 0, 25]
+        },
+        { text: 'VERIFICACIÓN DE PROCEDIMIENTOS PREVIOS', style: 'subheader', margin: [0, 0, 0, 10] },
+        {
+          table: {
+            widths: ['15%', '85%'],
+            body: checklistBody
+          },
+          layout: 'noBorders',
+          margin: [0, 0, 0, 40]
+        },
+        {
+          canvas: [{ type: 'line', x1: 150, y1: 0, x2: 360, y2: 0, lineWidth: 1, lineColor: '#94a3b8' }],
+          alignment: 'center',
+          margin: [0, 0, 0, 5]
+        },
+        { text: firmaUsuario, alignment: 'center', bold: true, fontSize: 11 },
+        { text: cargoPdf, alignment: 'center', color: '#64748b', fontSize: 10 }
+      ],
+      styles: {
+        header: { fontSize: 18, bold: true, color: '#e11d48', margin: [0, 0, 0, 10] },
+        subheader: { fontSize: 12, bold: true, color: '#334155' },
+        tableHeader: { bold: true, fontSize: 11, color: '#ffffff', fillColor: '#334155', margin: [0, 5, 0, 5] }
       },
-      margin: { top: 45 },
-      didDrawPage: (data) => {
-        const pageSize = doc.internal.pageSize;
-        doc.setFontSize(8); doc.setTextColor(150, 150, 150);
-        doc.text(`Firma: ${firmaUsuario}`, 14, pageSize.height - 10);
-        const ancho = doc.getTextWidth(textoPiePagina);
-        doc.text(textoPiePagina, pageSize.width - 14 - ancho, pageSize.height - 10);
+      defaultStyle: {
+        font: 'Roboto', // <--- IMPORTANTE: Debe coincidir con lo que inyectamos en pdfConfig
+        fontSize: 10,
+        color: '#1e293b'
+      },
+      footer: function(currentPage: number, pageCount: number) {
+        return {
+          columns: [
+            { text: textoPiePagina, color: '#94a3b8', fontSize: 8, margin: [40, 10, 0, 0] },
+            { text: `Página ${currentPage} de ${pageCount}`, alignment: 'right', color: '#94a3b8', fontSize: 8, margin: [0, 10, 40, 0] }
+          ]
+        };
       }
-    });
+    };
 
-    // --- NUEVO: TABLA DE CHECKLIST EN EL PDF ---
-    const finalYModulos = (doc as any).lastAutoTable.finalY + 15;
-    
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("TAREAS DE VERIFICACIÓN PREVIAS", 14, finalYModulos);
-    
-    const checklistBody = puntosChecklist.map((punto, i) => [
-      registro.checklist && registro.checklist[i] ? "[ X ]" : "[   ]",
-      punto
-    ]);
+    // 4. Generar y guardar
+        // 4. Generar y guardar
+    try {
+      const nombreSeguro = nombreCongregacion.normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9\s]/g, "_");
+      
+      const rutaDestino = await save({ 
+        defaultPath: `Analisis_${nombreSeguro}_${registro.fechaVisita || 'Borrador'}.pdf`, 
+        filters: [{ name: 'PDF', extensions: ['pdf'] }] 
+      });
 
-    autoTable(doc, {
-      startY: finalYModulos + 5,
-      body: checklistBody,
-      theme: 'plain',
-      styles: { fontSize: 9 },
-      columnStyles: { 
-        0: { cellWidth: 15, fontStyle: 'bold', halign: 'center' } 
+      if (!rutaDestino) return;
+
+      console.log("🔵 Solicitando binario al motor...");
+      
+      const bytes = await createPdf(docDefinition);
+      console.log('Bytes generados:', bytes.length);
+      
+      if (bytes.length === 0) {
+        throw new Error('El PDF generado está vacío');
       }
-    });
-
-    // --- ESPACIO DE FIRMA FINAL ---
-    const finalY = (doc as any).lastAutoTable.finalY + 30;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(70, finalY, 140, finalY);
-    doc.setFontSize(9);
-    doc.text(firmaUsuario, 105, finalY + 5, { align: 'center' });
-    doc.text(cargoPdf, 105, finalY + 10, { align: 'center' });
-
-    // --- GUARDADO NATIVO ---
-    const nombreSeguro = nombreCongregacion.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, "_");
-    const res = await save({ 
-      defaultPath: `Analisis_${nombreSeguro}_${registro.fechaVisita}.pdf`, 
-      filters: [{ name: 'PDF', extensions: ['pdf'] }] 
-    });
-
-    if (res) { 
-      doc.save(res); 
-      alert("✅ Informe PDF generado correctamente."); 
+      
+      await writeFile(rutaDestino, bytes);
+      alert("✅ Informe PDF generado y guardado correctamente."); 
+      
+    } catch (error: any) {
+      console.error('Error detallado:', error);
+      alert(`❌ Error: ${error.message || JSON.stringify(error)}`);
     }
-  }
-
+    }
 </script>
 
 <div class="contenedor-analisis">
