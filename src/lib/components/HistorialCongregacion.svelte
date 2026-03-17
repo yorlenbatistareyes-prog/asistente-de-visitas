@@ -1,9 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Calendar, ChevronDown, ChevronUp, Trash2, FileText, Clock } from 'lucide-svelte';
-  import jsPDF from 'jspdf';
+  
+  // IMPORTACIONES DE TAURI
   import { save } from '@tauri-apps/plugin-dialog';
   import { writeFile } from '@tauri-apps/plugin-fs';
+  
+  // IMPORTAMOS TU MOTOR DE PDF ESTABLE
+  import { createPdf } from '$lib/utils/pdfConfig';
+  import type { TDocumentDefinitions } from 'pdfmake/interfaces';
   
   // IMPORTAMOS TU MOTOR DE BASE DE DATOS
   import { initDB } from '$lib/services/db';
@@ -73,94 +78,105 @@
   }
 
   async function exportarPDF(visita: any) {
-    const doc = new jsPDF();
-    
-    // --- ENCABEZADO ---
-    doc.setFillColor(225, 29, 72);
-    doc.rect(0, 0, 210, 35, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
-    doc.setFont("helvetica", "bold");
-    doc.text(`Historial: ${nombreCongregacion}`, 14, 15);
-    
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Semana del: ${visita.fecha}`, 14, 25);
-    
-    // --- CONTENIDO ---
-    doc.setTextColor(51, 65, 85);
-    doc.setFontSize(10);
-    
-    let yPos = 45;
-    const margenIzq = 14;
-    const margenDer = 196;
-    const anchoTexto = margenDer - margenIzq;
-    const altoPagina = 280;
-    
-    // Dividir el contenido por secciones (separadas por \n\n)
+    console.log("🔵 Iniciando exportación de historial con pdfMake...");
+
+    // 1. Construimos el contenido del documento
+    const contenidoPdf: any[] = [];
+
+    // --- ENCABEZADO (Banner Rojo) ---
+    // Usamos una tabla sin bordes para crear el fondo de color de forma estable
+    contenidoPdf.push({
+      table: {
+        widths: ['*'],
+        body: [
+          [
+            {
+              text: `Historial: ${nombreCongregacion}\nSemana del: ${visita.fecha}`,
+              fillColor: '#e11d48', // Color rojo (rose-600)
+              color: '#ffffff',
+              bold: true,
+              fontSize: 14,
+              margin: [15, 15, 15, 15],
+              border: [false, false, false, false]
+            }
+          ]
+        ]
+      },
+      layout: 'noBorders',
+      margin: [0, 0, 0, 20] // Margen inferior antes del texto
+    });
+
+    // --- CONTENIDO DEL INFORME ---
+    // Dividimos por saltos de línea dobles
     const secciones = visita.contenido.split('\n\n');
     
-    for (const seccion of secciones) {
-      // Verificar si necesitamos nueva página
-      if (yPos > altoPagina - 20) {
-        doc.addPage();
-        yPos = 20;
-      }
-      
+    secciones.forEach((seccion: string) => {
       // Si la sección tiene formato "Título: contenido"
       if (seccion.includes(':')) {
-        const [titulo, ...resto] = seccion.split(':');
-        const contenido = resto.join(':').trim();
-        
-        // Título en negrita
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        const lineasTitulo = doc.splitTextToSize(titulo + ':', anchoTexto);
-        doc.text(lineasTitulo, margenIzq, yPos);
-        yPos += lineasTitulo.length * 5;
-        
-        // Contenido normal
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        const lineasContenido = doc.splitTextToSize(contenido, anchoTexto);
-        doc.text(lineasContenido, margenIzq, yPos);
-        yPos += lineasContenido.length * 5 + 5; // Espacio extra entre secciones
-        
+        const index = seccion.indexOf(':');
+        const titulo = seccion.substring(0, index);
+        const texto = seccion.substring(index + 1).trim();
+
+        contenidoPdf.push({
+          // pdfmake permite mezclar negritas y texto normal en el mismo párrafo fácilmente
+          text: [
+            { text: titulo + ': ', bold: true, color: '#0f172a' },
+            { text: texto, color: '#334155' }
+          ],
+          margin: [0, 0, 0, 10],
+          fontSize: 10,
+          lineHeight: 1.4
+        });
       } else {
-        // Texto normal sin formato especial
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        const lineas = doc.splitTextToSize(seccion, anchoTexto);
-        doc.text(lineas, margenIzq, yPos);
-        yPos += lineas.length * 5 + 5;
+        // Párrafo normal sin dos puntos
+        contenidoPdf.push({
+          text: seccion,
+          margin: [0, 0, 0, 10],
+          fontSize: 10,
+          color: '#334155',
+          lineHeight: 1.4
+        });
       }
-    }
-    
-    // --- PIE DE PÁGINA ---
-    const totalPaginas = doc.getNumberOfPages();
-    for (let i = 1; i <= totalPaginas; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text(`Página ${i} de ${totalPaginas}`, 105, 290, { align: 'center' });
-    }
-    
-    // --- GUARDAR ---
+    });
+
+    // 2. Definición estructurada del documento
+    const docDefinition: TDocumentDefinitions = {
+      content: contenidoPdf,
+      pageMargins: [40, 40, 40, 40],
+      defaultStyle: {
+        font: 'Roboto', // <-- CRUCIAL: Usa la fuente que inyectamos en pdfConfig.ts
+        fontSize: 10
+      },
+      // --- PIE DE PÁGINA (Paginación automática) ---
+      footer: function(currentPage, pageCount) {
+        return {
+          text: `Página ${currentPage} de ${pageCount}`,
+          alignment: 'center',
+          color: '#94a3b8',
+          fontSize: 8,
+          margin: [0, 10, 0, 0]
+        };
+      }
+    };
+
+    // 3. Generar y Guardar con Tauri
     try {
       const nombreSeguro = nombreCongregacion.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, "_");
-      const res = await save({ 
+      
+      const rutaDestino = await save({ 
         defaultPath: `Historial_${nombreSeguro}_${visita.fecha}.pdf`, 
         filters: [{ name: 'PDF', extensions: ['pdf'] }] 
       });
       
-      if (res) {
-        await writeFile(res, new Uint8Array(doc.output('arraybuffer')));
-        alert("✅ PDF del historial exportado correctamente.");
-      }
-    } catch (error) {
-      console.error("Error al guardar PDF:", error);
-      alert("❌ Error al exportar el PDF");
+      if (!rutaDestino) return; // Si el usuario cancela el diálogo
+
+      const bytes = await createPdf(docDefinition);
+      await writeFile(rutaDestino, bytes);
+      
+      alert("✅ PDF del historial exportado correctamente.");
+    } catch (error: any) {
+      console.error("Error al exportar PDF:", error);
+      alert(`❌ Error al exportar el PDF: ${error.message}`);
     }
   }
 </script>
