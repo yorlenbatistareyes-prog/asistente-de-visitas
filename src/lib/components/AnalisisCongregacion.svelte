@@ -71,7 +71,7 @@
         'Necesidades o tendencias que les preocupan.'
       ] 
     },
-    
+
     { 
       id: 'ministerioCristiano', 
       titulo: '2. Ministerio Cristiano', 
@@ -305,12 +305,19 @@
       ]);
     });
 
-    // 2. Tabla del Checklist
+   // 2. Tabla del Checklist
     const checklistBody: TableCell[][] = [];
     puntosChecklist.forEach((punto, i) => {
       const estaMarcado = registro.checklist && registro.checklist[i];
       checklistBody.push([
-        { text: estaMarcado ? 'SÍ' : 'NO', color: estaMarcado ? '#16a34a' : '#dc2626', bold: true, alignment: 'center', margin: [0, 3, 0, 3] },
+        { 
+          text: estaMarcado ? '[ X ]' : '[   ]', 
+          color: estaMarcado ? '#16a34a' : '#94a3b8', // Verde para marcado, gris para vacío
+          bold: true, 
+          alignment: 'center', 
+          margin: [0, 3, 0, 3],
+          fontSize: 11 // Un poco más grande para que simule bien una casilla
+        },
         { text: punto, margin: [0, 3, 0, 3] }
       ]);
     });
