@@ -143,7 +143,8 @@ body, html {
   /* MÁGIA PARA LAS CUADRÍCULAS (GRIDS) */
   /* Convierte cualquier panel de varias columnas en una sola columna hacia abajo */
   .grid-dashboard, 
-  .tarjetas-grid {
+  .tarjetas-grid,
+  .muro-grid {
     grid-template-columns: 1fr !important; 
     gap: 15px !important;
   }
@@ -176,3 +177,71 @@ body, html {
     gap: 15px !important; /* Juntamos un poco más los elementos del encabezado */
   }
 }
+
+/* --- AÑADE ESTO DENTRO DE @media (max-width: 768px) --- */
+@media (max-width: 768px) {
+
+  /* 1. Cabecera en columna para que nada se salga */
+  .cabecera-principal {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 15px !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+  }
+
+  /* 2. Fecha y chips de guardado */
+  .fecha-seccion {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+    align-items: center !important;
+  }
+
+  .fecha-seccion input {
+    flex: 1 !important;
+    min-width: 140px !important;
+    height: 40px !important;
+  }
+
+  /* 3. Botones PDF y Finalizar: Uno al lado del otro al 50% */
+  .grupo-acciones {
+    display: flex !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .btn-gris, .btn-azul {
+    flex: 1 !important; 
+    height: 44px !important; /* Un pelín más altos para el dedo */
+    justify-content: center !important;
+    font-size: 0.9rem !important;
+    padding: 0 !important;
+  }
+
+  /* 4. Lista de Verificación (Checklist) */
+  /* Si el div que envuelve el checklist no tiene clase, ponle class="checklist-grid" en el HTML */
+  .checklist-grid { 
+    display: flex !important;
+    flex-wrap: wrap !important; 
+    gap: 10px !important;
+  }
+
+  .checklist-card {
+    width: 100% !important; 
+    max-width: none !important;
+  }
+
+  /* 5. Ajustes de texto */
+  .info-cabecera h2 {
+    font-size: 1.3rem !important;
+    margin: 0 !important;
+  }
+  
+  .instruccion {
+    font-size: 0.85rem !important;
+    margin-top: 10px !important;
+  }
+}
+
