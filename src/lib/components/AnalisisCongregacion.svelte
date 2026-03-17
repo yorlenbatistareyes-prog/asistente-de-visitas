@@ -71,6 +71,7 @@
         'Necesidades o tendencias que les preocupan.'
       ] 
     },
+    
     { 
       id: 'ministerioCristiano', 
       titulo: '2. Ministerio Cristiano', 
@@ -80,6 +81,7 @@
         'Entusiasmo de los publicadores.'
       ] 
     },
+
     { 
       id: 'reunionesCongregacion', 
       titulo: '3. Reuniones de Congregación', 
@@ -89,6 +91,7 @@
         'Procedimientos / Sugerencias.'
       ] 
     },
+
     { 
       id: 'pastoreo', 
       titulo: '4. Pastoreo', 
@@ -97,6 +100,7 @@
         'Progreso espiritual, adoración en familia y metas de los hermanos.'
       ] 
     },
+
     { 
       id: 'precursores', 
       titulo: '5. Precursores', 
@@ -106,6 +110,7 @@
         'Apoyo de los ancianos.'
       ] 
     },
+
     { 
       id: 'irregularesInactivos', 
       titulo: '6. Irregulares e Inactivos', 
@@ -114,6 +119,7 @@
         'Ayuda específica del cuerpo de ancianos.'
       ] 
     },
+
     { 
       id: 'responsabilidades', 
       titulo: '7. Responsabilidades', 
@@ -125,6 +131,7 @@
         'Otros.'
       ] 
     },
+
     { 
       id: 'contabilidad', 
       titulo: '8. Contabilidad', 
@@ -133,22 +140,7 @@
         '¿Uso adecuado de la contabilidad en línea?'
       ] 
     },
-    { 
-      id: 'miscelaneos', 
-      titulo: '9. Misceláneos', 
-      guias: [
-        'Atención a pecados graves u otros asuntos no cubiertos.',
-        'Hermanos y hermanas con potencial para mayores privilegios.'
-      ] 
-    },
-    { 
-      id: 'seguimiento', 
-      titulo: '10. Seguimiento', 
-      guias: [
-        'Asuntos pendientes antes de la próxima visita.', 
-        'Asuntos que deben enviarse a la sucursal.'
-      ] 
-    },
+    
     { 
       id: 'recomendaciones', 
       titulo: '11. Recomendaciones / Nombramientos y Bajas', 
@@ -157,12 +149,31 @@
         'Bajas o eliminaciones de privilegios.'
       ] 
     },
+
     { 
       id: 'localReunion', 
       titulo: '12. Local de Reunión / Mantenimiento', 
       guias: [
         'Condición general del Salón del Reino.',
         'Necesidades de mantenimiento, seguridad o limpieza.'
+      ] 
+    },
+
+    { 
+      id: 'miscelaneos', 
+      titulo: '9. Misceláneos', 
+      guias: [
+        'Atención a pecados graves u otros asuntos no cubiertos.',
+        'Hermanos y hermanas con potencial para mayores privilegios.'
+      ] 
+    },
+
+    { 
+      id: 'seguimiento', 
+      titulo: '10. Seguimiento', 
+      guias: [
+        'Asuntos pendientes antes de la próxima visita.', 
+        'Asuntos que deben enviarse a la sucursal.'
       ] 
     }
   ];
