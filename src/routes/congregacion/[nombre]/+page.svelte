@@ -331,9 +331,11 @@
   .estado-vacio p { margin: 0; font-size: 0.95rem; }
 
   .btn-accion { 
-    width: 100%; height: 48px; 
+    width: 100%; 
+    height: 40px; 
     border-radius: var(--radius-md); 
-    font-weight: 700; font-size: 1rem; 
+    font-weight: 600; 
+    font-size: 0.95rem; 
     display: flex; justify-content: center; align-items: center; 
     gap: 8px; cursor: pointer; transition: all 0.2s; border: none; 
   }
