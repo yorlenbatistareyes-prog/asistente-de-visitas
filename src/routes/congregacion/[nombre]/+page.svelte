@@ -1,10 +1,11 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import { ArrowLeft, History, ClipboardEdit, Calendar, ChevronRight, Play, CheckCircle2, Clock } from "lucide-svelte";
   
   // IMPORTAMOS SQLITE EN VEZ DE LAZYSTORE
-  import { initDB } from '$lib/services/db';
+  import { initDB, cargarConfig } from '$lib/services/db';
   
   // TUS DOS COMPONENTES HIJOS
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
@@ -25,37 +26,41 @@
   const camposMuro = [
     'opinionAncianos', 'ministerioCristiano', 'reunionesCongregacion', 
     'pastoreo', 'precursores', 'irregularesInactivos', 
-    'responsabilidades', 'contabilidad', 'miscelaneos', 'seguimiento'
+    'responsabilidades', 'contabilidad', 'miscelaneos', 'seguimiento',
+    'recomendaciones', 'localReunion' // <-- Añadimos los dos nuevos
   ];
 
   async function cargarDatosDashboard() {
     cargando = true;
     try {
-      const db = await initDB();
 
-      // 1. CARGAR BORRADOR DESDE SQLITE
+      // ¡AQUÍ ESTÁ LA CLAVE! Usamos cargarConfig, igual que lo hace el formulario
       const claveBorrador = `borrador_${nombreCongregacion}`;
-      const resBorrador = await db.select<{valor: string}[]>(
-        'SELECT valor FROM configuracion WHERE clave = $1', 
-        [claveBorrador]
-      );
-      
-      if (resBorrador.length > 0) {
-        const borrador = JSON.parse(resBorrador[0].valor);
+      const valor = await cargarConfig(claveBorrador);
+
+      if (valor && valor !== "{}" && valor !== "") {
+        // Si hay datos, los procesamos
+        const borrador = typeof valor === 'string' ? JSON.parse(valor) : valor;
         let llenos = 0;
+        
         camposMuro.forEach(c => {
-          if (borrador[c] && borrador[c].trim() !== '') llenos++;
+          if (borrador[c] && typeof borrador[c] === 'string' && borrador[c].trim() !== '') {
+            llenos++;
+          }
         });
+        
         progreso = llenos;
-        hayBorrador = llenos > 0 || (borrador.fechaVisita && borrador.fechaVisita !== '');
+        hayBorrador = llenos > 0 || (borrador.fechaVisita && borrador.fechaVisita.trim() !== '');
         fechaBorrador = borrador.fechaVisita || 'Sin fecha asignada';
       } else {
+        // Si está vacío, apagamos la barra
         progreso = 0; 
         hayBorrador = false;
         fechaBorrador = '';
       }
 
-      // 2. OBTENER ID DE LA CONGREGACIÓN Y CARGAR HISTORIAL RECIENTE
+      // 3. CARGAMOS EL HISTORIAL RECIENTE
+      const db = await initDB();
       const resCong = await db.select<{id: number}[]>(
         'SELECT id FROM congregaciones WHERE nombre = $1 LIMIT 1', 
         [nombreCongregacion]
@@ -63,9 +68,7 @@
       
       if (resCong.length > 0) {
         const congregacionId = resCong[0].id;
-        
         historialReciente = await db.select<any[]>(
-          // 👇 AQUÍ: Cambiamos LIMIT 3 por LIMIT 6
           'SELECT * FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC LIMIT 6',
           [congregacionId]
         );
@@ -74,13 +77,13 @@
       }
 
     } catch (e) {
-      console.error("Error cargando dashboard:", e);
+      console.error("❌ Error cargando dashboard:", e);
     } finally {
       cargando = false;
     }
   }
 
-  $: if (nombreCongregacion && modo === 'dashboard') {
+  $: if (browser && nombreCongregacion && modo === 'dashboard') {
     cargarDatosDashboard();
   }
 
@@ -141,12 +144,18 @@
                 <h3>Análisis de la Visita Actual</h3>
               </div>
               <div class="card-body">
+                
                 {#if hayBorrador}
                   <div class="estado-borrador">
                     <p class="fecha-label"><Calendar size={14}/> Semana: <strong>{fechaBorrador}</strong></p>
                     <div class="progreso-container">
-                      <div class="progreso-text"><span>Progreso del informe</span><strong>{progreso} de 10 secciones</strong></div>
-                      <div class="progreso-barra-fondo"><div class="progreso-barra-llena" style="width: {(progreso / 10) * 100}%"></div></div>
+                      <div class="progreso-text">
+                        <span>Progreso del informe</span>
+                        <strong>{progreso} de 12 secciones</strong>
+                      </div>
+                      <div class="progreso-barra-fondo">
+                        <div class="progreso-barra-llena" style="width: {(progreso / 12) * 100}%"></div>
+                      </div>
                     </div>
                   </div>
                   <button class="btn-accion btn-primary" on:click={() => modo = 'nuevo'}><Play size={18} /> Continuar Análisis</button>
