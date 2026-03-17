@@ -109,3 +109,70 @@ body, html {
   color: var(--text-main);
   box-shadow: var(--shadow-sm);
 }
+
+
+/* ==========================================================================
+   5. DISEÑO RESPONSIVO (Móviles y Tablets)
+   ========================================================================== */
+
+/* --- TABLETS Y PANTALLAS MEDIANAS (Menos de 1024px) --- */
+@media (max-width: 1024px) {
+  .focus-content, .main-content {
+    padding: 20px !important; /* Reducimos el espacio vacío a los lados */
+  }
+  
+  .focus-header {
+    padding: 15px 20px !important;
+  }
+}
+
+/* --- MÓVILES (Menos de 768px - Ideal para la pantalla de tu Samsung) --- */
+@media (max-width: 768px) {
+  body, html {
+    font-size: 14px; /* Achicamos un pelín la fuente base para que quepa más texto */
+  }
+
+  .focus-content, .main-content {
+    padding: 15px !important; /* Aprovechamos al máximo el ancho del teléfono */
+  }
+
+  /* Los títulos se ajustan para no romper la pantalla */
+  h1 { font-size: 1.4rem !important; }
+  h3 { font-size: 1.1rem !important; }
+
+  /* MÁGIA PARA LAS CUADRÍCULAS (GRIDS) */
+  /* Convierte cualquier panel de varias columnas en una sola columna hacia abajo */
+  .grid-dashboard, 
+  .tarjetas-grid {
+    grid-template-columns: 1fr !important; 
+    gap: 15px !important;
+  }
+
+  /* Hacemos que los botones sean fáciles de tocar con el pulgar */
+  .btn-global, .btn-accion {
+    width: 100% !important;
+    height: 48px !important; /* Volvemos a darle un poco de altura solo en móvil por ergonomía */
+    justify-content: center;
+  }
+
+  /* Clase comodín por si quieres ocultar algo solo en el teléfono */
+  .ocultar-en-movil {
+    display: none !important;
+  }
+}
+
+/* --- MÓVILES PEQUEÑOS (Menos de 480px) --- */
+@media (max-width: 480px) {
+  .btn-back span {
+    display: none; /* Ocultamos el texto "Volver a Congregaciones" y dejamos solo la flechita */
+  }
+  
+  .btn-back {
+    padding: 8px !important;
+    justify-content: center;
+  }
+  
+  .focus-header {
+    gap: 15px !important; /* Juntamos un poco más los elementos del encabezado */
+  }
+}
