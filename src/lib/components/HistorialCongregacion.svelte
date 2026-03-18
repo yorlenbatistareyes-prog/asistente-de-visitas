@@ -21,7 +21,10 @@
   const etiquetasRevision: Record<string, string> = {
     total: 'Total de publicadores', mayores65: 'Mayores de 65 años', sinCursos: 'Sin cursos bíblicos',
     nuevos: 'Nuevos publicadores', bautizados: 'Bautizados', readmitidos: 'Readmitidos',
-    reactivados: 'Reactivados', irregulares: 'Irregulares', inactivos: 'Inactivos', sacados: 'Tarjetas sacadas'
+    reactivados: 'Reactivados', irregulares: 'Irregulares', inactivos: 'Inactivos', sacados: 'Tarjetas sacadas',
+    // --- NUEVAS ETIQUETAS PARA EL HISTORIAL Y EL PDF ---
+    precursoresAuxiliares: 'Precursores Auxiliares', precursoresRegulares: 'Precursores Regulares',
+    ancianos: 'Ancianos', siervosMinisteriales: 'Siervos Ministeriales'
   };
 
   async function cargarHistorial() {

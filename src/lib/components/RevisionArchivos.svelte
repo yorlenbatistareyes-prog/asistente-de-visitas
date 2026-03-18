@@ -9,7 +9,10 @@
   let contadores: Record<string, number> = {
     total: 0, mayores65: 0, sinCursos: 0, nuevos: 0,
     bautizados: 0, readmitidos: 0, reactivados: 0,
-    irregulares: 0, inactivos: 0, sacados: 0
+    irregulares: 0, inactivos: 0, sacados: 0,
+    // --- NUEVAS TARJETAS ---
+    precursoresAuxiliares: 0, precursoresRegulares: 0, 
+    ancianos: 0, siervosMinisteriales: 0
   };
 
   let fechaRevision = '';
@@ -27,6 +30,11 @@
     { id: 'irregulares', titulo: 'Irregulares', color: 'orange' },
     { id: 'inactivos', titulo: 'Inactivos', color: 'red' },
     { id: 'sacados', titulo: 'Tarjetas sacadas', color: 'slate' },
+    // --- NUEVAS TARJETAS ---
+    { id: 'precursoresAuxiliares', titulo: 'Precursores Auxiliares', color: 'blue' },
+    { id: 'precursoresRegulares', titulo: 'Precursores Regulares', color: 'blue' },
+    { id: 'ancianos', titulo: 'Ancianos', color: 'slate' },
+    { id: 'siervosMinisteriales', titulo: 'Siervos Ministeriales', color: 'slate' },
   ];
 
   async function cargarDatosRevision() {
@@ -105,13 +113,23 @@
   <div class="grid-contadores">
     {#each tarjetasRevision as tarjeta}
       <div class="counter-card theme-{tarjeta.color}">
-        <h4>{tarjeta.titulo}</h4>
+        
+        <div class="tarjeta-header">
+          <h4>{tarjeta.titulo}</h4>
+          
+          {#if tarjeta.id !== 'total'}
+            <div class="badge-porcentaje {contadores.total > 0 ? 'theme-' + tarjeta.color : 'vacio'}">
+              {contadores.total > 0 ? ((contadores[tarjeta.id] / contadores.total) * 100).toFixed(1) : '0.0'}%
+            </div>
+          {/if}
+        </div>
+
         <div class="counter-controls">
-          <button class="btn-restar" on:click={() => { if(contadores[tarjeta.id] > 0) contadores[tarjeta.id]-- }}>-</button>
+          <button class="btn-restar" on:click={() => { if(contadores[tarjeta.id] > 0) { contadores[tarjeta.id]--; contadores = contadores; } }}>-</button>
           
-          <input type="number" min="0" bind:value={contadores[tarjeta.id]} class="counter-input" />
+          <input type="number" min="0" bind:value={contadores[tarjeta.id]} on:input={() => contadores = contadores} class="counter-input" />
           
-          <button class="btn-sumar" on:click={() => contadores[tarjeta.id]++}>+</button>
+          <button class="btn-sumar" on:click={() => { contadores[tarjeta.id]++; contadores = contadores; }}>+</button>
         </div>
       </div>
     {/each}
@@ -184,10 +202,37 @@
   .counter-card.theme-blue { border-top-color: #3b82f6; }
   .counter-card.theme-slate { border-top-color: #64748b; }
 
+  /* --- CABECERA INTERNA DE LA TARJETA (TÍTULO Y %) --- */
+  .tarjeta-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    min-height: 48px;
+  }
+
   .counter-card h4 { 
-    margin: 0 0 10px 0; font-size: 0.85rem; color: var(--text-muted); 
+    margin: 0; font-size: 0.85rem; color: var(--text-muted); 
     text-align: center; line-height: 1.2;
   }
+
+  /* --- ESTILOS DE LOS CHIPS DE PORCENTAJE (QUE TE FALTABAN) --- */
+  .badge-porcentaje {
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--bg-app);
+    border: 1px solid transparent;
+  }
+
+  .badge-porcentaje.theme-green { color: #059669; border-color: rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.05); }
+  .badge-porcentaje.theme-red { color: #e11d48; border-color: rgba(225, 29, 72, 0.2); background: rgba(225, 29, 72, 0.05); }
+  .badge-porcentaje.theme-orange { color: #d97706; border-color: rgba(245, 158, 11, 0.2); background: rgba(245, 158, 11, 0.05); }
+  .badge-porcentaje.theme-blue { color: #2563eb; border-color: rgba(37, 99, 235, 0.2); background: rgba(37, 99, 235, 0.05); }
+  .badge-porcentaje.theme-slate { color: #475569; border-color: rgba(100, 116, 139, 0.2); background: rgba(100, 116, 139, 0.05); }
+  .badge-porcentaje.vacio { color: #94a3b8; border-color: var(--border-thin); background: transparent; }
 
   /* --- CONTROLES (+ / -) --- */
   .counter-controls {
