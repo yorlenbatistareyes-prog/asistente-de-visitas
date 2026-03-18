@@ -1,16 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Calendar, ChevronDown, ChevronUp, Trash2, FileText, Clock } from 'lucide-svelte';
+  import { Calendar, ChevronDown, ChevronUp, Trash2, FileText, Clock, Archive, ClipboardEdit } from 'lucide-svelte';
   
-  // IMPORTACIONES DE TAURI
   import { save } from '@tauri-apps/plugin-dialog';
   import { writeFile } from '@tauri-apps/plugin-fs';
-  
-  // IMPORTAMOS TU MOTOR DE PDF ESTABLE
   import { createPdf } from '$lib/utils/pdfConfig';
   import type { TDocumentDefinitions } from 'pdfmake/interfaces';
-  
-  // IMPORTAMOS TU MOTOR DE BASE DE DATOS
   import { initDB } from '$lib/services/db';
 
   export let nombreCongregacion: string;
@@ -19,15 +14,19 @@
   let cargando = true;
   let congregacionId: number | null = null;
   
-  // Controla qué tarjetas están abiertas (por su índice de array)
   let expandidos: Record<number, boolean> = {};
+
+  // Diccionario para traducir las claves del JSON a texto bonito
+  const etiquetasRevision: Record<string, string> = {
+    total: 'Total de publicadores', mayores65: 'Mayores de 65 años', sinCursos: 'Sin cursos bíblicos',
+    nuevos: 'Nuevos publicadores', bautizados: 'Bautizados', readmitidos: 'Readmitidos',
+    reactivados: 'Reactivados', irregulares: 'Irregulares', inactivos: 'Inactivos', sacados: 'Tarjetas sacadas'
+  };
 
   async function cargarHistorial() {
     cargando = true;
     try {
       const db = await initDB();
-      
-      // 1. Primero buscamos el ID real de esta congregación
       const resCong = await db.select<{id: number}[]>(
         'SELECT id FROM congregaciones WHERE nombre = $1 LIMIT 1', 
         [nombreCongregacion]
@@ -35,17 +34,12 @@
 
       if (resCong.length > 0) {
         congregacionId = resCong[0].id;
-        
-        // 2. Buscamos todo su historial ordenado por fecha (más reciente primero)
         historial = await db.select<any[]>(
           'SELECT * FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC', 
           [congregacionId]
         );
         
-        // Expandimos automáticamente la visita más reciente
-        if (historial.length > 0) {
-          expandidos[0] = true;
-        }
+        if (historial.length > 0) expandidos[0] = true;
       } else {
         historial = [];
       }
@@ -62,117 +56,98 @@
     expandidos[index] = !expandidos[index];
   }
 
-  // Ahora recibe el ID real de la base de datos, no la posición del array
   async function eliminarVisita(idVisita: number) {
     if (!confirm("¿Seguro que deseas eliminar este registro del historial? Esta acción no se puede deshacer.")) return;
-    
     try {
       const db = await initDB();
-      // Borramos usando el ID único del registro
       await db.execute('DELETE FROM historial_visitas WHERE id = $1', [idVisita]);
-      
-      await cargarHistorial(); // Recargamos la lista visual
+      await cargarHistorial();
     } catch(e) {
       alert("Error al eliminar del historial en la base de datos.");
     }
   }
 
+  // Utilidad para extraer los números de forma segura
+  function parsearDatosRevision(contenido: string) {
+    try { return JSON.parse(contenido); } 
+    catch (e) { return {}; }
+  }
+
   async function exportarPDF(visita: any) {
     console.log("🔵 Iniciando exportación de historial con pdfMake...");
-
-    // 1. Construimos el contenido del documento
     const contenidoPdf: any[] = [];
+    const tipoVisita = visita.tipo || 'Visita Regular';
 
-    // --- ENCABEZADO (Banner Rojo) ---
-    // Usamos una tabla sin bordes para crear el fondo de color de forma estable
+    // --- ENCABEZADO ---
     contenidoPdf.push({
       table: {
         widths: ['*'],
-        body: [
-          [
-            {
-              text: `Historial: ${nombreCongregacion}\nSemana del: ${visita.fecha}`,
-              fillColor: '#e11d48', // Color rojo (rose-600)
-              color: '#ffffff',
-              bold: true,
-              fontSize: 14,
-              margin: [15, 15, 15, 15],
-              border: [false, false, false, false]
-            }
-          ]
-        ]
+        body: [[{
+          text: `Historial: ${nombreCongregacion}\nTipo: ${tipoVisita}\nSemana del: ${visita.fecha}`,
+          fillColor: '#e11d48', color: '#ffffff', bold: true, fontSize: 14,
+          margin: [15, 15, 15, 15], border: [false, false, false, false]
+        }]]
       },
-      layout: 'noBorders',
-      margin: [0, 0, 0, 20] // Margen inferior antes del texto
+      layout: 'noBorders', margin: [0, 0, 0, 20]
     });
 
-    // --- CONTENIDO DEL INFORME ---
-    // Dividimos por saltos de línea dobles
-    const secciones = visita.contenido.split('\n\n');
-    
-    secciones.forEach((seccion: string) => {
-      // Si la sección tiene formato "Título: contenido"
-      if (seccion.includes(':')) {
-        const index = seccion.indexOf(':');
-        const titulo = seccion.substring(0, index);
-        const texto = seccion.substring(index + 1).trim();
-
-        contenidoPdf.push({
-          // pdfmake permite mezclar negritas y texto normal en el mismo párrafo fácilmente
-          text: [
-            { text: titulo + ': ', bold: true, color: '#0f172a' },
-            { text: texto, color: '#334155' }
-          ],
-          margin: [0, 0, 0, 10],
-          fontSize: 10,
-          lineHeight: 1.4
-        });
-      } else {
-        // Párrafo normal sin dos puntos
-        contenidoPdf.push({
-          text: seccion,
-          margin: [0, 0, 0, 10],
-          fontSize: 10,
-          color: '#334155',
-          lineHeight: 1.4
-        });
+    // --- CONTENIDO DEL INFORME (INTELIGENTE) ---
+    if (tipoVisita === 'Revisión de Archivos') {
+      // Formato Tabla para la Revisión
+      const datos = parsearDatosRevision(visita.contenido);
+      const filasTabla = [];
+      
+      for (const [clave, etiqueta] of Object.entries(etiquetasRevision)) {
+        if (datos[clave] !== undefined) {
+          filasTabla.push([
+            { text: etiqueta, color: '#334155', margin: [0, 5, 0, 5] }, 
+            { text: datos[clave].toString(), bold: true, color: '#0f172a', alignment: 'right', margin: [0, 5, 0, 5] }
+          ]);
+        }
       }
-    });
 
-    // 2. Definición estructurada del documento
+      contenidoPdf.push({
+        table: { widths: ['*', 50], body: filasTabla },
+        layout: 'lightHorizontalLines', margin: [0, 0, 0, 10]
+      });
+
+    } else {
+      // Formato Texto Normal para Visita Regular
+      const secciones = visita.contenido.split('\n\n');
+      secciones.forEach((seccion: string) => {
+        if (seccion.includes(':')) {
+          const index = seccion.indexOf(':');
+          const titulo = seccion.substring(0, index);
+          const texto = seccion.substring(index + 1).trim();
+          contenidoPdf.push({
+            text: [ { text: titulo + ': ', bold: true, color: '#0f172a' }, { text: texto, color: '#334155' } ],
+            margin: [0, 0, 0, 10], fontSize: 10, lineHeight: 1.4
+          });
+        } else {
+          contenidoPdf.push({ text: seccion, margin: [0, 0, 0, 10], fontSize: 10, color: '#334155', lineHeight: 1.4 });
+        }
+      });
+    }
+
     const docDefinition: TDocumentDefinitions = {
-      content: contenidoPdf,
-      pageMargins: [40, 40, 40, 40],
-      defaultStyle: {
-        font: 'Roboto', // <-- CRUCIAL: Usa la fuente que inyectamos en pdfConfig.ts
-        fontSize: 10
-      },
-      // --- PIE DE PÁGINA (Paginación automática) ---
+      content: contenidoPdf, pageMargins: [40, 40, 40, 40],
+      defaultStyle: { font: 'Roboto', fontSize: 10 },
       footer: function(currentPage, pageCount) {
-        return {
-          text: `Página ${currentPage} de ${pageCount}`,
-          alignment: 'center',
-          color: '#94a3b8',
-          fontSize: 8,
-          margin: [0, 10, 0, 0]
-        };
+        return { text: `Página ${currentPage} de ${pageCount}`, alignment: 'center', color: '#94a3b8', fontSize: 8, margin: [0, 10, 0, 0] };
       }
     };
 
-    // 3. Generar y Guardar con Tauri
     try {
       const nombreSeguro = nombreCongregacion.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, "_");
-      
+      const tipoSeguro = tipoVisita.replace(/\s+/g, "");
       const rutaDestino = await save({ 
-        defaultPath: `Historial_${nombreSeguro}_${visita.fecha}.pdf`, 
+        defaultPath: `${tipoSeguro}_${nombreSeguro}_${visita.fecha}.pdf`, 
         filters: [{ name: 'PDF', extensions: ['pdf'] }] 
       });
       
-      if (!rutaDestino) return; // Si el usuario cancela el diálogo
-
+      if (!rutaDestino) return; 
       const bytes = await createPdf(docDefinition);
       await writeFile(rutaDestino, bytes);
-      
       alert("✅ PDF del historial exportado correctamente.");
     } catch (error: any) {
       console.error("Error al exportar PDF:", error);
@@ -183,9 +158,7 @@
 
 <div class="historial-layout">
   {#if cargando}
-    <div class="estado-vacio">
-      <p>Cargando historial...</p>
-    </div>
+    <div class="estado-vacio"><p>Cargando historial...</p></div>
   {:else if historial.length === 0}
     <div class="estado-vacio">
       <Clock size={48} color="#cbd5e1" />
@@ -196,29 +169,46 @@
     <div class="timeline">
       {#each historial as visita, i}
         <div class="historial-card {expandidos[i] ? 'expandida' : ''}">
+          
           <div class="card-header" on:click={() => toggleExpandir(i)}>
             <div class="header-info">
-              <Calendar size={18} color="#2563eb" />
-              <span class="fecha">Semana del <strong>{visita.fecha}</strong></span>
+              {#if visita.tipo === 'Revisión de Archivos'}
+                <Archive size={18} color="#10b981" />
+                <span class="fecha">Semana del <strong>{visita.fecha}</strong></span>
+                <span class="chip-tipo tipo-revision">Revisión de Archivos</span>
+              {:else}
+                <ClipboardEdit size={18} color="#2563eb" />
+                <span class="fecha">Semana del <strong>{visita.fecha}</strong></span>
+                <span class="chip-tipo tipo-regular">Visita Regular</span>
+              {/if}
             </div>
             <div class="header-actions">
-              {#if expandidos[i]}
-                <ChevronUp size={20} color="#64748b" />
-              {:else}
-                <ChevronDown size={20} color="#64748b" />
-              {/if}
+              {#if expandidos[i]} <ChevronUp size={20} color="#64748b" /> {:else} <ChevronDown size={20} color="#64748b" /> {/if}
             </div>
           </div>
 
           {#if expandidos[i]}
             <div class="card-body">
-              <div class="contenido-texto">
-                {#each visita.contenido.split('\n\n') as parrafo}
-                   <p style="margin-bottom: 10px;">
-                     {@html parrafo.replace(/^([^:]+):/, '<strong style="color: #1e293b; font-weight: 800;">$1:</strong>')}
-                   </p>
-                {/each}
-              </div>
+              
+              {#if visita.tipo === 'Revisión de Archivos'}
+                {@const datos = parsearDatosRevision(visita.contenido)}
+                <div class="stats-grid">
+                  {#each Object.entries(etiquetasRevision) as [clave, etiqueta]}
+                    <div class="stat-badge">
+                      <span class="stat-label">{etiqueta}</span>
+                      <span class="stat-value">{datos[clave] !== undefined ? datos[clave] : 0}</span>
+                    </div>
+                  {/each}
+                </div>
+              {:else}
+                <div class="contenido-texto">
+                  {#each visita.contenido.split('\n\n') as parrafo}
+                     <p style="margin-bottom: 10px;">
+                       {@html parrafo.replace(/^([^:]+):/, '<strong style="color: #1e293b; font-weight: 800;">$1:</strong>')}
+                     </p>
+                  {/each}
+                </div>
+              {/if}
               
               <div class="card-footer">
                 <button class="btn-accion btn-outline" on:click={() => exportarPDF(visita)}>
@@ -237,99 +227,72 @@
 </div>
 
 <style>
-  .historial-layout { 
-    max-width: 900px; 
-    margin: 0 auto; 
-    animation: fadeIn 0.3s ease; 
-  }
+  .historial-layout { max-width: 900px; margin: 0 auto; animation: fadeIn 0.3s ease; }
   
   .estado-vacio { 
-    display: flex; 
-    flex-direction: column; 
-    align-items: center; 
-    justify-content: center; 
-    padding: 60px 20px; 
-    color: var(--text-muted); 
-    text-align: center; 
-    background: var(--bg-panel); 
-    border-radius: var(--radius-lg); 
-    border: 1px dashed var(--border-color); 
+    display: flex; flex-direction: column; align-items: center; justify-content: center; 
+    padding: 60px 20px; color: var(--text-muted); text-align: center; 
+    background: var(--bg-panel); border-radius: var(--radius-lg); border: 1px dashed var(--border-color); 
   }
-  
   .estado-vacio h3 { margin: 15px 0 5px; color: var(--text-main); font-size: 1.2rem; }
   .estado-vacio p { margin: 0; font-size: 0.95rem; }
 
   .timeline { display: flex; flex-direction: column; gap: 15px; }
 
   .historial-card { 
-    background: var(--bg-panel); 
-    border: var(--border-thin); 
-    border-radius: var(--radius-md); 
-    overflow: hidden; 
-    transition: all 0.2s; 
-    box-shadow: var(--shadow-sm); 
+    background: var(--bg-panel); border: var(--border-thin); border-radius: var(--radius-md); 
+    overflow: hidden; transition: all 0.2s; box-shadow: var(--shadow-sm); 
   }
-  
   .historial-card:hover { border-color: var(--primary); }
   .historial-card.expandida { border-color: var(--primary); box-shadow: var(--shadow-md); }
 
   .card-header { 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
-    padding: 18px 20px; 
-    background: var(--bg-app); 
-    cursor: pointer; 
-    user-select: none; 
+    display: flex; justify-content: space-between; align-items: center; 
+    padding: 18px 20px; background: var(--bg-app); cursor: pointer; user-select: none; 
   }
   
-  .header-info { display: flex; align-items: center; gap: 10px; font-size: 1.05rem; color: var(--text-main); }
+  .header-info { display: flex; align-items: center; gap: 10px; font-size: 1.05rem; color: var(--text-main); flex-wrap: wrap;}
   .header-info strong { color: var(--text-main); }
 
-  .card-body { 
-    padding: 25px 20px; 
-    border-top: var(--border-thin); 
-    animation: slideDown 0.2s ease-out; 
-  }
+  /* NUEVO: ETIQUETAS EN EL ENCABEZADO */
+  .chip-tipo { font-size: 0.75rem; padding: 3px 8px; border-radius: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;}
+  .tipo-regular { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
+  .tipo-revision { background: rgba(16, 185, 129, 0.1); color: #059669; }
+
+  .card-body { padding: 25px 20px; border-top: var(--border-thin); animation: slideDown 0.2s ease-out; }
   
+  /* ESTILOS ORIGINALES DE TEXTO */
   .contenido-texto { 
-    white-space: pre-wrap; 
-    font-size: 0.95rem; 
-    line-height: 1.8; 
-    color: var(--text-main); 
-    margin-bottom: 25px;
-    background: var(--bg-app); 
-    padding: 20px;
-    border-radius: var(--radius-md);
-    border-left: 4px solid var(--primary); 
+    white-space: pre-wrap; font-size: 0.95rem; line-height: 1.8; color: var(--text-main); 
+    margin-bottom: 25px; background: var(--bg-app); padding: 20px;
+    border-radius: var(--radius-md); border-left: 4px solid var(--primary); 
   }
+
+  /* NUEVO: ESTILOS PARA LA CUADRÍCULA DE NÚMEROS */
+  .stats-grid { 
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
+    gap: 12px; margin-bottom: 25px; 
+  }
+  .stat-badge { 
+    background: var(--bg-app); border: var(--border-thin); padding: 15px 10px; 
+    border-radius: var(--radius-md); display: flex; flex-direction: column; 
+    align-items: center; justify-content: center; text-align: center; 
+  }
+  .stat-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px; line-height: 1.2; font-weight: 500;}
+  .stat-value { font-size: 1.6rem; font-weight: 800; color: #0f172a; }
 
   .card-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 15px; border-top: 1px dashed var(--border-color); }
   
-  .btn-accion { 
-    display: flex; 
-    align-items: center; 
-    gap: 6px; 
-    padding: 8px 14px; 
-    border-radius: var(--radius-sm); 
-    font-size: 0.85rem; 
-    font-weight: 600; 
-    cursor: pointer; 
-    transition: 0.2s; 
-    border: none; 
-  }
-  
-  .btn-outline { 
-    background: var(--bg-panel); 
-    border: var(--border-thin); 
-    color: var(--text-main); 
-  }
-  
+  .btn-accion { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s; border: none; }
+  .btn-outline { background: var(--bg-panel); border: var(--border-thin); color: var(--text-main); }
   .btn-outline:hover { background: var(--bg-app); color: var(--primary); border-color: var(--primary); }
-  
   .btn-danger { background: rgba(225, 29, 72, 0.1); color: var(--primary); }
   .btn-danger:hover { background: var(--primary); color: white; }
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+  
+  @media (max-width: 768px) {
+    .header-info { flex-direction: column; align-items: flex-start; gap: 5px; }
+  }
 </style>
