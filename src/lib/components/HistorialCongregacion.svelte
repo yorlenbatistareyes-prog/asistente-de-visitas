@@ -9,6 +9,8 @@
   import { initDB } from '$lib/services/db';
 
   export let nombreCongregacion: string;
+  // NUEVO: Variable para saber qué visita queremos abrir
+  export let visitaResaltada: number | null = null; 
 
   let historial: any[] = [];
   let cargando = true;
@@ -16,7 +18,6 @@
   
   let expandidos: Record<number, boolean> = {};
 
-  // Diccionario para traducir las claves del JSON a texto bonito
   const etiquetasRevision: Record<string, string> = {
     total: 'Total de publicadores', mayores65: 'Mayores de 65 años', sinCursos: 'Sin cursos bíblicos',
     nuevos: 'Nuevos publicadores', bautizados: 'Bautizados', readmitidos: 'Readmitidos',
@@ -39,7 +40,18 @@
           [congregacionId]
         );
         
-        if (historial.length > 0) expandidos[0] = true;
+        // MAGIA: Abrimos la tarjeta exacta que el usuario tocó
+        if (historial.length > 0) {
+          if (visitaResaltada) {
+            // Buscamos en qué posición está la visita que nos pidieron
+            const index = historial.findIndex((v: any) => v.id === visitaResaltada);
+            if (index !== -1) expandidos[index] = true;
+            else expandidos[0] = true; // Por si acaso no la encuentra
+          } else {
+            // Si le dio a "Ver Todo el Historial", abrimos la primera por defecto
+            expandidos[0] = true; 
+          }
+        }
       } else {
         historial = [];
       }
@@ -67,7 +79,6 @@
     }
   }
 
-  // Utilidad para extraer los números de forma segura
   function parsearDatosRevision(contenido: string) {
     try { return JSON.parse(contenido); } 
     catch (e) { return {}; }
@@ -76,9 +87,8 @@
   async function exportarPDF(visita: any) {
     console.log("🔵 Iniciando exportación de historial con pdfMake...");
     const contenidoPdf: any[] = [];
-    const tipoVisita = visita.tipo || 'Visita Regular';
+    const tipoVisita = visita.tipo || 'Análisis';
 
-    // --- ENCABEZADO ---
     contenidoPdf.push({
       table: {
         widths: ['*'],
@@ -91,12 +101,9 @@
       layout: 'noBorders', margin: [0, 0, 0, 20]
     });
 
-    // --- CONTENIDO DEL INFORME (INTELIGENTE) ---
     if (tipoVisita === 'Revisión de Archivos') {
-      // Formato Tabla para la Revisión
       const datos = parsearDatosRevision(visita.contenido);
       const filasTabla = [];
-      
       for (const [clave, etiqueta] of Object.entries(etiquetasRevision)) {
         if (datos[clave] !== undefined) {
           filasTabla.push([
@@ -105,14 +112,11 @@
           ]);
         }
       }
-
       contenidoPdf.push({
         table: { widths: ['*', 50], body: filasTabla },
         layout: 'lightHorizontalLines', margin: [0, 0, 0, 10]
       });
-
     } else {
-      // Formato Texto Normal para Visita Regular
       const secciones = visita.contenido.split('\n\n');
       secciones.forEach((seccion: string) => {
         if (seccion.includes(':')) {
@@ -144,7 +148,6 @@
         defaultPath: `${tipoSeguro}_${nombreSeguro}_${visita.fecha}.pdf`, 
         filters: [{ name: 'PDF', extensions: ['pdf'] }] 
       });
-      
       if (!rutaDestino) return; 
       const bytes = await createPdf(docDefinition);
       await writeFile(rutaDestino, bytes);
@@ -179,7 +182,7 @@
               {:else}
                 <ClipboardEdit size={18} color="#2563eb" />
                 <span class="fecha">Semana del <strong>{visita.fecha}</strong></span>
-                <span class="chip-tipo tipo-regular">Visita Regular</span>
+                <span class="chip-tipo tipo-regular">Análisis</span>
               {/if}
             </div>
             <div class="header-actions">

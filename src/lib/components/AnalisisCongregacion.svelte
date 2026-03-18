@@ -263,7 +263,8 @@
       dispatch('guardarEnHistorial', { 
         congregacion: nombreCongregacion, 
         fecha: registro.fechaVisita, 
-        contenido: resumen 
+        contenido: resumen,
+        tipo: 'Análisis' 
       });
       
       await guardarConfig(`borrador_${nombreCongregacion}`, "{}");

@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { ArrowLeft, History, ClipboardEdit, Calendar, ChevronRight, Play, CheckCircle2, Clock,
-    LayoutDashboard, FolderOpen } from "lucide-svelte";
+    LayoutDashboard, FolderOpen, Archive } from "lucide-svelte";
   
   // IMPORTAMOS SQLITE EN VEZ DE LAZYSTORE
   import { initDB, cargarConfig } from '$lib/services/db';
@@ -18,7 +18,8 @@
 
   let modo: 'dashboard' | 'nuevo' | 'historial' = 'dashboard';
   // NUEVO: Variable para controlar la pestaña activa
-  let pestanaActiva: 'analisis' | 'archivos' = 'analisis'; 
+  let pestanaActiva: 'analisis' | 'archivos' = 'analisis';
+  let idVisitaSeleccionada: number | null = null; 
   
   let datosParaEditar: any = null;
 
@@ -97,12 +98,10 @@
 
   // --- FUNCIÓN QUE ATRAPA EL INFORME FINALIZADO Y LO GUARDA ---
   async function handleGuardarEnHistorial(e: CustomEvent) {
-    // 1. Ahora extraemos también la variable "tipo" que nos envía el componente
     const { congregacion, fecha, contenido, tipo } = e.detail;
     
-    // 2. MAGIA: Si el componente nos envía un tipo (ej: 'Revisión de Archivos'), lo usamos.
-    // Si no nos envía nada (como tu formulario viejo), asume que es 'Visita Regular'.
-    const tipoVisita = tipo || 'Visita Regular'; 
+    // Si el componente envía un tipo, lo usa. Si no, ¡A LA FUERZA usa 'Análisis'!
+    const tipoVisita = tipo ? tipo : 'Análisis'; 
 
     try {
       const db = await initDB();
@@ -116,11 +115,9 @@
         await db.execute(
           `INSERT INTO historial_visitas (congregacion_id, fecha, tipo, completado, contenido) 
            VALUES ($1, $2, $3, $4, $5)`,
-          // 3. Aquí insertamos nuestra variable dinámica tipoVisita
-          [congregacionId, fecha, tipoVisita, 1, contenido]
+          [congregacionId, fecha, tipoVisita, 1, contenido] // <-- Aquí inyectamos el nombre correcto
         );
         
-        // 4. Refrescamos la pantalla para que el usuario vea la nueva fila en el historial de inmediato
         cargarDatosDashboard(); 
       }
     } catch (error) {
@@ -202,19 +199,31 @@
                   <h3>Historial Reciente</h3>
                 </div>
                 <div class="card-body">
-                  {#if historialReciente.length > 0}
-                    <ul class="lista-historial">
-                      {#each historialReciente as visita}
-                        <li class="historial-item">
-                          <div class="historial-info"><Clock size={16} color="#64748b" /><span>Visita del <strong>{visita.fecha}</strong></span></div>
-                          <button class="btn-icon" title="Ver detalles" on:click={() => modo = 'historial'}><ChevronRight size={18} /></button>
-                        </li>
-                      {/each}
-                    </ul>
+                 {#if historialReciente.length > 0}
+                      <ul class="lista-historial">
+                        {#each historialReciente as visita}
+                          <li class="historial-item">
+                            <div class="historial-info">
+                              {#if visita.tipo === 'Revisión de Archivos'}
+                                <Archive size={16} color="#10b981" />
+                                <span>Revisión del <strong>{visita.fecha}</strong></span>
+                              {:else}
+                                <Clock size={16} color="#64748b" />
+                                <span>Visita del <strong>{visita.fecha}</strong></span>
+                              {/if}
+                            </div>
+                            <button class="btn-icon" title="Ver detalles" on:click={() => { idVisitaSeleccionada = visita.id; modo = 'historial'; }}>
+                               <ChevronRight size={18} />
+                            </button>
+                          </li>
+                        {/each}
+                      </ul>
                   {:else}
                     <div class="estado-vacio"><History size={40} color="#cbd5e1" style="margin-bottom: 10px;" /><p>No hay visitas guardadas.</p></div>
                   {/if}
-                  <button class="btn-accion btn-outline" on:click={() => modo = 'historial'}>Ver Todo el Historial</button>
+                  <button class="btn-accion btn-outline" on:click={() => { idVisitaSeleccionada = null; modo = 'historial'; }}>
+                     Ver Todo el Historial
+                  </button>
                 </div>
               </div>
             </div>
@@ -249,7 +258,7 @@
         <button class="btn-text" on:click={volverAlMenu}>
           <ArrowLeft size={14} /> Volver al Panel
         </button>
-        <HistorialCongregacion {nombreCongregacion} />
+        <HistorialCongregacion {nombreCongregacion} visitaResaltada={idVisitaSeleccionada} />
       </div>
     {/if}
     
