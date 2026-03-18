@@ -2,7 +2,8 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { ArrowLeft, History, ClipboardEdit, Calendar, ChevronRight, Play, CheckCircle2, Clock } from "lucide-svelte";
+  import { ArrowLeft, History, ClipboardEdit, Calendar, ChevronRight, Play, CheckCircle2, Clock,
+    LayoutDashboard, FolderOpen } from "lucide-svelte";
   
   // IMPORTAMOS SQLITE EN VEZ DE LAZYSTORE
   import { initDB, cargarConfig } from '$lib/services/db';
@@ -15,6 +16,9 @@
   $: nombreCongregacion = $page.params.nombre || "";
 
   let modo: 'dashboard' | 'nuevo' | 'historial' = 'dashboard';
+  // NUEVO: Variable para controlar la pestaña activa
+  let pestanaActiva: 'analisis' | 'archivos' = 'analisis'; 
+  
   let datosParaEditar: any = null;
 
   let progreso = 0;
@@ -27,19 +31,16 @@
     'opinionAncianos', 'ministerioCristiano', 'reunionesCongregacion', 
     'pastoreo', 'precursores', 'irregularesInactivos', 
     'responsabilidades', 'contabilidad', 'miscelaneos', 'seguimiento',
-    'recomendaciones', 'localReunion' // <-- Añadimos los dos nuevos
+    'recomendaciones', 'localReunion' 
   ];
 
   async function cargarDatosDashboard() {
     cargando = true;
     try {
-
-      // ¡AQUÍ ESTÁ LA CLAVE! Usamos cargarConfig, igual que lo hace el formulario
       const claveBorrador = `borrador_${nombreCongregacion}`;
       const valor = await cargarConfig(claveBorrador);
 
       if (valor && valor !== "{}" && valor !== "") {
-        // Si hay datos, los procesamos
         const borrador = typeof valor === 'string' ? JSON.parse(valor) : valor;
         let llenos = 0;
         
@@ -53,7 +54,6 @@
         hayBorrador = llenos > 0 || (borrador.fechaVisita && borrador.fechaVisita.trim() !== '');
         fechaBorrador = borrador.fechaVisita || 'Sin fecha asignada';
       } else {
-        // Si está vacío, apagamos la barra
         progreso = 0; 
         hayBorrador = false;
         fechaBorrador = '';
@@ -89,6 +89,7 @@
 
   function volverAlMenu() {
     modo = 'dashboard';
+    pestanaActiva = 'analisis'; // Para asegurar que vuelva a la pestaña principal
     datosParaEditar = null;
     cargarDatosDashboard(); 
   }
@@ -133,62 +134,91 @@
   <main class="focus-content">
     
     {#if modo === 'dashboard'}
+      
+      <div class="tabs-container">
+        <button 
+          class="tab-btn {pestanaActiva === 'analisis' ? 'active' : ''}" 
+          on:click={() => pestanaActiva = 'analisis'}>
+          <LayoutDashboard size={18} />
+          <span>Análisis de Congregación</span>
+        </button>
+        <button 
+          class="tab-btn {pestanaActiva === 'archivos' ? 'active' : ''}" 
+          on:click={() => pestanaActiva = 'archivos'}>
+          <FolderOpen size={18} />
+          <span>Revisión de Archivos</span>
+        </button>
+      </div>
+
       <div class="dashboard-layout">
-        {#if cargando}
-          <div class="loading">Cargando información...</div>
-        {:else}
-          <div class="grid-dashboard">
-            <div class="dash-card card-borrador">
-              <div class="card-header">
-                <div class="icon-box red"><ClipboardEdit size={24} /></div>
-                <h3>Análisis de la Visita Actual</h3>
-              </div>
-              <div class="card-body">
-                
-                {#if hayBorrador}
-                  <div class="estado-borrador">
-                    <p class="fecha-label"><Calendar size={14}/> Semana: <strong>{fechaBorrador}</strong></p>
-                    <div class="progreso-container">
-                      <div class="progreso-text">
-                        <span>Progreso del informe</span>
-                        <strong>{progreso} de 12 secciones</strong>
-                      </div>
-                      <div class="progreso-barra-fondo">
-                        <div class="progreso-barra-llena" style="width: {(progreso / 12) * 100}%"></div>
+        
+        {#if pestanaActiva === 'analisis'}
+          {#if cargando}
+            <div class="loading">Cargando información...</div>
+          {:else}
+            <div class="grid-dashboard">
+              <div class="dash-card card-borrador">
+                <div class="card-header">
+                  <div class="icon-box red"><ClipboardEdit size={24} /></div>
+                  <h3>Análisis de la Visita Actual</h3>
+                </div>
+                <div class="card-body">
+                  
+                  {#if hayBorrador}
+                    <div class="estado-borrador">
+                      <p class="fecha-label"><Calendar size={14}/> Semana: <strong>{fechaBorrador}</strong></p>
+                      <div class="progreso-container">
+                        <div class="progreso-text">
+                          <span>Progreso del informe</span>
+                          <strong>{progreso} de 12 secciones</strong>
+                        </div>
+                        <div class="progreso-barra-fondo">
+                          <div class="progreso-barra-llena" style="width: {(progreso / 12) * 100}%"></div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <button class="btn-accion btn-primary" on:click={() => modo = 'nuevo'}><Play size={18} /> Continuar Análisis</button>
-                {:else}
-                  <div class="estado-vacio"><CheckCircle2 size={40} color="#cbd5e1" style="margin-bottom: 10px;" /><p>No hay ninguna visita en curso.</p></div>
-                  <button class="btn-accion btn-primary" on:click={() => modo = 'nuevo'}><Play size={18} /> Iniciar Nuevo Análisis</button>
-                {/if}
+                    <button class="btn-accion btn-primary" on:click={() => modo = 'nuevo'}><Play size={18} /> Continuar Análisis</button>
+                  {:else}
+                    <div class="estado-vacio"><CheckCircle2 size={40} color="#cbd5e1" style="margin-bottom: 10px;" /><p>No hay ninguna visita en curso.</p></div>
+                    <button class="btn-accion btn-primary" on:click={() => modo = 'nuevo'}><Play size={18} /> Iniciar Nuevo Análisis</button>
+                  {/if}
+                </div>
+              </div>
+
+              <div class="dash-card card-historial">
+                <div class="card-header">
+                  <div class="icon-box blue"><History size={24} /></div>
+                  <h3>Historial Reciente</h3>
+                </div>
+                <div class="card-body">
+                  {#if historialReciente.length > 0}
+                    <ul class="lista-historial">
+                      {#each historialReciente as visita}
+                        <li class="historial-item">
+                          <div class="historial-info"><Clock size={16} color="#64748b" /><span>Visita del <strong>{visita.fecha}</strong></span></div>
+                          <button class="btn-icon" title="Ver detalles" on:click={() => modo = 'historial'}><ChevronRight size={18} /></button>
+                        </li>
+                      {/each}
+                    </ul>
+                  {:else}
+                    <div class="estado-vacio"><History size={40} color="#cbd5e1" style="margin-bottom: 10px;" /><p>No hay visitas guardadas.</p></div>
+                  {/if}
+                  <button class="btn-accion btn-outline" on:click={() => modo = 'historial'}>Ver Todo el Historial</button>
+                </div>
               </div>
             </div>
-
-            <div class="dash-card card-historial">
-              <div class="card-header">
-                <div class="icon-box blue"><History size={24} /></div>
-                <h3>Historial Reciente</h3>
-              </div>
-              <div class="card-body">
-                {#if historialReciente.length > 0}
-                  <ul class="lista-historial">
-                    {#each historialReciente as visita}
-                      <li class="historial-item">
-                        <div class="historial-info"><Clock size={16} color="#64748b" /><span>Visita del <strong>{visita.fecha}</strong></span></div>
-                        <button class="btn-icon" title="Ver detalles" on:click={() => modo = 'historial'}><ChevronRight size={18} /></button>
-                      </li>
-                    {/each}
-                  </ul>
-                {:else}
-                  <div class="estado-vacio"><History size={40} color="#cbd5e1" style="margin-bottom: 10px;" /><p>No hay visitas guardadas.</p></div>
-                {/if}
-                <button class="btn-accion btn-outline" on:click={() => modo = 'historial'}>Ver Todo el Historial</button>
-              </div>
+          {/if}
+        
+        {:else if pestanaActiva === 'archivos'}
+          <div class="dash-card">
+            <div class="card-body" style="padding: 40px; text-align: center;">
+               <div class="estado-vacio">
+                 <p style="font-size: 1.1rem; color: var(--text-muted);">Configurando el entorno para la revisión de archivos...</p>
+               </div>
             </div>
           </div>
         {/if}
+
       </div>
 
     {:else if modo === 'nuevo'}
@@ -259,6 +289,46 @@
   .title-group h1 { margin: 0; font-size: 1.8rem; color: var(--text-main); font-weight: 800; }
   .title-group p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
   .focus-content { flex: 1; padding: 40px; overflow-y: auto; }
+
+  /* NUEVO: ESTILOS DE LAS PESTAÑAS */
+  .tabs-container {
+    display: flex;
+    gap: 30px;
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 30px;
+    padding-bottom: 0;
+  }
+
+  .tab-btn {
+    background: transparent;
+    border: none;
+    padding: 10px 5px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 3px solid transparent; 
+    margin-bottom: -2px; 
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .tab-btn:hover {
+    color: var(--primary);
+  }
+
+  .tab-btn.active {
+    color: var(--primary);
+    border-bottom: 3px solid var(--primary); 
+  }
+
+  @media (max-width: 768px) {
+    .tabs-container { gap: 15px; }
+    .tab-btn { font-size: 0.95rem; flex: 1; }
+  }
 
   /* ESTILOS DEL DASHBOARD */
   .dashboard-layout { max-width: 1000px; margin: 0 auto; animation: fadeIn 0.3s ease; }
