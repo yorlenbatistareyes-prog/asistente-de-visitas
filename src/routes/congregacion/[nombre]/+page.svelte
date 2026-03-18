@@ -11,6 +11,7 @@
   // TUS DOS COMPONENTES HIJOS
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
   import HistorialCongregacion from '$lib/components/HistorialCongregacion.svelte';
+  import RevisionArchivos from '$lib/components/RevisionArchivos.svelte';
 
   $: idCircuito = $page.params.id;
   $: nombreCongregacion = $page.params.nombre || "";
@@ -96,7 +97,13 @@
 
   // --- FUNCIÓN QUE ATRAPA EL INFORME FINALIZADO Y LO GUARDA ---
   async function handleGuardarEnHistorial(e: CustomEvent) {
-    const { congregacion, fecha, contenido } = e.detail;
+    // 1. Ahora extraemos también la variable "tipo" que nos envía el componente
+    const { congregacion, fecha, contenido, tipo } = e.detail;
+    
+    // 2. MAGIA: Si el componente nos envía un tipo (ej: 'Revisión de Archivos'), lo usamos.
+    // Si no nos envía nada (como tu formulario viejo), asume que es 'Visita Regular'.
+    const tipoVisita = tipo || 'Visita Regular'; 
+
     try {
       const db = await initDB();
       const resCong = await db.select<{id: number}[]>(
@@ -109,8 +116,12 @@
         await db.execute(
           `INSERT INTO historial_visitas (congregacion_id, fecha, tipo, completado, contenido) 
            VALUES ($1, $2, $3, $4, $5)`,
-          [congregacionId, fecha, 'Visita Regular', 1, contenido]
+          // 3. Aquí insertamos nuestra variable dinámica tipoVisita
+          [congregacionId, fecha, tipoVisita, 1, contenido]
         );
+        
+        // 4. Refrescamos la pantalla para que el usuario vea la nueva fila en el historial de inmediato
+        cargarDatosDashboard(); 
       }
     } catch (error) {
       console.error("Error al guardar en el historial SQLite:", error);
@@ -210,13 +221,12 @@
           {/if}
         
         {:else if pestanaActiva === 'archivos'}
-          <div class="dash-card">
-            <div class="card-body" style="padding: 40px; text-align: center;">
-               <div class="estado-vacio">
-                 <p style="font-size: 1.1rem; color: var(--text-muted);">Configurando el entorno para la revisión de archivos...</p>
-               </div>
-            </div>
-          </div>
+          
+          <RevisionArchivos 
+            {nombreCongregacion} 
+            on:guardarEnHistorial={handleGuardarEnHistorial} 
+          />
+
         {/if}
 
       </div>
