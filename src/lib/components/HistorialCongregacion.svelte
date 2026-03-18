@@ -72,20 +72,13 @@
     } catch(e) { alert("Error al eliminar."); }
   }
 
-  // --- COMPATIBILIDAD INTELIGENTE ---
-  // Esta función decide si los datos guardados son viejos (solo números) o nuevos (el snapshot con porcentajes)
   function procesarDatos(contenido: string) {
     try {
       const parsed = JSON.parse(contenido);
-      // Si el campo 'total' es un objeto, significa que es un Snapshot nuevo.
-      if (parsed.total && typeof parsed.total === 'object') {
-        return parsed;
-      }
+      if (parsed.total && typeof parsed.total === 'object') return parsed;
       
-      // Si son datos viejos (solo números), los convertimos al vuelo para que no se rompa la vista
       let datosAdaptados: Record<string, any> = {};
       const totalPubs = Number(parsed.total) || 0;
-      
       tarjetasRevision.forEach(t => {
         const valor = Number(parsed[t.id]) || 0;
         let pct = '0.0%';
@@ -93,10 +86,10 @@
         datosAdaptados[t.id] = { valor: valor, porcentaje: pct, tendencia: null };
       });
       return datosAdaptados;
-
     } catch (e) { return {}; }
   }
 
+  // --- MOTOR DE PDF ACTUALIZADO ---
   async function exportarPDF(visita: any) {
     const contenidoPdf: any[] = [];
     const tipoVisita = visita.tipo || 'Análisis';
@@ -108,15 +101,45 @@
     if (tipoVisita === 'Revisión de Archivos') {
       const datos = procesarDatos(visita.contenido);
       const filasTabla: any[][] = [];
+      
       tarjetasRevision.forEach(tarjeta => {
         if (datos[tarjeta.id] !== undefined) {
+          const dato = datos[tarjeta.id];
+          
+          // Construimos la celda de la derecha con colores y flechas
+          const elementosDerecha: any[] = [
+            { text: dato.valor.toString(), bold: true, color: '#0f172a', fontSize: 11 }
+          ];
+
+          // 1. Añadimos el porcentaje
+          if (tarjeta.id !== 'total') {
+            elementosDerecha.push({ text: `  (${dato.porcentaje})`, color: '#64748b', fontSize: 9 });
+          }
+
+          // 2. Añadimos la tendencia (si la hay)
+          if (dato.tendencia) {
+            let colorHex = '#64748b'; // gris
+            if (dato.tendencia.color === 'verde') colorHex = '#10b981';
+            if (dato.tendencia.color === 'rojo') colorHex = '#ef4444';
+
+            let flecha = '';
+            if (dato.tendencia.icono === 'up') flecha = '↗';
+            else if (dato.tendencia.icono === 'down') flecha = '↘';
+            else flecha = '=';
+
+            elementosDerecha.push({ text: `    ${flecha} ${dato.tendencia.texto}`, color: colorHex, bold: true, fontSize: 9 });
+          }
+
           filasTabla.push([
             { text: tarjeta.titulo, color: '#334155', margin: [0, 5, 0, 5] }, 
-            { text: datos[tarjeta.id].valor.toString(), bold: true, color: '#0f172a', alignment: 'right', margin: [0, 5, 0, 5] }
+            { text: elementosDerecha, alignment: 'right', margin: [0, 5, 0, 5] }
           ]);
         }
       });
-      contenidoPdf.push({ table: { widths: ['*', 50], body: filasTabla }, layout: 'lightHorizontalLines', margin: [0, 0, 0, 10] });
+      
+      // Ajustamos la tabla para que la columna derecha tenga espacio para el nuevo texto
+      contenidoPdf.push({ table: { widths: ['*', 'auto'], body: filasTabla }, layout: 'lightHorizontalLines', margin: [0, 0, 0, 10] });
+      
     } else {
       const secciones = visita.contenido.split('\n\n');
       secciones.forEach((seccion: string) => {
