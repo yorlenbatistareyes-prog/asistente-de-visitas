@@ -90,6 +90,7 @@
   }
 
   // --- MOTOR DE PDF ACTUALIZADO ---
+  // --- MOTOR DE PDF ACTUALIZADO CON COLUMNAS ---
   async function exportarPDF(visita: any) {
     const contenidoPdf: any[] = [];
     const tipoVisita = visita.tipo || 'Análisis';
@@ -102,43 +103,58 @@
       const datos = procesarDatos(visita.contenido);
       const filasTabla: any[][] = [];
       
+      // 1. AÑADIMOS UNA CABECERA A LA TABLA PARA QUE SE ENTIENDAN LAS COLUMNAS
+      filasTabla.push([
+        { text: 'MÉTRICA', bold: true, color: '#334155', fontSize: 10, margin: [0, 5, 0, 5] },
+        { text: 'TOTAL', bold: true, color: '#334155', fontSize: 10, alignment: 'center', margin: [0, 5, 0, 5] },
+        { text: '%', bold: true, color: '#334155', fontSize: 10, alignment: 'center', margin: [0, 5, 0, 5] },
+        { text: 'TENDENCIA', bold: true, color: '#334155', fontSize: 10, alignment: 'right', margin: [0, 5, 0, 5] }
+      ]);
+
       tarjetasRevision.forEach(tarjeta => {
         if (datos[tarjeta.id] !== undefined) {
           const dato = datos[tarjeta.id];
           
-          // Construimos la celda de la derecha con colores y flechas
-          const elementosDerecha: any[] = [
-            { text: dato.valor.toString(), bold: true, color: '#0f172a', fontSize: 11 }
-          ];
+          // Formateamos el porcentaje (si es 'total', le ponemos un guión)
+          const pctTexto = tarjeta.id === 'total' ? '-' : dato.porcentaje;
 
-          // 1. Añadimos el porcentaje
-          if (tarjeta.id !== 'total') {
-            elementosDerecha.push({ text: `  (${dato.porcentaje})`, color: '#64748b', fontSize: 9 });
-          }
-
-          // 2. Añadimos la tendencia (si la hay)
+          // Formateamos la tendencia
+          let tendenciaElemento: any = { text: '-', alignment: 'right', color: '#94a3b8', fontSize: 10, margin: [0, 5, 0, 5] };
           if (dato.tendencia) {
             let colorHex = '#64748b'; // gris
             if (dato.tendencia.color === 'verde') colorHex = '#10b981';
             if (dato.tendencia.color === 'rojo') colorHex = '#ef4444';
 
-            let flecha = '';
-            if (dato.tendencia.icono === 'up') flecha = '↗';
-            else if (dato.tendencia.icono === 'down') flecha = '↘';
-            else flecha = '=';
-
-            elementosDerecha.push({ text: `    ${flecha} ${dato.tendencia.texto}`, color: colorHex, bold: true, fontSize: 9 });
+            tendenciaElemento = { 
+              text: dato.tendencia.texto, // Ya incluye el + o - (ej: +2 (20.0%))
+              color: colorHex, 
+              bold: true, 
+              fontSize: 10, 
+              alignment: 'right',
+              margin: [0, 5, 0, 5]
+            };
           }
 
+          // 2. CREAMOS LA FILA CON 4 COLUMNAS EXACTAS
           filasTabla.push([
             { text: tarjeta.titulo, color: '#334155', margin: [0, 5, 0, 5] }, 
-            { text: elementosDerecha, alignment: 'right', margin: [0, 5, 0, 5] }
+            { text: dato.valor.toString(), bold: true, color: '#0f172a', alignment: 'center', margin: [0, 5, 0, 5] },
+            { text: pctTexto, color: '#64748b', alignment: 'center', margin: [0, 5, 0, 5] },
+            tendenciaElemento
           ]);
         }
       });
       
-      // Ajustamos la tabla para que la columna derecha tenga espacio para el nuevo texto
-      contenidoPdf.push({ table: { widths: ['*', 'auto'], body: filasTabla }, layout: 'lightHorizontalLines', margin: [0, 0, 0, 10] });
+      // 3. LE DECIMOS AL PDF EL TAMAÑO EXACTO DE CADA COLUMNA
+      // '*' = Toma el espacio que sobra. Los números son el ancho fijo.
+      contenidoPdf.push({ 
+        table: { 
+          widths: ['*', 50, 60, 100], 
+          body: filasTabla 
+        }, 
+        layout: 'lightHorizontalLines', 
+        margin: [0, 0, 0, 10] 
+      });
       
     } else {
       const secciones = visita.contenido.split('\n\n');
