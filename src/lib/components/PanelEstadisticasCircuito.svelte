@@ -283,27 +283,30 @@
 
             {#if mostrarMenuColumnas}
               <div class="menu-columnas fade-in">
+                
+                <div class="menu-header">Mostrar u Ocultar</div>
+
                 <div class="menu-seccion">Base</div>
-                <label><input type="checkbox" bind:checked={configColumnas.total}> Pub.</label>
-                <label><input type="checkbox" bind:checked={configColumnas.bautizados}> Bautizados</label>
-                <label><input type="checkbox" bind:checked={configColumnas.mayores65}> +65 Años</label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.total}><span class="toggle-slider"></span><span class="toggle-label">Publicadores</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.bautizados}><span class="toggle-slider"></span><span class="toggle-label">Bautizados</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.mayores65}><span class="toggle-slider"></span><span class="toggle-label">+65 Años</span></label>
                 
                 <div class="menu-seccion">Movimiento</div>
-                <label><input type="checkbox" bind:checked={configColumnas.nuevos}> Nuevos</label>
-                <label><input type="checkbox" bind:checked={configColumnas.readmitidos}> Readmitidos</label>
-                <label><input type="checkbox" bind:checked={configColumnas.reactivados}> Reactivados</label>
-                <label><input type="checkbox" bind:checked={configColumnas.sacados}> Sacados</label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.nuevos}><span class="toggle-slider"></span><span class="toggle-label">Nuevos</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.readmitidos}><span class="toggle-slider"></span><span class="toggle-label">Readmitidos</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.reactivados}><span class="toggle-slider"></span><span class="toggle-label">Reactivados</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.sacados}><span class="toggle-slider"></span><span class="toggle-label">Sacados</span></label>
 
                 <div class="menu-seccion">Liderazgo y Precursores</div>
-                <label><input type="checkbox" bind:checked={configColumnas.precursoresRegulares}> Prec. Regulares</label>
-                <label><input type="checkbox" bind:checked={configColumnas.precursoresAuxiliares}> Prec. Auxiliares</label>
-                <label><input type="checkbox" bind:checked={configColumnas.ancianos}> Ancianos</label>
-                <label><input type="checkbox" bind:checked={configColumnas.siervosMinisteriales}> Siervos Min.</label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.precursoresRegulares}><span class="toggle-slider"></span><span class="toggle-label">Prec. Regulares</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.precursoresAuxiliares}><span class="toggle-slider"></span><span class="toggle-label">Prec. Auxiliares</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.ancianos}><span class="toggle-slider"></span><span class="toggle-label">Ancianos</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.siervosMinisteriales}><span class="toggle-slider"></span><span class="toggle-label">Siervos Min.</span></label>
 
                 <div class="menu-seccion">Prioridad</div>
-                <label><input type="checkbox" bind:checked={configColumnas.irregulares}> Irregulares</label>
-                <label><input type="checkbox" bind:checked={configColumnas.inactivos}> Inactivos</label>
-                <label><input type="checkbox" bind:checked={configColumnas.sinCursos}> Sin Curso</label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.irregulares}><span class="toggle-slider"></span><span class="toggle-label">Irregulares</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.inactivos}><span class="toggle-slider"></span><span class="toggle-label">Inactivos</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.sinCursos}><span class="toggle-slider"></span><span class="toggle-label">Sin Curso</span></label>
               </div>
             {/if}
           </div>
@@ -577,27 +580,103 @@
     overflow-y: auto;
   }
 
-  .menu-columnas label {
+  /* --- ESTILOS DEL MENÚ DESPLEGABLE Y TOGGLES --- */
+  .menu-columnas {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    padding: 16px;
+    width: 250px;
+    z-index: 50;
     display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: #334155;
-    cursor: pointer;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 350px;
+    overflow-y: auto;
   }
 
-  .menu-columnas input[type="checkbox"] {
-    accent-color: var(--primary); /* Usa el color de tu tema */
-    cursor: pointer;
+  .menu-header {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 4px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--primary);
   }
 
   .menu-seccion {
     font-size: 10px;
-    font-weight: bold;
+    font-weight: 800;
     color: #94a3b8;
     text-transform: uppercase;
-    margin-top: 6px;
+    margin-top: 10px;
     border-bottom: 1px solid #f1f5f9;
-    padding-bottom: 2px;
+    padding-bottom: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  /* --- EL INTERRUPTOR (TOGGLE) --- */
+  .toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none; /* Evita que el texto se sombree al hacer clics rápidos */
+  }
+
+  /* Ocultamos el checkbox real, pero no su funcionalidad */
+  .toggle-container input[type="checkbox"] {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+
+  /* El fondo del interruptor (Gris apagado) */
+  .toggle-slider {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 20px;
+    background-color: #cbd5e1;
+    border-radius: 20px;
+    transition: background-color 0.3s ease-in-out;
+    flex-shrink: 0;
+  }
+
+  /* La bolita blanca del interruptor */
+  .toggle-slider::before {
+    content: "";
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    border-radius: 50%;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  /* Cuando se hace clic (checked), el fondo se pone de color primario */
+  .toggle-container input:checked + .toggle-slider {
+    background-color: var(--primary); 
+  }
+
+  /* Cuando se hace clic, movemos la bolita a la derecha */
+  .toggle-container input:checked + .toggle-slider::before {
+    transform: translateX(14px);
+  }
+
+  /* El texto al lado del interruptor */
+  .toggle-label {
+    font-size: 0.8rem;
+    color: #334155;
+    font-weight: 500;
   }
 </style>
