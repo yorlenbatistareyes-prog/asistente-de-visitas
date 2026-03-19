@@ -12,7 +12,11 @@
     bautizados: 0, readmitidos: 0, reactivados: 0,
     irregulares: 0, inactivos: 0, sacados: 0,
     precursoresAuxiliares: 0, precursoresRegulares: 0, 
-    ancianos: 0, siervosMinisteriales: 0
+    ancianos: 0, siervosMinisteriales: 0,
+    // --- NUEVO ---
+    totalTerritorios: 0, 
+    territoriosSinTrabajar1Ano: 0, 
+    territoriosSinTrabajar6Meses: 0
   };
 
   // Memoria para guardar los datos de la visita anterior
@@ -38,7 +42,11 @@
     { id: 'precursoresAuxiliares', titulo: 'Precursores Auxiliares', color: 'blue' },
     { id: 'precursoresRegulares', titulo: 'Precursores Regulares', color: 'blue' },
     { id: 'ancianos', titulo: 'Ancianos', color: 'slate' },
-    { id: 'siervosMinisteriales', titulo: 'Siervos Ministeriales', color: 'slate' }
+    { id: 'siervosMinisteriales', titulo: 'Siervos Ministeriales', color: 'slate' },
+    // --- NUEVO ---
+    { id: 'totalTerritorios', titulo: 'Total de Territorios', color: 'slate' },
+    { id: 'territoriosSinTrabajar6Meses', titulo: 'Sin trabajar en 6 meses', color: 'orange' },
+    { id: 'territoriosSinTrabajar1Ano', titulo: 'Sin trabajar en 1 año', color: 'red' }
   ];
 
   async function cargarDatosRevision() {
@@ -97,7 +105,8 @@
     let porcentaje = 0;
     if (valorAnterior > 0) porcentaje = (Math.abs(diferencia) / valorAnterior) * 100;
 
-    const invertidos = ['sinCursos', 'irregulares', 'inactivos', 'sacados'];
+    // Añadimos los territorios sin trabajar, porque si suben es algo negativo (rojo)
+    const invertidos = ['sinCursos', 'irregulares', 'inactivos', 'sacados', 'territoriosSinTrabajar1Ano', 'territoriosSinTrabajar6Meses'];
     const esMaloSubir = invertidos.includes(clave);
 
     let color = 'gris';
@@ -136,6 +145,7 @@
       
       let snapshot: Record<string, any> = {};
       const tPubs = Number(contadores.total) || 0;
+      const tTerr = Number(contadores.totalTerritorios) || 0; // <-- NUEVO
 
       tarjetasRevision.forEach(tarjeta => {
         const valor = Number(contadores[tarjeta.id]) || 0;
@@ -144,6 +154,18 @@
         if (tarjeta.id !== 'total' && tPubs > 0) {
           porcentajeStr = ((valor / tPubs) * 100).toFixed(1) + '%';
         }
+
+        // --- NUEVO: Lógica condicional para porcentajes ---
+        const esTerritorio = tarjeta.id.includes('territorio');
+        
+        if (esTerritorio && tarjeta.id !== 'totalTerritorios' && tTerr > 0) {
+          // Si es territorio, lo divide entre el total de territorios
+          porcentajeStr = ((valor / tTerr) * 100).toFixed(1) + '%';
+        } else if (!esTerritorio && tarjeta.id !== 'total' && tPubs > 0) {
+          // Si son publicadores, lo divide entre el total de publicadores
+          porcentajeStr = ((valor / tPubs) * 100).toFixed(1) + '%';
+        }
+        // --------------------------------------------------
 
         const tendencia = obtenerTendencia(tarjeta.id, valor);
 
@@ -195,9 +217,12 @@
           <h4>{tarjeta.titulo}</h4>
           
           <div class="header-badges">
-            {#if tarjeta.id !== 'total'}
-              <div class="badge-porcentaje {contadores.total > 0 ? 'theme-' + tarjeta.color : 'vacio'}">
-                {contadores.total > 0 ? ((contadores[tarjeta.id] / contadores.total) * 100).toFixed(1) : '0.0'}%
+            {#if tarjeta.id !== 'total' && tarjeta.id !== 'totalTerritorios'}
+              {@const esTerritorio = tarjeta.id.includes('territorio')}
+              {@const base = esTerritorio ? contadores.totalTerritorios : contadores.total}
+              
+              <div class="badge-porcentaje {base > 0 ? 'theme-' + tarjeta.color : 'vacio'}">
+                {base > 0 ? ((contadores[tarjeta.id] / base) * 100).toFixed(1) : '0.0'}%
               </div>
             {/if}
 
@@ -217,6 +242,18 @@
           <input type="number" min="0" bind:value={contadores[tarjeta.id]} on:input={() => contadores = contadores} class="counter-input" />
           <button class="btn-sumar" on:click={() => { contadores[tarjeta.id]++; contadores = contadores; }}>+</button>
         </div>
+
+        {#if tarjeta.id === 'territoriosSinTrabajar1Ano' && contadores.totalTerritorios > 0}
+          <div class="info-calculada">
+            Trabajados en el año: <strong>{Math.max(0, contadores.totalTerritorios - contadores[tarjeta.id])}</strong>
+          </div>
+        {/if}
+        {#if tarjeta.id === 'territoriosSinTrabajar6Meses' && contadores.totalTerritorios > 0}
+          <div class="info-calculada">
+            Trabajados en 6 meses: <strong>{Math.max(0, contadores.totalTerritorios - contadores[tarjeta.id])}</strong>
+          </div>
+        {/if}
+
       </div>
     {/each}
   </div>
@@ -293,5 +330,17 @@
     .revision-actions { flex-direction: column; }
     .btn-accion { width: 100%; }
     .fecha-seccion { width: 100%; justify-content: space-between; }
+  }
+
+  .info-calculada {
+    font-size: 0.75rem;
+    color: var(--primary);
+    background: rgba(var(--primary-rgb), 0.05); /* O puedes poner un color fijo como #e0f2fe si no usas rgb */
+    padding: 4px 10px;
+    border-radius: 6px;
+    margin-top: 10px;
+    font-weight: 500;
+    text-align: center;
+    width: 100%;
   }
 </style>

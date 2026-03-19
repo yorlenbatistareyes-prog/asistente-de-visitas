@@ -30,7 +30,10 @@
     { id: 'precursoresAuxiliares', titulo: 'Precursores Auxiliares', color: 'blue' },
     { id: 'precursoresRegulares', titulo: 'Precursores Regulares', color: 'blue' },
     { id: 'ancianos', titulo: 'Ancianos', color: 'slate' },
-    { id: 'siervosMinisteriales', titulo: 'Siervos Ministeriales', color: 'slate' }
+    { id: 'siervosMinisteriales', titulo: 'Siervos Ministeriales', color: 'slate' },
+    { id: 'totalTerritorios', titulo: 'Total de Territorios', color: 'slate' },
+    { id: 'territoriosSinTrabajar6Meses', titulo: 'Sin trabajar en 6 meses', color: 'orange' },
+    { id: 'territoriosSinTrabajar1Ano', titulo: 'Sin trabajar en 1 año', color: 'red' }
   ];
 
   async function cargarHistorial() {
@@ -76,21 +79,33 @@
   function procesarDatos(contenido: string) {
     try {
       const parsed = JSON.parse(contenido);
+      // Si es un Snapshot moderno (de los nuevos), ya trae todo calculado, lo devolvemos directo
       if (parsed.total && typeof parsed.total === 'object') return parsed;
       
+      // Si es una visita antigua (solo números), adaptamos los datos
       let datosAdaptados: Record<string, any> = {};
       const totalPubs = Number(parsed.total) || 0;
+      const totalTerr = Number(parsed.totalTerritorios) || 0; // <-- NUEVO
+
       tarjetasRevision.forEach(t => {
         const valor = Number(parsed[t.id]) || 0;
         let pct = '0.0%';
-        if (t.id !== 'total' && totalPubs > 0) pct = ((valor / totalPubs) * 100).toFixed(1) + '%';
+        
+        // --- NUEVO: Lógica condicional para porcentajes separados ---
+        const esTerritorio = t.id.includes('territorio');
+        
+        if (esTerritorio && t.id !== 'totalTerritorios' && totalTerr > 0) {
+          pct = ((valor / totalTerr) * 100).toFixed(1) + '%';
+        } else if (!esTerritorio && t.id !== 'total' && totalPubs > 0) {
+          pct = ((valor / totalPubs) * 100).toFixed(1) + '%';
+        }
+
         datosAdaptados[t.id] = { valor: valor, porcentaje: pct, tendencia: null };
       });
       return datosAdaptados;
     } catch (e) { return {}; }
   }
 
-  // --- MOTOR DE PDF ACTUALIZADO ---
   // --- MOTOR DE PDF ACTUALIZADO CON COLUMNAS ---
   async function exportarPDF(visita: any) {
     const contenidoPdf: any[] = [];
