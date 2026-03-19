@@ -470,4 +470,104 @@
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
   @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+
+  /* =============================================
+     DISEÑO RESPONSIVO (Tablets y Móviles)
+     ============================================= */
+
+  /* Móviles (hasta 768px) */
+  @media (max-width: 768px) {
+    /* 1. Cabecera */
+    .header-registro h1 { font-size: 1.8rem; }
+
+    /* 2. Barra de Herramientas y Botones */
+    .toolbar-modular { 
+      flex-direction: column; 
+      align-items: stretch; 
+      gap: 15px; 
+    }
+    
+    .search-pill { 
+      width: 100%; 
+      box-sizing: border-box; 
+      height: 48px; 
+    }
+
+    /* Mantenemos los botones 50/50 igual que en Congregaciones */
+    .filters-aside { 
+      width: 100%;
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      gap: 10px !important;
+    }
+
+    .filters-aside .btn-importar,
+    .filters-aside .btn-primary-fino {
+      flex: 1 !important;
+      width: 100% !important;
+      height: 44px !important;
+      padding: 0 5px !important;
+      font-size: 0.8rem !important;
+      justify-content: center !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      border-radius: 30px !important;
+    }
+
+    /* 3. Filas de Personas (Evitamos que se aplaste el texto) */
+    .persona-row {
+      flex-direction: column; /* Apilamos la info hacia abajo */
+      align-items: flex-start;
+      position: relative; /* Para poder colocar los botones en la esquina */
+      padding: 15px;
+      gap: 10px;
+    }
+
+    .p-info {
+      padding-right: 70px; /* Dejamos un hueco para que el texto no pise los botones */
+    }
+
+    .p-contacto {
+      flex-direction: column; /* Teléfono y correo uno debajo del otro */
+      gap: 8px;
+      width: 100%;
+    }
+
+    /* Movemos los botones de Editar y Borrar a la esquina superior derecha */
+    .p-acciones {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      margin-left: 0;
+      gap: 8px;
+    }
+
+    .btn-icon-edit, .btn-icon-delete {
+      padding: 8px; /* Iconos más gorditos para el dedo */
+    }
+
+    /* 4. Ajustes del Modal */
+    .persona-modal { padding: 20px; }
+    
+    .modal-actions {
+      flex-direction: column-reverse; /* El botón de cancelar queda abajo */
+      gap: 10px;
+    }
+    
+    .modal-actions button {
+      width: 100%;
+      height: 48px !important; /* Botones de guardar fáciles de tocar */
+    }
+  }
+
+  /* Móviles muy pequeños (hasta 480px) */
+  @media (max-width: 480px) {
+    .filters-aside .btn-importar,
+    .filters-aside .btn-primary-fino {
+      font-size: 0.75rem !important; /* Achicamos letra si la pantalla es enana */
+    }
+  }
+
 </style>
