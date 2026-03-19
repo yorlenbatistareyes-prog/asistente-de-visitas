@@ -5,16 +5,25 @@
   import { actualizacionHistorial, circuitoActivo } from '$lib/stores/appStore';
   import { onMount } from "svelte";
 
+  // 1. EL MOLDE CON TODOS LOS CAMPOS
   interface DesgloseVisita {
     nombre_congregacion: string;
     fecha_visita: string;
     datos: {
-      publicadores: number;
-      precursores: number;
-      auxiliares: number;
-      eb: number;
+      total: number;
+      bautizados: number;
+      mayores65: number;
+      nuevos: number;
+      readmitidos: number;
+      reactivados: number;
+      sacados: number;
+      precursoresRegulares: number;
+      precursoresAuxiliares: number;
       ancianos: number;
-      siervos_min: number;
+      siervosMinisteriales: number;
+      irregulares: number;
+      inactivos: number;
+      sinCursos: number;
     };
   }
 
@@ -79,17 +88,25 @@
               t.inactivos += val('inactivos');
               t.sinCursos += val('sinCursos');
 
-              // 2. NUEVO: Extraemos los datos para la fila de esta congregación en la tabla
+              // 2. EXTRAEMOS ABSOLUTAMENTE TODO PARA LA TABLA
               tablaDesglose.push({
                 nombre_congregacion: cong.nombre,
                 fecha_visita: visitaReciente.fecha,
                 datos: {
-                  publicadores: val('total'),
-                  precursores: val('precursoresRegulares'),
-                  auxiliares: val('precursoresAuxiliares'),
-                  eb: val('sinCursos'),
+                  total: val('total'),
+                  bautizados: val('bautizados'),
+                  mayores65: val('mayores65'),
+                  nuevos: val('nuevos'),
+                  readmitidos: val('readmitidos'),
+                  reactivados: val('reactivados'),
+                  sacados: val('sacados'),
+                  precursoresRegulares: val('precursoresRegulares'),
+                  precursoresAuxiliares: val('precursoresAuxiliares'),
                   ancianos: val('ancianos'),
-                  siervos_min: val('siervosMinisteriales')
+                  siervosMinisteriales: val('siervosMinisteriales'),
+                  irregulares: val('irregulares'),
+                  inactivos: val('inactivos'),
+                  sinCursos: val('sinCursos')
                 }
               });
 
@@ -247,44 +264,74 @@
       </div>
 
       {#if mostrarDetalle}
-        <div class="tabla-scroll-wrapper fade-in">
-          <table class="tabla-timothy">
+        <div class="tabla-scroll-wrapper fade-in" style="overflow-x: auto; max-width: 100%;">
+          <table class="tabla-timothy" style="width: 100%; white-space: nowrap; text-align: center;">
             <thead>
-              <tr>
-                <th class="txt-left">Congregación</th>
-                <th>Fecha Visita</th>
-                <th>Pub.</th>
-                <th>Prec.</th>
-                <th>EB</th>
-                <th>Anc.</th>
-                <th>SM</th>
+              <tr style="border-bottom: 2px solid #e2e8f0;">
+                <th class="txt-left" style="padding: 8px;">Congregación</th>
+                <th style="padding: 8px;">Fecha Visita</th>
+                
+                <th title="Total">Pub.</th>
+                <th title="Bautizados">Baut.</th>
+                <th title="Mayores de 65">+65</th>
+                
+                <th title="Nuevos">Nvos.</th>
+                <th title="Readmitidos">Rdm.</th>
+                <th title="Reactivados">Rct.</th>
+                <th title="Sacados">Sac.</th>
+                
+                <th title="Precursores Regulares">P.Reg.</th>
+                <th title="Precursores Auxiliares">P.Aux.</th>
+                
+                <th title="Ancianos">Anc.</th>
+                <th title="Siervos Ministeriales">S.M.</th>
+                
+                <th title="Irregulares">Irr.</th>
+                <th title="Inactivos">Ina.</th>
+                <th title="Sin Curso">S/Curso</th>
               </tr>
             </thead>
             <tbody>
               {#each desgloseVisitas as item}
-                <tr>
-                  <td class="txt-left"><strong>{item.nombre_congregacion}</strong></td>
-                  <td>{item.fecha_visita}</td>
-                  <td>{item.datos.publicadores}</td>
-                  <td>{item.datos.precursores}</td>
-                  <td>{item.datos.eb}</td>
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td class="txt-left" style="padding: 8px; color: var(--primary);"><strong>{item.nombre_congregacion}</strong></td>
+                  <td style="padding: 8px;">{item.fecha_visita}</td>
+                  
+                  <td>{item.datos.total}</td>
+                  <td>{item.datos.bautizados}</td>
+                  <td>{item.datos.mayores65}</td>
+                  
+                  <td>{item.datos.nuevos}</td>
+                  <td>{item.datos.readmitidos}</td>
+                  <td>{item.datos.reactivados}</td>
+                  <td>{item.datos.sacados}</td>
+                  
+                  <td>{item.datos.precursoresRegulares}</td>
+                  <td>{item.datos.precursoresAuxiliares}</td>
+                  
                   <td>{item.datos.ancianos}</td>
-                  <td>{item.datos.siervos_min}</td>
+                  <td>{item.datos.siervosMinisteriales}</td>
+                  
+                  <td>{item.datos.irregulares}</td>
+                  <td>{item.datos.inactivos}</td>
+                  <td>{item.datos.sinCursos}</td>
                 </tr>
               {/each}
+              
               {#if desgloseVisitas.length === 0}
                 <tr>
-                  <td colspan="7" style="padding: 30px; color: #94a3b8; text-align: center;">
-                    No hay informes finalizados en este circuito.
+                  <td colspan="16" style="padding: 30px; color: #94a3b8; text-align: center;">
+                    No hay informes guardados en este circuito.
                   </td>
                 </tr>
               {/if}
             </tbody>
           </table>
         </div>
-      {/if}
+        {/if} 
+      </div> 
+      {/if} 
     </div>
-    {/if} </div>
 
 <style>
   .panel-global { 
