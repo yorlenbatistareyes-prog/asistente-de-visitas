@@ -22,6 +22,15 @@
   --radius-sm: 6px;
   --radius-md: 12px;
   --radius-lg: 16px;
+
+  --bg-stats: #fffdf0;
+
+  /* NUEVAS VARIABLES */
+  --bg-subtle: #f1f5f9;        /* Fondos sutiles (ej. cabeceras de tabla) */
+  --toggle-bg: #cbd5e1;         /* Fondo del interruptor (toggle) */
+  --panel-accent: #5c0a1f;      /* Borde izquierdo del panel (vino) */
+  --row-hover: #f8fafc;         /* Fondo al pasar el ratón por filas */
+
 }
 
 /* --- MODO OSCURO --- */
@@ -36,6 +45,13 @@
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
   --shadow-3d: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+
+  --bg-stats: #1e293b;
+
+   --bg-subtle: #2d3748;         /* Un tono más claro que el panel para destacar */
+  --toggle-bg: #4b5563;         /* Fondo del interruptor más oscuro */
+  --panel-accent: #b91c1c;      /* Rojo más vivo para destacar en fondo oscuro */
+  --row-hover: #2d3748;         /* Mismo que bg-subtle o ligeramente diferente */
 }
 
 /* Transición global para el cambio de tema */
@@ -179,9 +195,35 @@ body, html {
 }
 
 /* --- AÑADE ESTO DENTRO DE @media (max-width: 768px) --- */
+/* --- MÓVILES (Menos de 768px) --- */
 @media (max-width: 768px) {
+  body, html {
+    font-size: 14px;
+  }
 
-  /* 1. Cabecera en columna para que nada se salga */
+  .focus-content, .main-content {
+    padding: 15px !important;
+  }
+
+  h1 { font-size: 1.4rem !important; }
+  h3 { font-size: 1.1rem !important; }
+
+  /* GRIDS A UNA COLUMNA */
+  .grid-dashboard, 
+  .tarjetas-grid,
+  .muro-grid,
+  .grid-circuitos {
+    grid-template-columns: 1fr !important; 
+    gap: 15px !important;
+  }
+
+  /* BOTONES TÁCTILES */
+  .btn-global, .btn-accion {
+    min-height: 44px !important;
+    justify-content: center;
+  }
+
+  /* CABECERA DE ANÁLISIS */
   .cabecera-principal {
     display: flex !important;
     flex-direction: column !important;
@@ -190,7 +232,6 @@ body, html {
     width: 100% !important;
   }
 
-  /* 2. Fecha y chips de guardado */
   .fecha-seccion {
     display: flex !important;
     flex-wrap: wrap !important;
@@ -205,7 +246,6 @@ body, html {
     height: 40px !important;
   }
 
-  /* 3. Botones PDF y Finalizar: Uno al lado del otro al 50% */
   .grupo-acciones {
     display: flex !important;
     gap: 10px !important;
@@ -214,26 +254,24 @@ body, html {
 
   .btn-gris, .btn-azul {
     flex: 1 !important; 
-    height: 44px !important; /* Un pelín más altos para el dedo */
+    height: 44px !important;
     justify-content: center !important;
     font-size: 0.9rem !important;
-    padding: 0 !important;
+    padding: 0 12px !important;
   }
 
-  /* 4. Lista de Verificación (Checklist) */
-  /* Si el div que envuelve el checklist no tiene clase, ponle class="checklist-grid" en el HTML */
-  .checklist-grid { 
-    display: flex !important;
-    flex-wrap: wrap !important; 
+  /* CHECKLIST */
+  .checklist-grid, .seccion-checklist .checklist-grid { 
+    display: grid !important;
+    grid-template-columns: 1fr !important;
     gap: 10px !important;
   }
 
-  .checklist-card {
-    width: 100% !important; 
-    max-width: none !important;
+  .check-item {
+    width: 100% !important;
   }
 
-  /* 5. Ajustes de texto */
+  /* TEXTO E INSTRUCCIONES */
   .info-cabecera h2 {
     font-size: 1.3rem !important;
     margin: 0 !important;
@@ -243,5 +281,150 @@ body, html {
     font-size: 0.85rem !important;
     margin-top: 10px !important;
   }
+
+  /* PÁGINA DE INICIO */
+  .dashboard-circuitos {
+    padding: 15px 10px !important;
+  }
+
+  .header-section {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 15px !important;
+    margin-bottom: 25px !important;
+  }
+
+  .header-section h1 {
+    font-size: 1.5rem !important;
+  }
+
+  .header-section p {
+  font-size: 0.85rem !important;
+  line-height: 1.4 !important;
 }
 
+  .btn-primary {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .toolbar-modular {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  .search-pill {
+    width: 100% !important;
+    height: 42px !important;
+  }
+
+  .filters-aside {
+    width: 100% !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .filter-item {
+    width: 100% !important;
+  }
+
+  /* TARJETAS DE CIRCUITO */
+  .rassembly-card {
+    min-height: auto !important;
+  }
+
+  .card-header {
+    padding: 20px 20px 0 20px !important;
+  }
+
+  .card-content {
+    padding: 10px 20px 25px 20px !important;
+  }
+
+  .circuit-title {
+    font-size: 1.3rem !important;
+  }
+
+  .actions-wrapper {
+    position: relative !important;
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+    pointer-events: auto !important;
+    padding: 15px 20px !important;
+  }
+
+  .card-actions {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .btn-delete {
+    width: 100% !important;
+    height: 42px !important;
+  }
+
+  .btn-delete::after {
+    content: "Eliminar";
+    margin-left: 8px;
+  }
+
+  .btn-manage {
+    height: 42px !important;
+  }
+
+  /* MODAL */
+  .modal-backdrop {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+
+  .modal-content {
+    max-width: 100% !important;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+
+  .form-row {
+    flex-direction: column !important;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse !important;
+    gap: 10px !important;
+  }
+
+  .modal-actions button {
+    width: 100% !important;
+    height: 44px !important;
+  }
+
+  .ocultar-en-movil {
+    display: none !important;
+  }
+}
+
+/* --- MÓVILES PEQUEÑOS (Menos de 480px) --- */
+@media (max-width: 480px) {
+  .btn-back span {
+    display: none;
+  }
+  
+  .btn-back {
+    padding: 8px !important;
+    justify-content: center !important;
+  }
+  
+  .focus-header {
+    gap: 15px !important;
+  }
+
+  .circuit-title {
+    font-size: 1.1rem !important;
+  }
+
+  .badge-status {
+    font-size: 0.7rem !important;
+    padding: 5px 12px !important;
+  }
+}

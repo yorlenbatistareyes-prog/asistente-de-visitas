@@ -285,18 +285,50 @@
   .filters-aside { display: flex; gap: 10px; }
   
   .btn-primary-fino {
-    height: 44px; padding: 0 18px; border-radius: 12px; display: flex; align-items: center; 
-    gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; border: none;
-    background: var(--primary); color: white; transition: all 0.2s;
+    height: 38px; /* Más fino y elegante */
+    padding: 0 24px; 
+    border-radius: 30px; /* Forma de píldora */
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+    cursor: pointer; 
+    font-weight: 700; 
+    font-size: 0.85rem; 
+    border: none;
+    background-color: #5c0a1f !important; /* Rojo vino intenso */
+    color: white !important; 
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(92, 10, 31, 0.2);
   }
-  .btn-primary-fino:hover { background: #be123c; transform: translateY(-1px); }
+
+  .btn-primary-fino:hover { 
+    background-color: #3a0411 !important; 
+    transform: translateY(-1px); 
+    box-shadow: 0 4px 8px rgba(92, 10, 31, 0.3);
+  }
 
   .btn-importar {
-    background: #16a34a; color: white; border: none; height: 44px; padding: 0 18px;
-    border-radius: 12px; display: flex; align-items: center; gap: 8px; cursor: pointer;
-    font-weight: 700; font-size: 0.85rem; transition: background 0.2s;
+    background-color: #14532d; /* Verde bosque profundo */
+    color: white; 
+    border: none; 
+    height: 38px; /* Altura igualada al botón rojo */
+    padding: 0 24px;
+    border-radius: 30px; /* Forma de píldora */
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+    cursor: pointer;
+    font-weight: 700; 
+    font-size: 0.85rem; 
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(20, 83, 45, 0.2);
   }
-  .btn-importar:hover { background: #15803d; }
+
+  .btn-importar:hover { 
+    background-color: #052e16; /* Verde casi negro */
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(20, 83, 45, 0.3);
+  }
 
   /* ESTILOS DE LA VISTA AGRUPADA */
   .lista-agrupada { display: flex; flex-direction: column; gap: 25px; }
@@ -350,14 +382,32 @@
   .p-acciones { display: flex; gap: 8px; align-items: center; margin-left: 15px;}
   
   .btn-icon-edit, .btn-icon-delete { 
-    background: transparent; border: none; cursor: pointer; opacity: 0.5; 
-    transition: all 0.2s; padding: 6px; border-radius: 6px;
+    background: #f8fafc; 
+    border: 1px solid #e2e8f0;
+    cursor: pointer; 
+    opacity: 0.8; 
+    transition: all 0.2s; 
+    padding: 6px; 
+    border-radius: 50%; /* Iconos circulares */
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
+
   .btn-icon-edit { color: var(--primary); }
   .btn-icon-delete { color: #ef4444; }
   
-  .btn-icon-edit:hover { opacity: 1; background: rgba(225, 29, 72, 0.1); }
-  .btn-icon-delete:hover { opacity: 1; background: rgba(239, 68, 68, 0.1); }
+  .btn-icon-edit:hover { 
+    opacity: 1; 
+    background: #5c0a1f; 
+    color: white !important; 
+  }
+
+  .btn-icon-delete:hover { 
+    opacity: 1; 
+    background: #ef4444; 
+    color: white !important; 
+  }
 
   .vacio { padding: 60px; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--border-color); background: transparent;}
 
@@ -399,8 +449,22 @@
   .btn-global:not(.btn-primary) { background: transparent; color: var(--text-muted); }
   .btn-global:not(.btn-primary):hover { background: var(--bg-app); color: var(--text-main); }
   
-  .btn-primary { background: var(--primary); color: white; }
-  .btn-primary:hover { background: #be123c; transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  .btn-primary { 
+    background-color: #5c0a1f !important; /* Rojo vino intenso */
+    color: white !important; 
+    border-radius: 30px !important; /* Forma de píldora */
+    padding: 0 24px !important;
+    height: 42px; /* Un poquito más alto para el modal */
+    font-weight: 700;
+    border: none;
+    transition: all 0.2s ease;
+  }
+
+  .btn-primary:hover { 
+    background-color: #3a0411 !important; 
+    transform: translateY(-1px); 
+    box-shadow: var(--shadow-sm); 
+  }
 
   @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

@@ -280,13 +280,21 @@
   }
 
   .btn-primary { 
-    background-color: var(--primary); 
-    color: white; 
+    background-color: #5c0a1f !important; /* Rojo vino intenso */
+    color: white !important; 
     border: none; 
     padding: 10px 24px; 
     font-weight: 700;
     border-radius: var(--radius-sm);
     cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(92, 10, 31, 0.2);
+  }
+
+  .btn-primary:hover { 
+    background-color: #3a0411 !important; /* Rojo casi negro */
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(92, 10, 31, 0.3);
   }
 
   /* --- BARRA DE HERRAMIENTAS MODULAR --- */
@@ -311,8 +319,8 @@
   }
 
   .search-pill:focus-within {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1);
+    border-color: #5c0a1f; /* Acento vino */
+    box-shadow: 0 0 0 3px rgba(92, 10, 31, 0.1);
   }
 
   .search-input {
@@ -340,7 +348,7 @@
     align-items: center;
   }
 
-  .filter-item:hover { border-color: var(--primary); }
+  .filter-item:hover { border-color: #5c0a1f; } /* Hover vino */
 
   .minimal-select {
     background: transparent;
@@ -368,7 +376,7 @@
     position: relative; 
     transition: all 0.3s ease;
     border: 1px solid var(--border-color);
-    border-top: 4px solid var(--primary); 
+    border-top: 4px solid #5c0a1f; /* Borde superior vino */
     background: var(--bg-panel);
     border-radius: var(--radius-lg);
   }
@@ -443,7 +451,7 @@
     height: 40px;
     border-radius: 10px; 
     border: none; 
-    background: var(--primary); 
+    background: #5c0a1f; /* Rojo vino */
     color: white; 
     font-weight: 700;
     font-size: 0.85rem; 
@@ -452,6 +460,10 @@
     align-items: center; 
     justify-content: center; 
     gap: 8px;
+  }
+  
+  .btn-manage:hover {
+    background: #3a0411;
   }
 
   /* --- MODAL --- */
@@ -464,7 +476,7 @@
   .modal-content {
     width: 100%; max-width: 500px; background: var(--bg-panel);
     border-radius: var(--radius-lg); padding: 35px; box-shadow: var(--shadow-3d);
-    animation: scaleIn 0.2s ease-out; border-top: 5px solid var(--primary);
+    animation: scaleIn 0.2s ease-out; border-top: 5px solid #5c0a1f; /* Borde superior vino */
   }
 
   .form-group { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
@@ -474,4 +486,140 @@
   .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px; }
 
   @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+  /* =============================================
+     DISEÑO RESPONSIVO (Tablets y Móviles)
+     ============================================= */
+
+  /* Pantallas medianas y Tablets (hasta 1024px) */
+  @media (max-width: 1024px) {
+    .grid-circuitos { 
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
+    }
+  }
+
+  /* Móviles (hasta 768px) */
+  @media (max-width: 768px) {
+    /* 1. Cabecera */
+    .header-section {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 15px;
+      margin-bottom: 25px;
+    }
+    .header-section button {
+      width: 100%;
+      justify-content: center;
+      min-height: 52px !important; /* Más altura forzada */
+    }
+
+    /* 2. Barra de Herramientas */
+    .toolbar-modular {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      width: 100%;
+      box-sizing: border-box; 
+    }
+    
+    .search-pill {
+      width: 100%;
+      box-sizing: border-box; 
+      min-height: 52px !important; /* Altura imponente para el buscador */
+      padding: 0 20px; /* Asegura buen espacio interior */
+      border-radius: 12px; /* Alineamos la curva a los botones de abajo */
+    }
+
+    .search-input {
+      font-size: 1rem; /* Texto un poquito más grande para leer bien en el sol */
+    }
+
+    .filters-aside {
+      flex-direction: column; 
+      width: 100%;
+      gap: 12px;
+    }
+    
+    .filter-item {
+      width: 100%;
+      box-sizing: border-box; 
+      min-height: 52px !important; /* Igual que el buscador */
+    }
+    
+    .minimal-select {
+      width: 100%;
+      font-size: 0.95rem; /* Texto más legible */
+    }
+
+    /* 3. Tarjetas de Circuitos */
+    .grid-circuitos {
+      grid-template-columns: 1fr; 
+    }
+    .rassembly-card {
+      min-height: auto; 
+    }
+    .card-content {
+      padding-bottom: 10px; 
+    }
+    
+    /* Contenedor de acciones SIEMPRE VISIBLE */
+    .actions-wrapper {
+      position: static; 
+      opacity: 1; 
+      transform: translateY(0);
+      pointer-events: auto;
+      height: auto;
+      padding: 0 25px 25px 25px;
+      border-top: none;
+      background: transparent;
+    }
+
+    /* 4. SOLUCIÓN A LOS BOTONES ESTRECHITOS */
+    .card-actions {
+      flex-direction: column; /* Apila "Eliminar" y "Gestionar" uno encima del otro */
+      gap: 12px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .btn-delete, .btn-manage {
+      width: 100%;
+      min-height: 52px !important; /* Usamos min-height forzado con !important para vencer cualquier global */
+      padding: 12px 20px !important; /* Relleno generoso */
+      justify-content: center;
+      border-radius: 12px !important; 
+      font-size: 1rem !important; /* Texto claro y grande */
+    }
+  }
+
+  /* Móviles muy pequeños (hasta 480px) */
+  @media (max-width: 480px) {
+    .header-section h1 {
+      font-size: 1.6rem;
+    }
+    
+    /* Aseguramos que el contenido de la tarjeta no choque con los bordes */
+    .card-header, .card-content, .actions-wrapper {
+      padding-left: 20px;
+      padding-right: 20px;
+    }
+
+    /* Modal */
+    .modal-content {
+      padding: 20px;
+    }
+    .form-row {
+      flex-direction: column; 
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    .modal-actions {
+      flex-direction: column-reverse; 
+      gap: 10px;
+    }
+    .modal-actions button {
+      width: 100%;
+      min-height: 52px !important;
+    }
+  }
 </style>

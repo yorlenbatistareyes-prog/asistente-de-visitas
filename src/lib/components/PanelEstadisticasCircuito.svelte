@@ -432,9 +432,13 @@
 
 <style>
   .panel-global { 
-    background: var(--bg-panel); border: var(--border-thin); border-radius: 8px; 
-    padding: 10px 14px; margin-bottom: 15px; box-shadow: var(--shadow-sm); 
-    border-left: 4px solid var(--primary);
+    background: var(--bg-stats); 
+    border: var(--border-thin); 
+    border-radius: 8px; 
+    padding: 10px 14px; 
+    margin-bottom: 15px; 
+    box-shadow: var(--shadow-sm); 
+    border-left: 4px solid var(--panel-accent);  /* ← ANTES: #5c0a1f */
     animation: fadeIn 0.3s ease-out;
     transition: all 0.3s ease;
   }
@@ -463,7 +467,6 @@
   }
   .panel-header:hover .btn-toggle { background: var(--bg-app); color: var(--primary); }
 
-  /* MAGIA AQUÍ: Usamos flexbox en lugar de grid para que se adapten al contenido */
   .panel-grid { 
     display: flex; 
     flex-wrap: wrap; 
@@ -471,10 +474,15 @@
     animation: slideDown 0.3s ease-out; 
   }
   
+  /* Fondo de las tarjetas de métricas */
   .stats-group { 
-    background: var(--bg-app); border: var(--border-thin); border-radius: 6px; 
-    padding: 6px 12px; border-top: 2px solid transparent; 
-    flex: 1 1 max-content; /* Permite que la tarjeta sea tan ancha como necesite, pero rellena el espacio extra */
+    background: var(--bg-panel);  /* ← ANTES: #ffffff */
+    border: var(--border-thin); 
+    border-radius: 6px; 
+    padding: 6px 12px; 
+    border-top: 2px solid transparent; 
+    flex: 1 1 max-content;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02); /* Podrías usar var(--shadow-sm) si quieres */
   }
   
   .stats-group.theme-blue { border-top-color: #3b82f6; }
@@ -494,149 +502,128 @@
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
-  /* --- ESTILOS DEL DESGLOSE TIPO TIMOTHY --- */
+  /* --- ESTILOS DEL DESGLOSE --- */
 
-.desglose-container {
-  padding: 0 15px 15px 15px;
-  background: white;
-  border-bottom-left-radius: 12px;
-  border-bottom-right-radius: 12px;
-}
-
-.divider {
-  height: 1px;
-  background: linear-gradient(to right, transparent, #e2e8f0, transparent);
-  margin: 10px 0 20px 0;
-}
-
-.desglose-actions {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 15px;
-}
-
-.btn-detalle {
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  color: #475569;
-  padding: 8px 20px;
-  border-radius: 30px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.btn-detalle:hover {
-  background: #ffffff;
-  border-color: var(--primary);
-  color: var(--primary);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-
-.tabla-scroll-wrapper {
-  overflow-x: auto;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
-}
-
-.tabla-timothy {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-  min-width: 600px; /* Evita que se encoja demasiado en pantallas pequeñas */
-}
-
-.tabla-timothy th {
-  background: #f1f5f9;
-  color: #475569;
-  font-weight: 700;
-  text-transform: uppercase;
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
-  padding: 12px 10px;
-  border-bottom: 2px solid #e2e8f0;
-  position: sticky;
-  top: 0;
-}
-
-.tabla-timothy td {
-  padding: 12px 10px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #1e293b;
-  text-align: center;
-}
-
-.tabla-timothy tr:hover {
-  background-color: #f8fafc;
-}
-
-.tabla-timothy .txt-left {
-  text-align: left;
-  padding-left: 20px;
-}
-
-.tabla-timothy strong {
-  color: var(--primary);
-  font-weight: 600;
-}
-
-/* Animación de entrada suave */
-.fade-in {
-  animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes slideDown {
-  from { 
-    opacity: 0; 
-    transform: translateY(-20px); 
+  .desglose-container {
+    padding: 0 15px 15px 15px;
+    background: var(--bg-stats);  /* ← ANTES: #fffdf0 */
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
   }
-  to { 
-    opacity: 1; 
-    transform: translateY(0); 
+
+  .divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border-color), transparent); /* ← ANTES: #e2e8f0 */
+    margin: 10px 0 20px 0;
   }
-}
 
-/* Ajuste para el modo colapsado del panel padre */
-.panel-global.colapsado .desglose-container {
-  display: none;
-}
-
-.menu-columnas {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 8px;
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    padding: 12px;
-    width: 220px;
-    z-index: 50;
+  .desglose-actions {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 300px;
-    overflow-y: auto;
+    justify-content: center;
+    margin-bottom: 15px;
   }
 
-  /* --- ESTILOS DEL MENÚ DESPLEGABLE Y TOGGLES --- */
+  .btn-detalle {
+    background: var(--bg-panel);  /* ← ANTES: #ffffff */
+    border: 1px solid var(--border-color);  /* ← ANTES: #e2e8f0 */
+    color: var(--text-muted);  /* ← ANTES: #475569 */
+    padding: 8px 20px;
+    border-radius: 30px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);  /* ← ANTES: 0 2px 4px rgba(0,0,0,0.05) */
+  }
+
+  .btn-detalle:hover {
+    background: var(--bg-panel);
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);  /* ← ANTES: 0 4px 6px rgba(0,0,0,0.1) */
+  }
+
+  .tabla-scroll-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);  /* ← ANTES: #e2e8f0 */
+    border-radius: 10px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); /* Puedes dejarlo o usar una variable */
+  }
+
+  .tabla-timothy {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    min-width: 600px;
+  }
+
+  .tabla-timothy th {
+    background: var(--bg-subtle);  /* ← ANTES: #f1f5f9 */
+    color: var(--text-muted);  /* ← ANTES: #475569 */
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    padding: 12px 10px;
+    border-bottom: 2px solid var(--border-color);  /* ← ANTES: #e2e8f0 */
+    position: sticky;
+    top: 0;
+  }
+
+  .tabla-timothy td {
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--border-color);  /* ← ANTES: #f1f5f9 */
+    color: var(--text-main);  /* ← ANTES: #1e293b */
+    text-align: center;
+  }
+
+  .tabla-timothy tr:hover {
+    background-color: var(--row-hover);  /* ← ANTES: #f8fafc */
+  }
+
+  .tabla-timothy .txt-left {
+    text-align: left;
+    padding-left: 20px;
+  }
+
+  .tabla-timothy strong {
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  /* Animación de entrada suave */
+  .fade-in {
+    animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes slideDown {
+    from { 
+      opacity: 0; 
+      transform: translateY(-20px); 
+    }
+    to { 
+      opacity: 1; 
+      transform: translateY(0); 
+    }
+  }
+
+  .panel-global.colapsado .desglose-container {
+    display: none;
+  }
+
   .menu-columnas {
     position: absolute;
     top: 100%;
     right: 0;
     margin-top: 8px;
-    background: white;
-    border: 1px solid #e2e8f0;
+    background: var(--bg-panel);  /* ← ANTES: white */
+    border: 1px solid var(--border-color);  /* ← ANTES: #e2e8f0 */
     border-radius: 8px;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-md);  /* ← ANTES: 0 10px 15px -3px rgb(0 0 0 / 0.1)... */
     padding: 16px;
     width: 250px;
     z-index: 50;
@@ -650,7 +637,7 @@
   .menu-header {
     font-size: 13px;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--text-main);  /* ← ANTES: #1e293b */
     margin-bottom: 4px;
     padding-bottom: 8px;
     border-bottom: 2px solid var(--primary);
@@ -659,24 +646,22 @@
   .menu-seccion {
     font-size: 10px;
     font-weight: 800;
-    color: #94a3b8;
+    color: var(--text-muted);  /* ← ANTES: #94a3b8 */
     text-transform: uppercase;
     margin-top: 10px;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid var(--border-color);  /* ← ANTES: #f1f5f9 */
     padding-bottom: 4px;
     letter-spacing: 0.5px;
   }
 
-  /* --- EL INTERRUPTOR (TOGGLE) --- */
   .toggle-container {
     display: flex;
     align-items: center;
     gap: 12px;
     cursor: pointer;
-    user-select: none; /* Evita que el texto se sombree al hacer clics rápidos */
+    user-select: none;
   }
 
-  /* Ocultamos el checkbox real, pero no su funcionalidad */
   .toggle-container input[type="checkbox"] {
     opacity: 0;
     width: 0;
@@ -684,19 +669,17 @@
     position: absolute;
   }
 
-  /* El fondo del interruptor (Gris apagado) */
   .toggle-slider {
     position: relative;
     display: inline-block;
     width: 34px;
     height: 20px;
-    background-color: #cbd5e1;
+    background-color: var(--toggle-bg);  /* ← ANTES: #cbd5e1 */
     border-radius: 20px;
     transition: background-color 0.3s ease-in-out;
     flex-shrink: 0;
   }
 
-  /* La bolita blanca del interruptor */
   .toggle-slider::before {
     content: "";
     position: absolute;
@@ -704,26 +687,23 @@
     width: 16px;
     left: 2px;
     bottom: 2px;
-    background-color: white;
+    background-color: white;  /* La bolita blanca puede quedarse así */
     border-radius: 50%;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 1px 3px rgba(0,0,0,0.3);
   }
 
-  /* Cuando se hace clic (checked), el fondo se pone de color primario */
   .toggle-container input:checked + .toggle-slider {
     background-color: var(--primary); 
   }
 
-  /* Cuando se hace clic, movemos la bolita a la derecha */
   .toggle-container input:checked + .toggle-slider::before {
     transform: translateX(14px);
   }
 
-  /* El texto al lado del interruptor */
   .toggle-label {
     font-size: 0.8rem;
-    color: #334155;
+    color: var(--text-main);  /* ← ANTES: #334155 */
     font-weight: 500;
   }
 </style>
