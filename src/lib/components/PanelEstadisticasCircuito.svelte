@@ -706,4 +706,90 @@
     color: var(--text-main);  /* ← ANTES: #334155 */
     font-weight: 500;
   }
+
+  /* =============================================
+     DISEÑO RESPONSIVO Y ERGONOMÍA MÓVIL
+     ============================================= */
+  
+  @media (max-width: 768px) {
+    /* 1. Cabecera del Panel */
+    .panel-header {
+      position: relative;
+      align-items: flex-start;
+    }
+    
+    .header-left {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
+    }
+    
+    /* Movemos el botón de colapsar a la esquina superior derecha */
+    .btn-toggle {
+      position: absolute;
+      top: 0;
+      right: 0;
+      height: 36px;
+      width: 36px;
+    }
+
+    /* 2. Tarjetas de Estadísticas */
+    .panel-grid {
+      flex-direction: column; /* Apilamos las tarjetas grandes (Publicadores, Movimiento...) */
+    }
+    
+    .stats-group {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .stat-items {
+      flex-wrap: wrap; /* Magia: Si los 4 números no caben, bajan de línea solos */
+      justify-content: flex-start;
+      gap: 15px;
+    }
+    
+    .stat-box {
+      flex: 1;
+      min-width: 65px; /* Evita que se aplasten, garantizando legibilidad */
+    }
+
+    /* 3. Acciones de la Tabla (Botones) */
+    .desglose-actions {
+      flex-direction: column;
+      align-items: stretch !important;
+      gap: 12px;
+    }
+    
+    .btn-detalle {
+      width: 100%;
+      height: 48px !important; /* Altura táctil obligatoria */
+      justify-content: center;
+      border-radius: 12px;
+    }
+
+    /* 4. Menú de Columnas (Anti-desbordamiento) */
+    .menu-columnas {
+      position: static; /* Deja de flotar. Ahora empuja el contenido hacia abajo. */
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 10px;
+      max-height: 280px; /* Un poco más corto para hacer scroll cómodamente */
+      border-radius: 12px;
+    }
+  }
+
+  /* Móviles muy pequeños (hasta 480px) */
+  @media (max-width: 480px) {
+    /* Achicamos un pelín los números si la pantalla es enana para que quepan mejor */
+    .stat-box .val {
+      font-size: 1.05rem; 
+    }
+    .stat-box .lbl {
+      font-size: 0.55rem;
+    }
+    .badge-info {
+      font-size: 0.6rem;
+    }
+  }
 </style>
