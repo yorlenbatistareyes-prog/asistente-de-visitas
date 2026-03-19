@@ -7,16 +7,16 @@
   
   import { fechaPorCongregacion } from '$lib/stores/appStore'; 
   import NuevaCongregacionModal from "$lib/components/modals/NuevaCongregacionModal.svelte";
-
+  
   import { 
     obtenerCircuitoPorId, 
     obtenerCongregaciones, 
     guardarCongregacion,
     eliminarCongregacion,
-    initDB, // <-- IMPORTANTE: Añadimos initDB para las fechas
+    initDB,
     type Circuito,
     type Congregacion 
-  } from '$lib/services/db'; // Ajusta la ruta si tu archivo db.ts está en otra carpeta
+  } from '$lib/services/db'; 
 
   $: idCircuito = Number($page.params.id);
 
@@ -41,14 +41,12 @@
       const resultados = await obtenerCongregaciones(circuitoActual.nombre);
       lista = [...resultados];
 
-      // NUEVO: Buscar la última visita de cada congregación en el historial real
       try {
         const db = await initDB();
         let fechasActualizadas: Record<string, string> = {};
         
         for (const cong of lista) {
           if (cong.id) {
-            // Buscamos solo la fecha más reciente (LIMIT 1)
             const res = await db.select<{fecha: string}[]>(
               'SELECT fecha FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC LIMIT 1',
               [cong.id]
@@ -58,7 +56,6 @@
             }
           }
         }
-        // Llenamos el Store visual con la verdad de la base de datos
         fechaPorCongregacion.set(fechasActualizadas);
       } catch (e) {
         console.error("Error al cargar fechas del historial:", e);
@@ -94,7 +91,6 @@
     }
   }
 
-  // Lógica del Modal extraída para mayor limpieza
   async function handleGuardarCongregacion(e: CustomEvent) {
     try {
       const nueva = e.detail;
@@ -126,7 +122,6 @@
     }
   }
 
-  // --- IMPORTACIÓN CSV ---
   async function importarCSV(e: any) {
     if (!circuitoActual) {
       alert("Error: No se ha cargado el circuito actual.");
@@ -335,7 +330,7 @@
   .cong-card:hover { border-color: var(--primary); }
 
   .card-icon {
-    background: rgba(100, 116, 139, 0.1); /* Dinámico para modo oscuro/claro */
+    background: rgba(100, 116, 139, 0.1); 
     color: var(--text-muted);
     padding: 15px;
     border-radius: 12px;

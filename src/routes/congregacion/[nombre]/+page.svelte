@@ -12,6 +12,7 @@
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
   import HistorialCongregacion from '$lib/components/HistorialCongregacion.svelte';
   import RevisionArchivos from '$lib/components/RevisionArchivos.svelte';
+  import { notificarCambioHistorial } from '$lib/stores/appStore';
 
   $: idCircuito = $page.params.id;
   $: nombreCongregacion = $page.params.nombre || "";
@@ -117,6 +118,9 @@
            VALUES ($1, $2, $3, $4, $5)`,
           [congregacionId, fecha, tipoVisita, 1, contenido] // <-- Aquí inyectamos el nombre correcto
         );
+
+        // ⬇️ AGREGAR ESTA LÍNEA AQUÍ ⬇️
+        notificarCambioHistorial();
         
         cargarDatosDashboard(); 
       }

@@ -11,3 +11,10 @@ export const listaCongregaciones = writable<Congregacion[]>([]);
 // visualmente al instante tras finalizar un informe, pero el guardado real va a SQLite.
 export const fechaPorCongregacion = writable<Record<string, string>>({});
 export const resumenUltimoAnalisis = writable<Record<string, string>>({});
+
+// --- NUEVO: Notificador para actualizar estadísticas globales ---
+export const actualizacionHistorial = writable(0);
+
+export function notificarCambioHistorial() {
+  actualizacionHistorial.update(n => n + 1);
+}

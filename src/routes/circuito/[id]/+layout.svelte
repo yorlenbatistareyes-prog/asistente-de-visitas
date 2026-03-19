@@ -2,16 +2,40 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { Users, UserSquare, ArrowLeft } from 'lucide-svelte';
-  import { obtenerCircuitoPorId, type Circuito } from '$lib/services/db';
+  
+  import { obtenerCircuitoPorId, obtenerCongregaciones, type Circuito, type Congregacion } from '$lib/services/db';
+  import PanelEstadisticasCircuito from "$lib/components/PanelEstadisticasCircuito.svelte";
 
-  // SvelteKit extrae automáticamente el [id] de la URL
   $: idCircuito = Number($page.params.id);
   
   let circuito: Circuito | null = null;
+  let listaCongregaciones: Congregacion[] = []; 
 
-  onMount(async () => {
+  async function cargarDatos() {
+    if (!idCircuito) return;
+    
+    // 1. Cargamos el circuito
     circuito = await obtenerCircuitoPorId(idCircuito);
-  });
+    
+    if (circuito) {
+      // 2. Cargamos las congregaciones directo desde Rust, ¡sin mapeos raros!
+      listaCongregaciones = await obtenerCongregaciones(circuito.nombre);
+      console.log("Datos listos para el Panel:", listaCongregaciones);
+    }
+  }
+
+  onMount(cargarDatos);
+
+  // Si el ID de la URL cambia (ej. cambias de circuito), recargamos todo
+  $: if (idCircuito) {
+    cargarDatos();
+  }
+
+  // Si detectamos que entramos a una congregación y volvemos (cambio de ruta), 
+  // refrescamos la lista para captar nuevas revisiones archivadas.
+  $: if ($page.url.pathname) {
+     cargarDatos();
+  }
 </script>
 
 <div class="circuito-layout">
@@ -27,6 +51,10 @@
       {#if circuito?.etiquetas}
         <span class="badge">{circuito.etiquetas}</span>
       {/if}
+    </div>
+
+    <div class="panel-wrapper">
+      <PanelEstadisticasCircuito {listaCongregaciones} />
     </div>
 
     <nav class="tabs-container">
@@ -65,7 +93,7 @@
   }
 
   .circuito-header {
-    padding: 20px 30px 0 30px; /* Padding bottom 0 para que las pestañas toquen el borde */
+    padding: 20px 30px 0 30px; 
     display: flex;
     flex-direction: column;
     gap: 15px;
@@ -79,7 +107,7 @@
   .btn-back:hover { color: var(--text-main); }
 
   .title-area {
-    display: flex; align-items: center; gap: 15px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 15px; margin-bottom: 5px;
   }
   .title-area h2 { margin: 0; font-size: 1.8rem; color: var(--text-main); }
   
@@ -88,7 +116,11 @@
     padding: 4px 10px; border-radius: 20px;
   }
 
-  /* ESTILOS DE LAS PESTAÑAS */
+  /* Contenedor para darle respiro al panel dentro de la cabecera */
+  .panel-wrapper {
+    margin-bottom: 5px;
+  }
+
   .tabs-container {
     display: flex; gap: 20px; border-bottom: 2px solid var(--border-color);
   }
@@ -97,7 +129,7 @@
     display: flex; align-items: center; gap: 8px;
     text-decoration: none; color: var(--text-muted); font-weight: 600;
     font-size: 0.95rem; padding: 12px 0; border-bottom: 3px solid transparent;
-    margin-bottom: -2px; /* Superpone el borde de la pestaña sobre el borde del contenedor */
+    margin-bottom: -2px; 
     transition: all 0.2s;
   }
 
@@ -109,7 +141,6 @@
   }
 
   .circuito-content {
-    /* El contenido que vaya aquí ya tiene su propio espacio */
     padding-top: 10px;
   }
 

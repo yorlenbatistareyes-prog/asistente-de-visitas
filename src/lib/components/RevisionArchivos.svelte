@@ -2,6 +2,7 @@
   import { CheckCircle2, Save, Archive, Calendar, TrendingUp, TrendingDown, Minus } from 'lucide-svelte';
   import { onMount, createEventDispatcher } from 'svelte';
   import { cargarConfig, guardarConfig, initDB } from '$lib/services/db';
+  import { notificarCambioHistorial } from '$lib/stores/appStore';
 
   export let nombreCongregacion = '';
   const dispatch = createEventDispatcher();
@@ -158,6 +159,8 @@
         tipo: 'Revisión de Archivos',
         contenido: JSON.stringify(snapshot)
       });
+
+      notificarCambioHistorial();
 
       Object.keys(contadores).forEach(k => contadores[k] = 0);
       fechaRevision = '';
