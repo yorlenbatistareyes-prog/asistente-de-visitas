@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Activity, Users, Star, UserCheck, BookOpen, AlertTriangle, ChevronUp, 
-    ChevronDown, TrendingUp, Settings2 } from "lucide-svelte"; 
+    ChevronDown, TrendingUp, Settings2, Map } from "lucide-svelte"; 
   import { initDB, type Congregacion } from '$lib/services/db';
   import { page } from '$app/stores';
   import { actualizacionHistorial, circuitoActivo } from '$lib/stores/appStore';
@@ -25,6 +25,10 @@
       irregulares: number;
       inactivos: number;
       sinCursos: number;
+      // --- NUEVOS ---
+      totalTerritorios: number;
+      territoriosSinTrabajar6Meses: number;
+      territoriosSinTrabajar1Ano: number;
     };
   }
 
@@ -43,20 +47,28 @@
     nuevos: true, readmitidos: true, reactivados: true, sacados: true,
     precursoresRegulares: true, precursoresAuxiliares: true,
     ancianos: true, siervosMinisteriales: true,
-    irregulares: true, inactivos: true, sinCursos: true
+    irregulares: true, inactivos: true, sinCursos: true,
+    // --- NUEVOS ---
+    totalTerritorios: true, 
+    territoriosSinTrabajar6Meses: true, 
+    territoriosSinTrabajar1Ano: true
   };
 
   let metricasGlobales = {
     total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, sacados: 0,
     precursoresRegulares: 0, precursoresAuxiliares: 0, ancianos: 0, siervosMinisteriales: 0,
-    irregulares: 0, inactivos: 0, sinCursos: 0
+    irregulares: 0, inactivos: 0, sinCursos: 0,
+    // --- NUEVOS ---
+    totalTerritorios: 0, 
+    territoriosSinTrabajar6Meses: 0, 
+    territoriosSinTrabajar1Ano: 0
   };
 
   async function calcularMetricas() {
     if (!listaCongregaciones || listaCongregaciones.length === 0) return;
     try {
       const db = await initDB();
-      let t = { total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, sacados: 0, precursoresRegulares: 0, precursoresAuxiliares: 0, ancianos: 0, siervosMinisteriales: 0, irregulares: 0, inactivos: 0, sinCursos: 0 };
+      let t = { total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, sacados: 0, precursoresRegulares: 0, precursoresAuxiliares: 0, ancianos: 0, siervosMinisteriales: 0, irregulares: 0, inactivos: 0, sinCursos: 0, totalTerritorios: 0, territoriosSinTrabajar6Meses: 0, territoriosSinTrabajar1Ano: 0 };
       let contador = 0;
       
       // NUEVO: Array temporal para construir la tabla del desglose
@@ -100,6 +112,9 @@
               t.irregulares += val('irregulares');
               t.inactivos += val('inactivos');
               t.sinCursos += val('sinCursos');
+              t.totalTerritorios += val('totalTerritorios');
+              t.territoriosSinTrabajar6Meses += val('territoriosSinTrabajar6Meses');
+              t.territoriosSinTrabajar1Ano += val('territoriosSinTrabajar1Ano');
 
               // 2. EXTRAEMOS ABSOLUTAMENTE TODO PARA LA TABLA
               tablaDesglose.push({
@@ -119,7 +134,11 @@
                   siervosMinisteriales: val('siervosMinisteriales'),
                   irregulares: val('irregulares'),
                   inactivos: val('inactivos'),
-                  sinCursos: val('sinCursos')
+                  sinCursos: val('sinCursos'),
+                  // --- NUEVOS ---
+                  totalTerritorios: val('totalTerritorios'),
+                  territoriosSinTrabajar6Meses: val('territoriosSinTrabajar6Meses'),
+                  territoriosSinTrabajar1Ano: val('territoriosSinTrabajar1Ano')
                 }
               });
 
@@ -263,6 +282,23 @@
         </div>
       </div>
 
+      <div class="stats-group theme-slate">
+        <div class="group-title"><Map size={12}/> Territorios</div>
+        <div class="stat-items">
+          <div class="stat-box">
+            <span class="val">{metricasGlobales.totalTerritorios}</span><span class="lbl">Total</span>
+          </div>
+          <div class="stat-box" title="Sin trabajar en 6 meses">
+            <span class="val">{metricasGlobales.territoriosSinTrabajar6Meses}</span><span class="lbl">Sin 6 Meses</span>
+            <span class="pct" style="color:#f59e0b; background: rgba(245,158,11,0.1)">{metricasGlobales.totalTerritorios > 0 ? ((metricasGlobales.territoriosSinTrabajar6Meses / metricasGlobales.totalTerritorios)*100).toFixed(1) : '0.0'}%</span>
+          </div>
+          <div class="stat-box" title="Sin trabajar en 1 año">
+            <span class="val">{metricasGlobales.territoriosSinTrabajar1Ano}</span><span class="lbl">Sin 1 Año</span>
+            <span class="pct" style="color:#ef4444; background: rgba(239,68,68,0.1)">{metricasGlobales.totalTerritorios > 0 ? ((metricasGlobales.territoriosSinTrabajar1Ano / metricasGlobales.totalTerritorios)*100).toFixed(1) : '0.0'}%</span>
+          </div>
+        </div>
+      </div>
+
     </div> <div class="desglose-container">
       <div class="divider"></div>
       
@@ -307,6 +343,11 @@
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.irregulares}><span class="toggle-slider"></span><span class="toggle-label">Irregulares</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.inactivos}><span class="toggle-slider"></span><span class="toggle-label">Inactivos</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.sinCursos}><span class="toggle-slider"></span><span class="toggle-label">Sin Curso</span></label>
+                
+                <div class="menu-seccion">Territorios</div>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.totalTerritorios}><span class="toggle-slider"></span><span class="toggle-label">Total Territorios</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.territoriosSinTrabajar6Meses}><span class="toggle-slider"></span><span class="toggle-label">Sin Trab. (6 Meses)</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.territoriosSinTrabajar1Ano}><span class="toggle-slider"></span><span class="toggle-label">Sin Trab. (1 Año)</span></label>
               </div>
             {/if}
           </div>
@@ -339,6 +380,9 @@
                 {#if configColumnas.irregulares}<th title="Irregulares">Irr.</th>{/if}
                 {#if configColumnas.inactivos}<th title="Inactivos">Ina.</th>{/if}
                 {#if configColumnas.sinCursos}<th title="Sin Curso">S/Curso</th>{/if}
+                {#if configColumnas.totalTerritorios}<th title="Total de Territorios">Terr.</th>{/if}
+                {#if configColumnas.territoriosSinTrabajar6Meses}<th title="Sin Trabajar (6 Meses)">S/Trab 6M</th>{/if}
+                {#if configColumnas.territoriosSinTrabajar1Ano}<th title="Sin Trabajar (1 Año)">S/Trab 1A</th>{/if}
               </tr>
             </thead>
             <tbody>
@@ -365,6 +409,9 @@
                   {#if configColumnas.irregulares}<td>{item.datos.irregulares}</td>{/if}
                   {#if configColumnas.inactivos}<td>{item.datos.inactivos}</td>{/if}
                   {#if configColumnas.sinCursos}<td>{item.datos.sinCursos}</td>{/if}
+                  {#if configColumnas.totalTerritorios}<td>{item.datos.totalTerritorios}</td>{/if}
+                  {#if configColumnas.territoriosSinTrabajar6Meses}<td>{item.datos.territoriosSinTrabajar6Meses}</td>{/if}
+                  {#if configColumnas.territoriosSinTrabajar1Ano}<td>{item.datos.territoriosSinTrabajar1Ano}</td>{/if}
                 </tr>
               {/each}
               
