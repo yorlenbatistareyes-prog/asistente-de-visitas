@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Activity, Users, Star, BookOpen, AlertTriangle, ChevronUp, 
+  import { Activity, Users, Star, UserCheck, BookOpen, AlertTriangle, ChevronUp, 
     ChevronDown, TrendingUp, Settings2 } from "lucide-svelte"; 
   import { initDB, type Congregacion } from '$lib/services/db';
   import { page } from '$app/stores';
@@ -156,7 +156,7 @@
 <div class="panel-global {panelVisible ? '' : 'colapsado'}">
   <div class="panel-header" on:click={togglePanel} role="button" tabindex="0">
     <div class="header-left">
-      <h4><Activity size={16} color="var(--primary)"/> Salud Global del Circuito</h4>
+      <h4><Activity size={16} color="var(--primary)"/> Estadística del Circuito</h4>
       <span class="badge-info">
         {#if congregacionesAnalizadas > 0}
           Analizadas: {congregacionesAnalizadas} / {listaCongregaciones.length}
@@ -179,7 +179,7 @@
     <div class="panel-grid">
       
       <div class="stats-group theme-blue">
-        <div class="group-title"><Users size={12}/> Base</div>
+        <div class="group-title"><Users size={12}/> Publicadores</div>
         <div class="stat-items">
           <div class="stat-box">
             <span class="val">{metricasGlobales.total}</span><span class="lbl">Total</span>
@@ -232,7 +232,7 @@
       </div>
 
       <div class="stats-group theme-slate">
-        <div class="group-title"><BookOpen size={12}/> Liderazgo</div>
+        <div class="group-title"><UserCheck size={12}/> Hermanos Nombrados</div>
         <div class="stat-items">
           <div class="stat-box">
             <span class="val">{metricasGlobales.ancianos}</span><span class="lbl">Ancianos</span>
@@ -286,7 +286,7 @@
                 
                 <div class="menu-header">Mostrar u Ocultar</div>
 
-                <div class="menu-seccion">Base</div>
+                <div class="menu-seccion">Publicadores</div>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.total}><span class="toggle-slider"></span><span class="toggle-label">Publicadores</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.bautizados}><span class="toggle-slider"></span><span class="toggle-label">Bautizados</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.mayores65}><span class="toggle-slider"></span><span class="toggle-label">+65 Años</span></label>
@@ -297,7 +297,7 @@
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.reactivados}><span class="toggle-slider"></span><span class="toggle-label">Reactivados</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.sacados}><span class="toggle-slider"></span><span class="toggle-label">Sacados</span></label>
 
-                <div class="menu-seccion">Liderazgo y Precursores</div>
+                <div class="menu-seccion">Precursores y Nombrados</div>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.precursoresRegulares}><span class="toggle-slider"></span><span class="toggle-label">Prec. Regulares</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.precursoresAuxiliares}><span class="toggle-slider"></span><span class="toggle-label">Prec. Auxiliares</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.ancianos}><span class="toggle-slider"></span><span class="toggle-label">Ancianos</span></label>
