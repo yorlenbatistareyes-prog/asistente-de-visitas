@@ -270,20 +270,27 @@
   .header-section p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
 
   .btn-primary {
-    background-color: var(--primary);
-    color: white;
+    background-color: #5c0a1f !important; /* Rojo vino intenso */
+    color: white !important;
     border: none;
-    height: 44px;
-    padding: 0 18px;
-    border-radius: 12px;
+    height: 38px; /* Más fino */
+    padding: 0 24px; /* Más ancho para compensar la altura */
+    border-radius: 30px; /* Forma de píldora */
     display: flex;
     align-items: center;
     gap: 8px;
     cursor: pointer;
     font-weight: 700;
     font-size: 0.85rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(92, 10, 31, 0.2);
   }
-  .btn-primary:hover { background-color: #be123c; color: white; }
+
+  .btn-primary:hover { 
+    background-color: #3a0411 !important; 
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(92, 10, 31, 0.3);
+  }
 
   /* BARRA DE BÚSQUEDA */
   .search-bar {
@@ -400,19 +407,25 @@
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
   .btn-importar {
-    background: #16a34a;
+    background-color: #14532d; /* Verde bosque profundo */
     color: white;
     border: none;
-    height: 44px;
-    padding: 0 18px;
-    border-radius: 12px;
+    height: 38px; /* Más fino, igual al rojo */
+    padding: 0 24px;
+    border-radius: 30px; /* Forma de píldora */
     display: flex;
     align-items: center;
     gap: 8px;
     cursor: pointer;
     font-weight: 700;
     font-size: 0.85rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(20, 83, 45, 0.2);
   }
 
-  .btn-importar:hover { background: #15803d; }
+  .btn-importar:hover { 
+    background-color: #052e16; /* Verde casi negro al pasar el ratón */
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(20, 83, 45, 0.3);
+  }
 </style>
