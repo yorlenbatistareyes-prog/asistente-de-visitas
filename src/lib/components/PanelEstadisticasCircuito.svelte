@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Activity, Users, Star, BookOpen, AlertTriangle, ChevronUp, ChevronDown, TrendingUp } from "lucide-svelte"; 
+  import { Activity, Users, Star, BookOpen, AlertTriangle, ChevronUp, 
+    ChevronDown, TrendingUp, Settings2 } from "lucide-svelte"; 
   import { initDB, type Congregacion } from '$lib/services/db';
   import { page } from '$app/stores';
   import { actualizacionHistorial, circuitoActivo } from '$lib/stores/appStore';
@@ -32,6 +33,18 @@
   let mostrarDetalle = false; 
   let desgloseVisitas: DesgloseVisita[] = []; 
   let congregacionesAnalizadas = 0;
+
+  // NUEVO: Control del menú de columnas
+  let mostrarMenuColumnas = false;
+
+  // NUEVO: Estado de visibilidad de cada columna (Por defecto, todas encendidas)
+  let configColumnas = {
+    total: true, bautizados: true, mayores65: true,
+    nuevos: true, readmitidos: true, reactivados: true, sacados: true,
+    precursoresRegulares: true, precursoresAuxiliares: true,
+    ancianos: true, siervosMinisteriales: true,
+    irregulares: true, inactivos: true, sinCursos: true
+  };
 
   let metricasGlobales = {
     total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, sacados: 0,
@@ -253,14 +266,48 @@
     </div> <div class="desglose-container">
       <div class="divider"></div>
       
-      <div class="desglose-actions">
+      <div class="desglose-actions" style="display: flex; justify-content: space-between; align-items: center; position: relative; margin-bottom: 10px;">
         <button type="button" class="btn-detalle" on:click={() => mostrarDetalle = !mostrarDetalle}>
           {#if mostrarDetalle}
             <ChevronUp size={14} /> Ocultar desglose detallado
           {:else}
-            <ChevronDown size={14} /> Ver desglose por congregación (Última Visita)
+            <ChevronDown size={14} /> Ver desglose por congregación
           {/if}
         </button>
+
+        {#if mostrarDetalle}
+          <div>
+            <button type="button" class="btn-detalle" style="border-color: var(--primary); color: var(--primary);" on:click={() => mostrarMenuColumnas = !mostrarMenuColumnas}>
+              <Settings2 size={14} /> Columnas
+            </button>
+
+            {#if mostrarMenuColumnas}
+              <div class="menu-columnas fade-in">
+                <div class="menu-seccion">Base</div>
+                <label><input type="checkbox" bind:checked={configColumnas.total}> Pub.</label>
+                <label><input type="checkbox" bind:checked={configColumnas.bautizados}> Bautizados</label>
+                <label><input type="checkbox" bind:checked={configColumnas.mayores65}> +65 Años</label>
+                
+                <div class="menu-seccion">Movimiento</div>
+                <label><input type="checkbox" bind:checked={configColumnas.nuevos}> Nuevos</label>
+                <label><input type="checkbox" bind:checked={configColumnas.readmitidos}> Readmitidos</label>
+                <label><input type="checkbox" bind:checked={configColumnas.reactivados}> Reactivados</label>
+                <label><input type="checkbox" bind:checked={configColumnas.sacados}> Sacados</label>
+
+                <div class="menu-seccion">Liderazgo y Precursores</div>
+                <label><input type="checkbox" bind:checked={configColumnas.precursoresRegulares}> Prec. Regulares</label>
+                <label><input type="checkbox" bind:checked={configColumnas.precursoresAuxiliares}> Prec. Auxiliares</label>
+                <label><input type="checkbox" bind:checked={configColumnas.ancianos}> Ancianos</label>
+                <label><input type="checkbox" bind:checked={configColumnas.siervosMinisteriales}> Siervos Min.</label>
+
+                <div class="menu-seccion">Prioridad</div>
+                <label><input type="checkbox" bind:checked={configColumnas.irregulares}> Irregulares</label>
+                <label><input type="checkbox" bind:checked={configColumnas.inactivos}> Inactivos</label>
+                <label><input type="checkbox" bind:checked={configColumnas.sinCursos}> Sin Curso</label>
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
 
       {#if mostrarDetalle}
@@ -271,24 +318,24 @@
                 <th class="txt-left" style="padding: 8px;">Congregación</th>
                 <th style="padding: 8px;">Fecha Visita</th>
                 
-                <th title="Total">Pub.</th>
-                <th title="Bautizados">Baut.</th>
-                <th title="Mayores de 65">+65</th>
+                {#if configColumnas.total}<th title="Total">Pub.</th>{/if}
+                {#if configColumnas.bautizados}<th title="Bautizados">Baut.</th>{/if}
+                {#if configColumnas.mayores65}<th title="Mayores de 65">+65</th>{/if}
                 
-                <th title="Nuevos">Nvos.</th>
-                <th title="Readmitidos">Rdm.</th>
-                <th title="Reactivados">Rct.</th>
-                <th title="Sacados">Sac.</th>
+                {#if configColumnas.nuevos}<th title="Nuevos">Nvos.</th>{/if}
+                {#if configColumnas.readmitidos}<th title="Readmitidos">Rdm.</th>{/if}
+                {#if configColumnas.reactivados}<th title="Reactivados">Rct.</th>{/if}
+                {#if configColumnas.sacados}<th title="Sacados">Sac.</th>{/if}
                 
-                <th title="Precursores Regulares">P.Reg.</th>
-                <th title="Precursores Auxiliares">P.Aux.</th>
+                {#if configColumnas.precursoresRegulares}<th title="Precursores Regulares">P.Reg.</th>{/if}
+                {#if configColumnas.precursoresAuxiliares}<th title="Precursores Auxiliares">P.Aux.</th>{/if}
                 
-                <th title="Ancianos">Anc.</th>
-                <th title="Siervos Ministeriales">S.M.</th>
+                {#if configColumnas.ancianos}<th title="Ancianos">Anc.</th>{/if}
+                {#if configColumnas.siervosMinisteriales}<th title="Siervos Ministeriales">S.M.</th>{/if}
                 
-                <th title="Irregulares">Irr.</th>
-                <th title="Inactivos">Ina.</th>
-                <th title="Sin Curso">S/Curso</th>
+                {#if configColumnas.irregulares}<th title="Irregulares">Irr.</th>{/if}
+                {#if configColumnas.inactivos}<th title="Inactivos">Ina.</th>{/if}
+                {#if configColumnas.sinCursos}<th title="Sin Curso">S/Curso</th>{/if}
               </tr>
             </thead>
             <tbody>
@@ -297,24 +344,24 @@
                   <td class="txt-left" style="padding: 8px; color: var(--primary);"><strong>{item.nombre_congregacion}</strong></td>
                   <td style="padding: 8px;">{item.fecha_visita}</td>
                   
-                  <td>{item.datos.total}</td>
-                  <td>{item.datos.bautizados}</td>
-                  <td>{item.datos.mayores65}</td>
+                  {#if configColumnas.total}<td>{item.datos.total}</td>{/if}
+                  {#if configColumnas.bautizados}<td>{item.datos.bautizados}</td>{/if}
+                  {#if configColumnas.mayores65}<td>{item.datos.mayores65}</td>{/if}
                   
-                  <td>{item.datos.nuevos}</td>
-                  <td>{item.datos.readmitidos}</td>
-                  <td>{item.datos.reactivados}</td>
-                  <td>{item.datos.sacados}</td>
+                  {#if configColumnas.nuevos}<td>{item.datos.nuevos}</td>{/if}
+                  {#if configColumnas.readmitidos}<td>{item.datos.readmitidos}</td>{/if}
+                  {#if configColumnas.reactivados}<td>{item.datos.reactivados}</td>{/if}
+                  {#if configColumnas.sacados}<td>{item.datos.sacados}</td>{/if}
                   
-                  <td>{item.datos.precursoresRegulares}</td>
-                  <td>{item.datos.precursoresAuxiliares}</td>
+                  {#if configColumnas.precursoresRegulares}<td>{item.datos.precursoresRegulares}</td>{/if}
+                  {#if configColumnas.precursoresAuxiliares}<td>{item.datos.precursoresAuxiliares}</td>{/if}
                   
-                  <td>{item.datos.ancianos}</td>
-                  <td>{item.datos.siervosMinisteriales}</td>
+                  {#if configColumnas.ancianos}<td>{item.datos.ancianos}</td>{/if}
+                  {#if configColumnas.siervosMinisteriales}<td>{item.datos.siervosMinisteriales}</td>{/if}
                   
-                  <td>{item.datos.irregulares}</td>
-                  <td>{item.datos.inactivos}</td>
-                  <td>{item.datos.sinCursos}</td>
+                  {#if configColumnas.irregulares}<td>{item.datos.irregulares}</td>{/if}
+                  {#if configColumnas.inactivos}<td>{item.datos.inactivos}</td>{/if}
+                  {#if configColumnas.sinCursos}<td>{item.datos.sinCursos}</td>{/if}
                 </tr>
               {/each}
               
@@ -328,7 +375,7 @@
             </tbody>
           </table>
         </div>
-        {/if} 
+      {/if}
       </div> 
       {/if} 
     </div>
@@ -511,4 +558,46 @@
   display: none;
 }
 
+.menu-columnas {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    padding: 12px;
+    width: 220px;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .menu-columnas label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #334155;
+    cursor: pointer;
+  }
+
+  .menu-columnas input[type="checkbox"] {
+    accent-color: var(--primary); /* Usa el color de tu tema */
+    cursor: pointer;
+  }
+
+  .menu-seccion {
+    font-size: 10px;
+    font-weight: bold;
+    color: #94a3b8;
+    text-transform: uppercase;
+    margin-top: 6px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 2px;
+  }
 </style>
