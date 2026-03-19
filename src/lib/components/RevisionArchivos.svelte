@@ -403,9 +403,92 @@
   }
 
   /* Ajustes para móviles */
+ /* =============================================
+     DISEÑO RESPONSIVO Y ERGONOMÍA MÓVIL (CORREGIDO)
+     ============================================= */
   @media (max-width: 768px) {
-    .grid-contadores { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    .revision-actions { justify-content: center; } /* Centra los botones en vez de estirarlos al 100% */
-    .fecha-seccion { width: 100%; justify-content: space-between; }
+    /* 1. Contenedor Principal */
+    .revision-container {
+      padding: 10px; 
+      overflow-x: hidden; 
+    }
+
+    /* 2. Cabecera y Fecha */
+    .revision-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+    
+    .fecha-seccion { 
+      width: 100%; 
+      justify-content: space-between;
+      height: 48px;
+      box-sizing: border-box;
+    }
+    
+    .input-fecha {
+      flex: 1;
+      text-align: right;
+    }
+
+    /* 3. Cuadrícula de contadores (🌟 FORZADO A 2 COLUMNAS SIN DESBORDE 🌟) */
+    .grid-contadores { 
+      /* El minmax(0, 1fr) es magia pura: impide que el contenido interno rompa la cuadrícula */
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important; 
+      gap: 8px; 
+    }
+    
+    .counter-card {
+      padding: 10px 5px; /* Reducimos el relleno lateral interno para ganar espacio útil */
+      box-sizing: border-box;
+      min-width: 0; /* Crucial: permite que la tarjeta se encoja si el teléfono es muy fino */
+    }
+
+    .counter-card h4 {
+      font-size: 0.75rem; 
+      word-wrap: break-word; /* Si una palabra es muy larga, la rompe en vez de desbordar */
+      text-align: center;
+    }
+
+    .header-badges {
+      flex-direction: column; /* Apilamos las etiquetas (porcentaje/tendencia) hacia abajo */
+      gap: 4px;
+    }
+
+    /* 4. Controles (+ y -) ultra compactos */
+    .counter-controls {
+      gap: 4px !important; 
+      width: 100%;
+      justify-content: center;
+    }
+
+    .btn-restar, .btn-sumar { 
+      width: 36px !important;  
+      height: 36px !important; 
+      border-radius: 8px !important; 
+      flex-shrink: 0; /* Evita que el botón se aplaste si falta espacio */
+    }
+    
+    .counter-input {
+      width: 32px !important; 
+      font-size: 1.1rem !important;
+      padding: 0 !important;
+    }
+
+    /* 5. Botones Finales de Acción */
+    .revision-actions { 
+      flex-direction: column; 
+      align-items: stretch;
+      gap: 10px;
+    }
+    
+    .btn-accion {
+      width: 100%; 
+      height: 48px !important; 
+      justify-content: center;
+      border-radius: 12px !important; 
+    }
   }
 </style>

@@ -345,7 +345,69 @@
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+ 
+  
+/* =============================================
+     DISEÑO RESPONSIVO (Tablets y Móviles)
+     ============================================= */
+
   @media (max-width: 768px) {
-    .header-info { flex-direction: column; align-items: flex-start; gap: 5px; }
+    /* 1. Cabecera de la tarjeta del historial */
+    .header-info { 
+      flex-direction: column; 
+      align-items: flex-start; 
+      gap: 8px; 
+    }
+
+    /* 2. Cuadrícula de Estadísticas (Tarjetitas) */
+    .grid-contadores { 
+      /* Magia: Forzamos 2 columnas exactas en móviles. Se ve súper profesional */
+      grid-template-columns: repeat(2, 1fr); 
+      gap: 10px; 
+    }
+    
+    .counter-card { 
+      padding: 10px; /* Reducimos un poco el relleno para ganar espacio */
+    }
+
+    .counter-value {
+      font-size: 1.5rem; /* Achicamos un pelín los números para que no se corten */
+    }
+
+    .tarjeta-header h4 {
+      font-size: 0.8rem; /* Texto un poquito más compacto */
+    }
+
+    /* 3. Botones de Acción (Exportar y Eliminar) */
+    .card-footer { 
+      flex-direction: row; /* Uno al lado del otro */
+      gap: 10px; 
+      padding-top: 15px;
+    }
+
+    .card-footer .btn-accion {
+      flex: 1; /* 50% y 50% */
+      height: 48px !important; /* Nuestra altura táctil de oro */
+      justify-content: center;
+      border-radius: 12px;
+      font-size: 0.95rem;
+    }
+  }
+
+  /* Móviles muy chiquitos (hasta 480px) */
+  @media (max-width: 480px) {
+    /* Si la pantalla es enana, pasamos las estadísticas a 1 sola columna */
+    .grid-contadores { 
+      grid-template-columns: 1fr; 
+    }
+    
+    /* Apilamos los botones para que no se asfixie el texto */
+    .card-footer {
+      flex-direction: column-reverse; /* Ponemos "Eliminar" abajo por seguridad */
+    }
+    
+    .card-footer .btn-accion {
+      width: 100%;
+    }
   }
 </style>
