@@ -391,7 +391,18 @@
   .icon-box.red { background: rgba(225, 29, 72, 0.1); color: var(--primary); }
   .icon-box.blue { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
 
-  .card-body { padding: 25px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 20px; }
+  .card-body { 
+    padding: 25px; 
+    flex: 1; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: space-between; 
+    gap: 20px; 
+    
+    /* AÑADE ESTO PARA CENTRAR HORIZONTALMENTE */
+    align-items: center; /* Centra los hijos (los botones) horizontalmente */
+    text-align: center; /* Centra los textos internos si los hay */
+  }
 
   .estado-borrador { display: flex; flex-direction: column; gap: 15px; }
   .fecha-label { margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main); font-size: 0.95rem; }
@@ -438,15 +449,63 @@
     gap: 8px; cursor: pointer; transition: all 0.2s; border: none; 
   }
 
-  .btn-primary { background: var(--primary); color: white; }
-  .btn-primary:hover { background: #be123c; transform: translateY(-2px); box-shadow: var(--shadow-md); }
-  
-  .btn-outline { 
-    background: var(--bg-panel); 
-    border: var(--border-thin); 
-    color: var(--text-main); 
+  /* BOTÓN PRINCIPAL (Rojo Vino - Corto y Redondeado) */
+  .btn-primary { 
+    background-color: #5c0a1f !important; /* Rojo vino oscuro */
+    color: white !important; 
+    border-radius: 30px !important; /* Forma de píldora */
+    padding: 8px 24px !important; /* Padding vertical y horizontal ajustado */
+    font-weight: 700 !important;
+    font-size: 0.85rem !important; /* Un poco más pequeña la letra */
+    box-shadow: 0 2px 4px rgba(92, 10, 31, 0.3) !important;
+    border: none;
+    transition: all 0.2s ease;
+    
+    /* ESTO ES LO NUEVO PARA ACORTARLO */
+    width: auto !important; /* Deja de ocupar todo el ancho */
+    margin: 0 auto; /* Lo centra horizontalmente */
+    display: inline-flex; /* Permite que el ancho sea según el contenido */
   }
-  .btn-outline:hover { background: var(--bg-app); border-color: var(--primary); color: var(--primary); }
+
+  .btn-primary:hover { 
+    background-color: #3a0411 !important; /* Rojo casi negro al pasar el ratón */
+    transform: translateY(-2px) !important; 
+    box-shadow: 0 6px 12px rgba(92, 10, 31, 0.4) !important;
+  }
+  .btn-primary:active {
+    transform: scale(0.97) !important;
+  }
+  
+  /* BOTÓN SECUNDARIO (Esquema - Corto y Redondeado) */
+  /* BOTÓN SECUNDARIO: Ver Todo el Historial (Más resaltado pero elegante) */
+  .btn-outline { 
+    background-color: #f1f5f9; /* Un fondo gris azulado muy tenue */
+    color: #1e3a8a; /* Azul marino oscuro para el texto */
+    border: 1px solid #cbd5e1; /* Borde sutil */
+    border-radius: 30px; /* Forma de píldora moderna */
+    padding: 8px 24px; /* Padding vertical y horizontal ajustado */
+    font-size: 0.85rem;
+    font-weight: 700; /* Texto en negrita para que se lea mejor */
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* Sombra muy suave */
+
+    /* Mantenemos el centrado y ancho corto */
+    width: auto; 
+    margin: 0 auto; 
+    display: inline-flex; 
+  }
+
+  .btn-outline:hover { 
+    background-color: #e2e8f0; /* Un gris un poco más oscuro al pasar el ratón */
+    color: #1e40af; /* Azul un poquito más brillante en hover */
+    border-color: #1e3a8a; 
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(30, 64, 175, 0.1);
+  }
+
+  .btn-outline:active {
+    transform: scale(0.97); /* Efecto orgánico al presionar */
+  }
 
   .form-container { max-width: 1200px; margin: 0 auto; background: transparent; }
   .btn-text { 

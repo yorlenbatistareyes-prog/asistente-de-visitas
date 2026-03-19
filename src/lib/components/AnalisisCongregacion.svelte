@@ -674,7 +674,27 @@
 
   .focus-textarea:focus { border-color: var(--primary); }
 
-  .btn-primary { background: var(--primary); color: white; padding: 10px 20px; }
+  /* BOTÓN PRINCIPAL (Rojo Vino Intenso / Borgoña Oscuro) FORZADO */
+  .btn-primary { 
+    background-color: #5c0a1f !important; /* El !important fuerza el color */
+    color: white !important; 
+    padding: 10px 20px !important; 
+    border-radius: 30px !important; 
+    box-shadow: 0 2px 4px rgba(92, 10, 31, 0.3); 
+    border: none;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .btn-primary:hover { 
+    background-color: #3a0411 !important; /* Rojo casi negro al pasar el ratón */
+    transform: translateY(-1px); 
+    box-shadow: 0 4px 6px rgba(92, 10, 31, 0.4);
+  }
+  
+  .btn-primary:active {
+    transform: scale(0.97); 
+  }
 
   /* CHIPS (Ahora más finos y estilizados) */
   .chip {

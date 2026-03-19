@@ -313,34 +313,99 @@
   .counter-input { width: 50px; text-align: center; font-size: 1.3rem; font-weight: 800; color: var(--text-main); background: transparent; border: none; outline: none; padding: 0; -moz-appearance: textfield; }
   .counter-input::-webkit-outer-spin-button, .counter-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-  .revision-actions { display: flex; gap: 15px; justify-content: flex-end; flex-wrap: wrap; border-top: var(--border-thin); padding-top: 20px; }
-  .btn-accion { height: 40px; padding: 0 20px; border-radius: var(--radius-md); font-weight: 600; font-size: 0.95rem; display: inline-flex; justify-content: center; align-items: center; gap: 8px; cursor: pointer; transition: all 0.2s; border: none; }
-  .btn-primary { background: var(--primary); color: white; }
-  .btn-primary:hover { background: #be123c; transform: translateY(-2px); box-shadow: var(--shadow-md); }
-  .btn-outline { background: var(--bg-panel); border: var(--border-thin); color: var(--text-main); }
-  .btn-outline:hover { background: var(--bg-app); border-color: var(--primary); color: var(--primary); }
-  .btn-azul { background: #2563eb; color: white; }
-  .btn-azul:hover { background: #1d4ed8; transform: translateY(-2px); box-shadow: var(--shadow-md); }
-  .btn-exito { background: #10b981; color: white; }
+  /* --- ESTÉTICA MODERNA Y DISCRETA PARA LOS BOTONES --- */
+  .revision-actions { 
+    display: flex; 
+    gap: 12px; 
+    justify-content: flex-end; 
+    align-items: center;
+    flex-wrap: wrap; 
+    border-top: 1px solid #e2e8f0; 
+    padding-top: 16px; 
+    margin-top: 10px;
+  }
+
+  .btn-accion { 
+    height: 36px; /* Altura más fina */
+    padding: 0 18px; 
+    border-radius: 30px; /* Forma de píldora redondeada */
+    font-weight: 600; 
+    font-size: 0.85rem; 
+    display: inline-flex; 
+    justify-content: center; 
+    align-items: center; 
+    gap: 6px; 
+    cursor: pointer; 
+    transition: all 0.2s ease; 
+    border: 1px solid transparent; 
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* Sombra muy sutil */
+  }
+
+  /* Botón: Poner a cero */
+  .btn-outline { 
+    background: transparent; 
+    border-color: #cbd5e1; 
+    color: #64748b; 
+    box-shadow: none;
+  }
+  .btn-outline:hover { 
+    background: #f8fafc; 
+    color: #334155; 
+    border-color: #94a3b8;
+  }
+
+  /* Botón: Guardar Progreso (Rojo Vino / Burdeos) */
+  .btn-primary { 
+    background: #881337; /* Un rojo vino profundo y elegante */
+    color: white; 
+    box-shadow: 0 2px 4px rgba(136, 19, 55, 0.2); 
+  }
+  .btn-primary:hover { 
+    background: #4c0519; /* Más oscuro al pasar el ratón */
+    transform: translateY(-1px); 
+    box-shadow: 0 4px 6px rgba(136, 19, 55, 0.3);
+  }
+
+  /* Botón: Finalizar y Archivar (Azul Marino Oscuro) */
+  .btn-azul { 
+    background: #1e40af; /* Azul oscuro formal */
+    color: white; 
+    box-shadow: 0 2px 4px rgba(30, 64, 175, 0.2);
+  }
+  .btn-azul:hover { 
+    background: #1e3a8a; /* Azul marino casi negro al pasar el ratón */
+    transform: translateY(-1px); 
+    box-shadow: 0 4px 6px rgba(30, 64, 175, 0.3);
+  }
+
+  .btn-exito { 
+    background: #10b981; 
+    color: white; 
+  }
+
+  .btn-accion:active {
+    transform: scale(0.97); /* Efecto orgánico al presionar */
+  }
+
   .spin { animation: spin 1s linear infinite; }
   @keyframes spin { 100% { transform: rotate(360deg); } }
-
-  @media (max-width: 768px) {
-    .grid-contadores { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    .revision-actions { flex-direction: column; }
-    .btn-accion { width: 100%; }
-    .fecha-seccion { width: 100%; justify-content: space-between; }
-  }
 
   .info-calculada {
     font-size: 0.75rem;
     color: var(--primary);
-    background: rgba(var(--primary-rgb), 0.05); /* O puedes poner un color fijo como #e0f2fe si no usas rgb */
+    background: rgba(var(--primary-rgb), 0.05); 
     padding: 4px 10px;
     border-radius: 6px;
     margin-top: 10px;
     font-weight: 500;
     text-align: center;
     width: 100%;
+  }
+
+  /* Ajustes para móviles */
+  @media (max-width: 768px) {
+    .grid-contadores { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .revision-actions { justify-content: center; } /* Centra los botones en vez de estirarlos al 100% */
+    .fecha-seccion { width: 100%; justify-content: space-between; }
   }
 </style>
