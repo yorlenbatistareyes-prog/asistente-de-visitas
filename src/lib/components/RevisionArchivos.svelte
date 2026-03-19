@@ -55,7 +55,8 @@
       // 2. Buscamos la última revisión en SQLite para poder comparar en vivo
       const db = await initDB();
       const resCong = await db.select<{id: number}[]>(
-        'SELECT id FROM congregaciones WHERE nombre = $1 LIMIT 1', [nombreCongregacion]
+         'SELECT id FROM congregaciones WHERE TRIM(UPPER(nombre)) = TRIM(UPPER($1)) LIMIT 1', 
+         [nombreCongregacion]
       );
       
       if (resCong.length > 0) {

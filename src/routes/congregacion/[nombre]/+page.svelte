@@ -5,10 +5,7 @@
   import { ArrowLeft, History, ClipboardEdit, Calendar, ChevronRight, Play, CheckCircle2, Clock,
     LayoutDashboard, FolderOpen, Archive } from "lucide-svelte";
   
-  // IMPORTAMOS SQLITE EN VEZ DE LAZYSTORE
   import { initDB, cargarConfig } from '$lib/services/db';
-  
-  // TUS DOS COMPONENTES HIJOS
   import AnalisisCongregacion from '$lib/components/AnalisisCongregacion.svelte';
   import HistorialCongregacion from '$lib/components/HistorialCongregacion.svelte';
   import RevisionArchivos from '$lib/components/RevisionArchivos.svelte';
@@ -18,7 +15,6 @@
   $: nombreCongregacion = $page.params.nombre || "";
 
   let modo: 'dashboard' | 'nuevo' | 'historial' = 'dashboard';
-  // NUEVO: Variable para controlar la pestaña activa
   let pestanaActiva: 'analisis' | 'archivos' = 'analisis';
   let idVisitaSeleccionada: number | null = null; 
   
@@ -37,6 +33,11 @@
     'recomendaciones', 'localReunion' 
   ];
 
+  // LA OPCIÓN NUCLEAR: Borra todo lo que no sea una letra de la A a la Z o un número.
+  const normalizarExtremo = (texto: string) => {
+    return decodeURIComponent(texto).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  };
+
   async function cargarDatosDashboard() {
     cargando = true;
     try {
@@ -46,34 +47,25 @@
       if (valor && valor !== "{}" && valor !== "") {
         const borrador = typeof valor === 'string' ? JSON.parse(valor) : valor;
         let llenos = 0;
-        
-        camposMuro.forEach(c => {
-          if (borrador[c] && typeof borrador[c] === 'string' && borrador[c].trim() !== '') {
-            llenos++;
-          }
-        });
-        
+        camposMuro.forEach(c => { if (borrador[c] && typeof borrador[c] === 'string' && borrador[c].trim() !== '') llenos++; });
         progreso = llenos;
         hayBorrador = llenos > 0 || (borrador.fechaVisita && borrador.fechaVisita.trim() !== '');
         fechaBorrador = borrador.fechaVisita || 'Sin fecha asignada';
       } else {
-        progreso = 0; 
-        hayBorrador = false;
-        fechaBorrador = '';
+        progreso = 0; hayBorrador = false; fechaBorrador = '';
       }
 
-      // 3. CARGAMOS EL HISTORIAL RECIENTE
+      // BÚSQUEDA EXTREMA PARA EL HISTORIAL
       const db = await initDB();
-      const resCong = await db.select<{id: number}[]>(
-        'SELECT id FROM congregaciones WHERE nombre = $1 LIMIT 1', 
-        [nombreCongregacion]
-      );
+      const congregacionesDB = await db.select<{id: number, nombre: string}[]>('SELECT id, nombre FROM congregaciones');
+      const nombreLimpio = normalizarExtremo(nombreCongregacion);
       
-      if (resCong.length > 0) {
-        const congregacionId = resCong[0].id;
+      const congEncontrada = congregacionesDB.find(c => normalizarExtremo(c.nombre) === nombreLimpio);
+
+      if (congEncontrada) {
         historialReciente = await db.select<any[]>(
           'SELECT * FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC LIMIT 6',
-          [congregacionId]
+          [congEncontrada.id]
         );
       } else {
         historialReciente = [];
@@ -92,7 +84,7 @@
 
   function volverAlMenu() {
     modo = 'dashboard';
-    pestanaActiva = 'analisis'; // Para asegurar que vuelva a la pestaña principal
+    pestanaActiva = 'analisis'; 
     datosParaEditar = null;
     cargarDatosDashboard(); 
   }
@@ -100,33 +92,46 @@
   // --- FUNCIÓN QUE ATRAPA EL INFORME FINALIZADO Y LO GUARDA ---
   async function handleGuardarEnHistorial(e: CustomEvent) {
     const { congregacion, fecha, contenido, tipo } = e.detail;
-    
-    // Si el componente envía un tipo, lo usa. Si no, ¡A LA FUERZA usa 'Análisis'!
     const tipoVisita = tipo ? tipo : 'Análisis'; 
 
     try {
       const db = await initDB();
-      const resCong = await db.select<{id: number}[]>(
-        'SELECT id FROM congregaciones WHERE nombre = $1 LIMIT 1', 
-        [congregacion]
-      );
+      const congregacionesDB = await db.select<{id: number, nombre: string}[]>('SELECT id, nombre FROM congregaciones');
+      
+      // Aplicamos la limpieza extrema
+      const nombreBusqueda = normalizarExtremo(congregacion);
+      
+      console.log("🕵️‍♂️ DIAGNÓSTICO DE GUARDADO:");
+      console.log(`Intentando guardar para: [${nombreBusqueda}]`);
 
-      if (resCong.length > 0) {
-        const congregacionId = resCong[0].id;
+      // Buscamos coincidencia exacta de caracteres alfanuméricos
+      let congEncontrada = null;
+      for (const c of congregacionesDB) {
+        const nombreDB = normalizarExtremo(c.nombre);
+        console.log(`Comparando con DB: [${nombreDB}]`);
+        if (nombreDB === nombreBusqueda) {
+          congEncontrada = c;
+          break;
+        }
+      }
+
+      if (congEncontrada) {
         await db.execute(
           `INSERT INTO historial_visitas (congregacion_id, fecha, tipo, completado, contenido) 
            VALUES ($1, $2, $3, $4, $5)`,
-          [congregacionId, fecha, tipoVisita, 1, contenido] // <-- Aquí inyectamos el nombre correcto
+          [congEncontrada.id, fecha, tipoVisita, 1, contenido] 
         );
 
-        // ⬇️ AGREGAR ESTA LÍNEA AQUÍ ⬇️
         notificarCambioHistorial();
-        
         cargarDatosDashboard(); 
+        
+        alert(`✅ ¡Revisión archivada con éxito para ${congEncontrada.nombre}!`);
+      } else {
+        alert(`Error: No logré emparejar la congregación. Abre la consola (F12) para ver el diagnóstico.`);
       }
     } catch (error) {
-      console.error("Error al guardar en el historial SQLite:", error);
-      alert("Error al guardar el informe en la base de datos.");
+      console.error("Error al guardar en SQLite:", error);
+      alert("Error al guardar el informe.");
     }
   }
 </script>

@@ -89,33 +89,25 @@ fn save_document_record(name: String, path: String, doc_type: String, _size: Str
 // --- 3. MAIN ---
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // ELIMINADO: Ya no inicializamos la BD aquí suelta, ahora lo haremos en el setup.
-
     tauri::Builder::default()
-        // --- PLUGINS: Mantenemos TODOS para que los PDF y la BD sigan funcionando ---
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_fs::init())     // Vital para leer PDFs
-        .plugin(tauri_plugin_dialog::init()) // Vital para importar
-        .plugin(tauri_plugin_opener::init()) // Lo dejamos por si acaso
-        .plugin(tauri_plugin_sql::Builder::default().build()) // Mantenido temporalmente
-        // --------------------------------------------------------------------------
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_sql::Builder::default().build())
 
-        // --- NUEVO: CONFIGURACIÓN DE RUTAS AL ARRANCAR ---
         .setup(|app| { 
-            // 1. Buscamos la carpeta segura del sistema (AppData / Application Support)
-            let app_data_dir = app.path().app_local_data_dir().expect("Error buscando AppData");
+            // CAMBIO AQUÍ: Usamos app_data_dir() para ir a Roaming automáticamente
+            // Antes tenías: app_local_data_dir()
+            let app_data_dir = app.path().app_data_dir().expect("Error buscando AppData");
             
-            // 2. Creamos la carpeta por si no existe
             std::fs::create_dir_all(&app_data_dir).expect("Error creando carpeta segura");
             
-            // 3. Armamos la ruta completa apuntando al archivo original "av_database.db"
             let db_path = app_data_dir.join("av_database.db").to_string_lossy().to_string();
             
-            // 4. Se la pasamos a la bóveda de database.rs para que la use siempre
             database::DB_PATH.set(db_path).expect("Error guardando ruta global");
             
-            // 5. Inicializamos las tablas en la ubicación correcta
             if let Err(e) = database::inicializar_bd() {
                 eprintln!("Error crítico en BD: {}", e);
             }

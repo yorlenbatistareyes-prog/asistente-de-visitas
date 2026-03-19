@@ -15,51 +15,56 @@
   
   let congregacionesAnalizadas = 0;
 
-  // Reactividad forzada por URL y Lista
-  $: if ($actualizacionHistorial || listaCongregaciones || $page.url.pathname) {
-  calcularMetricas();
-}
+  // REACTIVIDAD ANTI-CARRERAS: Escucha los cambios, pero espera 300ms 
+  // para que SQLite termine de guardar la visita antes de calcular todo.
+  $: if ($actualizacionHistorial || listaCongregaciones.length >= 0 || $page.url.pathname) {
+    setTimeout(() => {
+      calcularMetricas();
+    }, 300);
+  }
 
- async function calcularMetricas() {
-    console.log("🔵 calcularMetricas() iniciada");
-    
-    if (!listaCongregaciones || listaCongregaciones.length === 0) {
-      metricasGlobales = { total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, sacados: 0, precursoresRegulares: 0, precursoresAuxiliares: 0, ancianos: 0, siervosMinisteriales: 0, irregulares: 0, inactivos: 0, sinCursos: 0 };
-      congregacionesAnalizadas = 0;
-      return;
-    }
+  async function calcularMetricas() {
+    if (!listaCongregaciones || listaCongregaciones.length === 0) return;
 
     try {
       const db = await initDB();
       let t = { total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, sacados: 0, precursoresRegulares: 0, precursoresAuxiliares: 0, ancianos: 0, siervosMinisteriales: 0, irregulares: 0, inactivos: 0, sinCursos: 0 };
       let contador = 0;
+      
+      // Creamos un registro para la consola
+      let tablaDebug = [];
 
       for (const cong of listaCongregaciones) {
-        
-        // ¡EL BYPASS DE ORO! Buscamos el ID directo en SQLite usando el nombre.
-        // Hacemos exactamente lo mismo que hace tu archivo HistorialVisitas.svelte
-        const resCong = await db.select<{id: number}[]>(
-          'SELECT id FROM congregaciones WHERE nombre = $1 LIMIT 1', 
-          [cong.nombre]
-        );
+        let registro = { 
+          Congregacion: cong.nombre, 
+          ID_SQLite: "No encontrado", 
+          Historiales: 0, 
+          TotalExtraido: 0,
+          Estado: "Sin datos"
+        };
+
+        const resCong = await db.select<{id: number}[]>('SELECT id FROM congregaciones WHERE nombre = $1 LIMIT 1', [cong.nombre]);
 
         if (resCong.length > 0) {
-          const congregacionIdSQLite = resCong[0].id;
+          const idRealSQLite = resCong[0].id;
+          registro.ID_SQLite = idRealSQLite;
 
-          // Ahora sí, buscamos el historial con un ID 100% real de la base de datos
-          const res = await db.select<{contenido: string}[]>(
-            "SELECT contenido FROM historial_visitas WHERE congregacion_id = $1 AND tipo = 'Revisión de Archivos' ORDER BY fecha DESC LIMIT 1",
-            [congregacionIdSQLite]
+          const res = await db.select<{contenido: string, tipo: string}[]>(
+            "SELECT contenido, tipo FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC",
+            [idRealSQLite]
           );
           
-          if (res.length > 0) {
-            console.log(`✅ Sumando datos de: ${cong.nombre}`);
-            try {
-              let contenidoRaw = res[0].contenido;
-              let snapshot = JSON.parse(contenidoRaw);
-              if (typeof snapshot === 'string') snapshot = JSON.parse(snapshot);
+          const revisiones = res.filter(v => v.tipo.includes('Revisi'));
+          registro.Historiales = revisiones.length;
 
+          if (revisiones.length > 0) {
+            try {
+              const revision = revisiones[0]; // Tomamos la más reciente
+              let snapshot = JSON.parse(revision.contenido);
+              if (typeof snapshot === 'string') snapshot = JSON.parse(snapshot);
+              
               contador++;
+              registro.Estado = "OK";
 
               const val = (k: string) => {
                 const d = snapshot[k];
@@ -67,7 +72,11 @@
                 return Number(d) || 0;
               };
 
-              t.total += val('total');
+              // Extraemos el total para la tabla de diagnóstico
+              const publicadores = val('total');
+              registro.TotalExtraido = publicadores;
+
+              t.total += publicadores;
               t.bautizados += val('bautizados');
               t.mayores65 += val('mayores65');
               t.nuevos += val('nuevos');
@@ -81,20 +90,24 @@
               t.irregulares += val('irregulares');
               t.inactivos += val('inactivos');
               t.sinCursos += val('sinCursos');
-            } catch (e) { console.error("Error parseando:", e); }
+            } catch (e) { 
+              registro.Estado = "Error de JSON"; 
+            }
           }
         }
+        tablaDebug.push(registro);
       }
+
+      // IMPRIMIMOS LA TABLA EN LA CONSOLA
+      console.table(tablaDebug);
 
       metricasGlobales = { ...t };
       congregacionesAnalizadas = contador;
       
-    } catch (e) { console.error("Error en Panel:", e); }
+    } catch (e) { console.error("Error crítico:", e); }
   }
-
-  function togglePanel() {
-    panelVisible = !panelVisible;
-  }
+  
+  function togglePanel() { panelVisible = !panelVisible; }
 </script>
 
 <div class="panel-global {panelVisible ? '' : 'colapsado'}">

@@ -55,3 +55,4 @@ pub fn inicializar_bd() -> Result<()> {
 
     Ok(())
 }
+

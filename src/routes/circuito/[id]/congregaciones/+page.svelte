@@ -94,31 +94,34 @@
   async function handleGuardarCongregacion(e: CustomEvent) {
     try {
       const nueva = e.detail;
-      
-      if (circuitoActual) {
-        await guardarCongregacion({
-          id: nueva.id, 
-          circuito: circuitoActual.nombre,
-          nombre: nueva.nombre,
-          enVisita: nueva.enVisita || false,
-          ciudad: nueva.ciudad || "",
-          provincia: nueva.provincia || "",
-          pais: nueva.pais || "",
-          idioma: nueva.idioma || "Español",
-          esLenguaSenas: nueva.esLenguaSenas || false,
-          telefono: nueva.telefono || "",
-          horaSemana: nueva.horaSemana || "",
-          horaFinSemana: nueva.horaFinSemana || "",
-          diaSemana: nueva.diaSemana || "",
-          diaFinSemana: nueva.diaFinSemana || ""
-        });
-        
-        mostrarModal = false;
-        await cargarDatos(); 
+      if (!circuitoActual) return;
+
+      // EL CLON EXACTO DEL CSV: Mismos campos, mismo orden, sin horarios.
+      let datosParaGuardar: any = {
+        circuito: circuitoActual.nombre,
+        nombre: nueva.nombre.trim().toUpperCase(),
+        enVisita: Boolean(nueva.enVisita), // Forzamos a que sea un booleano estricto
+        ciudad: nueva.ciudad || "",
+        provincia: nueva.provincia || "",
+        pais: nueva.pais || "",
+        telefono: nueva.telefono || "",
+        idioma: "Español",
+        esLenguaSenas: Boolean(nueva.esLenguaSenas) // Forzamos booleano estricto
+      };
+
+      // Agregamos el ID solo si es una edición
+      if (nueva.id && String(nueva.id).trim() !== "") {
+        datosParaGuardar.id = Number(nueva.id);
       }
+
+      await guardarCongregacion(datosParaGuardar);
+      
+      mostrarModal = false;
+      await cargarDatos(); 
+      alert("✅ Congregación manual guardada correctamente.");
     } catch (err) {
-      console.error("❌ Error guardando la congregación manualmente:", err);
-      alert("Ocurrió un error al guardar. Revisa que el nombre no esté duplicado.");
+      console.error("Error guardando la congregación manualmente:", err);
+      alert("Ocurrió un error al guardar.");
     }
   }
 
@@ -175,6 +178,7 @@
     </div>
     
     <div style="display: flex; gap: 10px;">
+
       <label class="btn-importar">
          <Upload size={18} /> <span>Importar CSV</span>
          <input type="file" accept=".csv" on:change={importarCSV} hidden />
