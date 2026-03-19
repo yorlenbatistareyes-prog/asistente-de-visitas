@@ -11,6 +11,44 @@ pub struct VisitaHistorialRust {
     pub contenido: String,
 }
 
+// --- NUEVAS ESTRUCTURAS PARA EL PANEL DE ESTADÍSTICAS ---
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TotalesCircuito {
+    pub publicadores: i32,
+    pub precursores: i32,
+    pub auxiliares: i32,
+    pub eb: i32,
+    pub ancianos: i32,
+    pub siervos_min: i32,
+    pub congregaciones_contadas: i32,
+}
+
+// Agregamos Serialize aquí para que no de error
+// Agregamos Serialize aquí para que no de error
+#[derive(Debug, Serialize, Deserialize)] 
+pub struct ContenidoInforme {
+    #[serde(alias = "total", default)] // <--- CLAVE: Si el JSON dice "total", cárgalo aquí
+    pub publicadores: i32,
+    #[serde(alias = "precursoresRegulares", default)] 
+    pub precursores: i32,
+    #[serde(alias = "precursoresAuxiliares", default)] 
+    pub auxiliares: i32,
+    #[serde(alias = "sinCursos", alias = "eb", default)] 
+    pub eb: i32,
+    #[serde(default)]
+    pub ancianos: i32,
+    #[serde(alias = "siervosMinisteriales", alias = "siervos_min", default)]
+    pub siervos_min: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DesgloseUltimaVisita {
+    pub nombre_congregacion: String,
+    pub fecha_visita: String,
+    pub datos: ContenidoInforme,
+}
+
 #[tauri::command]
 pub fn obtener_historial_rust(congregacion_id: i64) -> Result<Vec<VisitaHistorialRust>, String> {
     let conn = establecer_conexion().map_err(|e| e.to_string())?;
@@ -77,4 +115,92 @@ pub fn eliminar_historial_rust(id: i64) -> Result<(), String> {
     let conn = establecer_conexion().map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM historial_visitas WHERE id = ?1", rusqlite::params![id]).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// --- COMANDO PARA LOS TOTALES DEL PANEL SUPERIOR ---
+
+#[tauri::command]
+pub fn obtener_totales_circuito_recientes_rust() -> Result<TotalesCircuito, String> {
+    let conn = establecer_conexion().map_err(|e| e.to_string())?;
+
+    // Usamos la VISTA que creamos en database.rs para obtener solo las ÚLTIMAS visitas
+    let mut stmt = conn
+        .prepare("SELECT contenido FROM vista_ultima_visita_congregacion")
+        .map_err(|e| e.to_string())?;
+
+    let informes_iter = stmt
+        .query_map([], |row| {
+            let contenido_json: String = row.get(0)?;
+            Ok(contenido_json)
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut totales = TotalesCircuito {
+        publicadores: 0, precursores: 0, auxiliares: 0,
+        eb: 0, ancianos: 0, siervos_min: 0,
+        congregaciones_contadas: 0,
+    };
+
+    for informe_json in informes_iter {
+        if let Ok(json_str) = informe_json {
+            if let Ok(data) = serde_json::from_str::<ContenidoInforme>(&json_str) {
+                totales.publicadores += data.publicadores;
+                totales.precursores += data.precursores;
+                totales.auxiliares += data.auxiliares;
+                totales.eb += data.eb;
+                totales.ancianos += data.ancianos;
+                totales.siervos_min += data.siervos_min;
+                totales.congregaciones_contadas += 1;
+            }
+        }
+    }
+    Ok(totales)
+}
+
+// --- COMANDO PARA EL BOTÓN DE DESGLOSE (TABLA TIPO TIMOTHY) ---
+
+#[tauri::command]
+pub fn obtener_desglose_ultimas_visitas_rust(circuito: String) -> Result<Vec<DesgloseUltimaVisita>, String> {
+    let conn = establecer_conexion().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare("
+            SELECT c.nombre, v.fecha, v.contenido 
+            FROM congregaciones c
+            INNER JOIN vista_ultima_visita_congregacion v ON c.id = v.congregacion_id
+            WHERE c.circuito = ?1
+            ORDER BY c.nombre ASC
+        ")
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map(rusqlite::params![circuito], |row| {
+        let nombre: String = row.get(0)?;
+        let fecha: String = row.get(1)?;
+        let contenido_raw: String = row.get(2)?;
+        
+        // Limpieza del JSON (por si acaso viene doblemente escapado)
+        let contenido_limpio = if contenido_raw.starts_with('"') {
+            serde_json::from_str::<String>(&contenido_raw).unwrap_or(contenido_raw)
+        } else {
+            contenido_raw
+        };
+
+        let datos = serde_json::from_str::<ContenidoInforme>(&contenido_limpio)
+            .unwrap_or_else(|_| ContenidoInforme { 
+                publicadores: 0, precursores: 0, auxiliares: 0, 
+                eb: 0, ancianos: 0, siervos_min: 0 
+            });
+
+        Ok(DesgloseUltimaVisita {
+            nombre_congregacion: nombre,
+            fecha_visita: fecha,
+            datos
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut lista = Vec::new();
+    for row in rows {
+        lista.push(row.map_err(|e| e.to_string())?);
+    }
+    Ok(lista)
 }

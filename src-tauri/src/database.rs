@@ -53,6 +53,21 @@ pub fn inicializar_bd() -> Result<()> {
         [],
     )?;
 
+    // --- NUEVO: CREACIÓN DE LA VISTA PARA LAS ESTADÍSTICAS ---
+    // Esta vista filtra automáticamente la última visita finalizada de cada congregación
+    conn.execute(
+        "CREATE VIEW IF NOT EXISTS vista_ultima_visita_congregacion AS
+        SELECT hv.*
+        FROM historial_visitas hv
+        JOIN (
+            SELECT congregacion_id, MAX(fecha) as max_fecha
+            FROM historial_visitas
+            WHERE completado = 1
+            GROUP BY congregacion_id
+        ) hv2 ON hv.congregacion_id = hv2.congregacion_id AND hv.fecha = hv2.max_fecha",
+        [],
+    )?;
+
     Ok(())
 }
 

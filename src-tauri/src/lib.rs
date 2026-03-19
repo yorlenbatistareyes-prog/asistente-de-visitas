@@ -141,7 +141,9 @@ pub fn run() {
             // --- NUEVOS COMANDOS DEL HISTORIAL ---
             historial::obtener_historial_rust,
             historial::guardar_historial_rust,
-            historial::eliminar_historial_rust
+            historial::eliminar_historial_rust,
+            historial::obtener_totales_circuito_recientes_rust, // <-- AÑADIR
+            historial::obtener_desglose_ultimas_visitas_rust,   // <-- AÑADIR
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

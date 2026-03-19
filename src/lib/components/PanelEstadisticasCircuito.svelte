@@ -2,81 +2,69 @@
   import { Activity, Users, Star, BookOpen, AlertTriangle, ChevronUp, ChevronDown, TrendingUp } from "lucide-svelte"; 
   import { initDB, type Congregacion } from '$lib/services/db';
   import { page } from '$app/stores';
-  import { actualizacionHistorial } from '$lib/stores/appStore';
+  import { actualizacionHistorial, circuitoActivo } from '$lib/stores/appStore';
+  import { onMount } from "svelte";
+
+  interface DesgloseVisita {
+    nombre_congregacion: string;
+    fecha_visita: string;
+    datos: {
+      publicadores: number;
+      precursores: number;
+      auxiliares: number;
+      eb: number;
+      ancianos: number;
+      siervos_min: number;
+    };
+  }
 
   export let listaCongregaciones: Congregacion[] = [];
   let panelVisible = true;
+  let mostrarDetalle = false; 
+  let desgloseVisitas: DesgloseVisita[] = []; 
+  let congregacionesAnalizadas = 0;
 
   let metricasGlobales = {
     total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, sacados: 0,
     precursoresRegulares: 0, precursoresAuxiliares: 0, ancianos: 0, siervosMinisteriales: 0,
     irregulares: 0, inactivos: 0, sinCursos: 0
   };
-  
-  let congregacionesAnalizadas = 0;
-
-  // REACTIVIDAD ANTI-CARRERAS: Escucha los cambios, pero espera 300ms 
-  // para que SQLite termine de guardar la visita antes de calcular todo.
-  $: if ($actualizacionHistorial || listaCongregaciones.length >= 0 || $page.url.pathname) {
-    setTimeout(() => {
-      calcularMetricas();
-    }, 300);
-  }
 
   async function calcularMetricas() {
     if (!listaCongregaciones || listaCongregaciones.length === 0) return;
-
     try {
       const db = await initDB();
       let t = { total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, sacados: 0, precursoresRegulares: 0, precursoresAuxiliares: 0, ancianos: 0, siervosMinisteriales: 0, irregulares: 0, inactivos: 0, sinCursos: 0 };
       let contador = 0;
       
-      // Creamos un registro para la consola
-      let tablaDebug = [];
+      // NUEVO: Array temporal para construir la tabla del desglose
+      let tablaDesglose: DesgloseVisita[] = [];
 
       for (const cong of listaCongregaciones) {
-        let registro = { 
-          Congregacion: cong.nombre, 
-          ID_SQLite: "No encontrado", 
-          Historiales: 0, 
-          TotalExtraido: 0,
-          Estado: "Sin datos"
-        };
-
         const resCong = await db.select<{id: number}[]>('SELECT id FROM congregaciones WHERE nombre = $1 LIMIT 1', [cong.nombre]);
-
         if (resCong.length > 0) {
-          const idRealSQLite = resCong[0].id;
-          registro.ID_SQLite = idRealSQLite;
-
-          const res = await db.select<{contenido: string, tipo: string}[]>(
-            "SELECT contenido, tipo FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC",
-            [idRealSQLite]
+          // AÑADIDO: Seleccionamos la 'fecha' además del contenido y tipo
+          const res = await db.select<{fecha: string, contenido: string, tipo: string}[]>(
+            "SELECT fecha, contenido, tipo FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC",
+            [resCong[0].id]
           );
           
           const revisiones = res.filter(v => v.tipo.includes('Revisi'));
-          registro.Historiales = revisiones.length;
-
           if (revisiones.length > 0) {
             try {
-              const revision = revisiones[0]; // Tomamos la más reciente
-              let snapshot = JSON.parse(revision.contenido);
+              const visitaReciente = revisiones[0];
+              let snapshot = JSON.parse(visitaReciente.contenido);
               if (typeof snapshot === 'string') snapshot = JSON.parse(snapshot);
               
               contador++;
-              registro.Estado = "OK";
-
               const val = (k: string) => {
                 const d = snapshot[k];
                 if (d && typeof d === 'object' && 'valor' in d) return Number(d.valor) || 0;
                 return Number(d) || 0;
               };
 
-              // Extraemos el total para la tabla de diagnóstico
-              const publicadores = val('total');
-              registro.TotalExtraido = publicadores;
-
-              t.total += publicadores;
+              // 1. Llenamos las métricas globales
+              t.total += val('total');
               t.bautizados += val('bautizados');
               t.mayores65 += val('mayores65');
               t.nuevos += val('nuevos');
@@ -90,24 +78,49 @@
               t.irregulares += val('irregulares');
               t.inactivos += val('inactivos');
               t.sinCursos += val('sinCursos');
-            } catch (e) { 
-              registro.Estado = "Error de JSON"; 
+
+              // 2. NUEVO: Extraemos los datos para la fila de esta congregación en la tabla
+              tablaDesglose.push({
+                nombre_congregacion: cong.nombre,
+                fecha_visita: visitaReciente.fecha,
+                datos: {
+                  publicadores: val('total'),
+                  precursores: val('precursoresRegulares'),
+                  auxiliares: val('precursoresAuxiliares'),
+                  eb: val('sinCursos'),
+                  ancianos: val('ancianos'),
+                  siervos_min: val('siervosMinisteriales')
+                }
+              });
+
+            } catch (e) {
+              console.error("Error procesando JSON para:", cong.nombre, e);
             }
           }
         }
-        tablaDebug.push(registro);
       }
-
-      // IMPRIMIMOS LA TABLA EN LA CONSOLA
-      console.table(tablaDebug);
-
+      
       metricasGlobales = { ...t };
       congregacionesAnalizadas = contador;
       
-    } catch (e) { console.error("Error crítico:", e); }
+      // Asignamos la tabla terminada a la variable reactiva
+      desgloseVisitas = tablaDesglose;
+
+    } catch (e) { console.error("Error crítico en cálculos:", e); }
   }
-  
+
   function togglePanel() { panelVisible = !panelVisible; }
+
+  // Reactividad
+  $: if ($actualizacionHistorial || listaCongregaciones.length >= 0 || $page.url.pathname) {
+    setTimeout(() => {
+      calcularMetricas();
+    }, 300);
+  }
+
+  onMount(() => {
+    calcularMetricas();
+  });
 </script>
 
 <div class="panel-global {panelVisible ? '' : 'colapsado'}">
@@ -220,9 +233,58 @@
         </div>
       </div>
 
+    </div> <div class="desglose-container">
+      <div class="divider"></div>
+      
+      <div class="desglose-actions">
+        <button type="button" class="btn-detalle" on:click={() => mostrarDetalle = !mostrarDetalle}>
+          {#if mostrarDetalle}
+            <ChevronUp size={14} /> Ocultar desglose detallado
+          {:else}
+            <ChevronDown size={14} /> Ver desglose por congregación (Última Visita)
+          {/if}
+        </button>
+      </div>
+
+      {#if mostrarDetalle}
+        <div class="tabla-scroll-wrapper fade-in">
+          <table class="tabla-timothy">
+            <thead>
+              <tr>
+                <th class="txt-left">Congregación</th>
+                <th>Fecha Visita</th>
+                <th>Pub.</th>
+                <th>Prec.</th>
+                <th>EB</th>
+                <th>Anc.</th>
+                <th>SM</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each desgloseVisitas as item}
+                <tr>
+                  <td class="txt-left"><strong>{item.nombre_congregacion}</strong></td>
+                  <td>{item.fecha_visita}</td>
+                  <td>{item.datos.publicadores}</td>
+                  <td>{item.datos.precursores}</td>
+                  <td>{item.datos.eb}</td>
+                  <td>{item.datos.ancianos}</td>
+                  <td>{item.datos.siervos_min}</td>
+                </tr>
+              {/each}
+              {#if desgloseVisitas.length === 0}
+                <tr>
+                  <td colspan="7" style="padding: 30px; color: #94a3b8; text-align: center;">
+                    No hay informes finalizados en este circuito.
+                  </td>
+                </tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      {/if}
     </div>
-  {/if}
-</div>
+    {/if} </div>
 
 <style>
   .panel-global { 
@@ -287,4 +349,119 @@
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* --- ESTILOS DEL DESGLOSE TIPO TIMOTHY --- */
+
+.desglose-container {
+  padding: 0 15px 15px 15px;
+  background: white;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, #e2e8f0, transparent);
+  margin: 10px 0 20px 0;
+}
+
+.desglose-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
+.btn-detalle {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 8px 20px;
+  border-radius: 30px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.btn-detalle:hover {
+  background: #ffffff;
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.tabla-scroll-wrapper {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.tabla-timothy {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  min-width: 600px; /* Evita que se encoja demasiado en pantallas pequeñas */
+}
+
+.tabla-timothy th {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  padding: 12px 10px;
+  border-bottom: 2px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+}
+
+.tabla-timothy td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  text-align: center;
+}
+
+.tabla-timothy tr:hover {
+  background-color: #f8fafc;
+}
+
+.tabla-timothy .txt-left {
+  text-align: left;
+  padding-left: 20px;
+}
+
+.tabla-timothy strong {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Animación de entrada suave */
+.fade-in {
+  animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDown {
+  from { 
+    opacity: 0; 
+    transform: translateY(-20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+/* Ajuste para el modo colapsado del panel padre */
+.panel-global.colapsado .desglose-container {
+  display: none;
+}
+
 </style>
