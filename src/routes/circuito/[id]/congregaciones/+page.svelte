@@ -428,4 +428,107 @@
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(20, 83, 45, 0.3);
   }
+
+  /* =============================================
+     DISEÑO RESPONSIVO (Tablets y Móviles)
+     ============================================= */
+
+  /* Tablets (hasta 1024px) */
+  @media (max-width: 1024px) {
+    .grid-congregaciones {
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+  }
+
+  /* Móviles (hasta 768px) */
+  @media (max-width: 768px) {
+    /* 1. Cabecera y Títulos */
+    .header-section {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 15px;
+    }
+
+    /* 2. Contenedor de botones: FORZAR LADO A LADO */
+    .header-section > div:last-child {
+      width: 100%;
+      display: flex !important;
+      flex-direction: row !important; /* Obliga a que estén en la misma línea */
+      flex-wrap: nowrap !important; /* Prohibido saltar a la línea de abajo */
+      gap: 10px !important; /* Separación entre ellos */
+    }
+
+    /* 🌟 EL TRUCO PARA IGUALAR LOS BOTONES (Ancho y Alto) 🌟 */
+    /* 3. Botones: Mitad y mitad exactos */
+    .header-section > div:last-child .btn-primary,
+    .header-section > div:last-child .btn-importar {
+      flex: 1 !important; /* Cada botón toma exactamente el 50% del espacio */
+      width: 100% !important;
+      height: 44px !important; /* Altura elegante y táctil */
+      padding: 0 5px !important; /* Reducimos un poco el relleno lateral para que quepa el texto */
+      font-size: 0.8rem !important; /* Letra un pelín más pequeña para pantallas estrechas */
+      
+      /* Centrado perfecto de icono y texto */
+      display: flex !important;
+      justify-content: center !important;
+      align-items: center !important;
+      
+      /* Si la pantalla es ultra-pequeña, evita que el texto se rompa feo */
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+    }
+
+    /* 3. Buscador anti-desbordamiento */
+    .search-bar {
+      width: 100%;
+      box-sizing: border-box; /* Esto evita que se salga de la pantalla */
+      height: 48px; /* Altura cómoda pero no exagerada */
+      border-radius: 12px;
+    }
+    
+    .search-bar input {
+      font-size: 1rem;
+    }
+
+    /* 4. Cuadrícula a una sola columna */
+    .grid-congregaciones {
+      grid-template-columns: 1fr;
+    }
+
+    /* 5. Tarjetas de Congregación */
+    .cong-card {
+      padding: 15px; 
+    }
+
+    .card-info h4 {
+      font-size: 1.1rem; 
+    }
+
+    /* 6. Iconos de acción (Editar y Eliminar) */
+    .card-actions {
+      gap: 15px; /* Los separamos un poco para no tocarlos por error */
+    }
+
+    .btn-icon-edit, .btn-icon-delete {
+      padding: 8px; /* Área táctil más grande */
+    }
+  }
+
+  /* Móviles muy pequeños (hasta 480px) */
+  @media (max-width: 480px) {
+    .header-section h3 {
+      font-size: 1.4rem;
+    }
+
+    /* Achicamos un poco el icono de la izquierda para que el texto respire */
+    .card-icon {
+      padding: 10px;
+    }
+    
+    .card-icon :global(svg) {
+      width: 24px !important;
+      height: 24px !important;
+    }
+  }
 </style>

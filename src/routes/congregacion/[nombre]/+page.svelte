@@ -515,4 +515,60 @@
   .btn-text:hover { color: #be123c; text-decoration: underline; }
   
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* =============================================
+     DISEÑO RESPONSIVO (Solo lo específico de esta vista)
+     Nota: Paddings, cuadrículas y botones se heredan de app.css
+     ============================================= */
+
+  @media (max-width: 768px) {
+    /* 1. Cabecera (Apilamos el botón de volver y el título) */
+    .focus-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 15px;
+    }
+
+    /* 2. Pestañas (Las volvemos botones apilados) */
+    .tabs-container {
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-direction: column;
+      border-bottom: none;
+    }
+    
+    .tab-btn {
+      width: 100%;
+      border-bottom: none;
+      border-left: 3px solid transparent; /* El indicador pasa a la izquierda */
+      justify-content: flex-start;
+      padding: 12px 15px;
+      background: var(--bg-panel);
+      border-radius: var(--radius-md);
+      margin-bottom: 5px;
+    }
+    
+    .tab-btn.active {
+      border-bottom: none;
+      border-left: 3px solid var(--primary); /* Respeta tu variable global */
+      background: var(--bg-app);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* 3. Ajuste de la lista del historial para que no choque la flecha */
+    .historial-item {
+      flex-direction: column;
+      align-items: flex-start;
+      position: relative;
+      padding-right: 40px; /* Dejamos un hueco a la derecha */
+    }
+    
+    .btn-icon {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%); /* Centramos la flecha verticalmente */
+    }
+  }
+
 </style>
