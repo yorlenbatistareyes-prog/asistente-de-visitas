@@ -294,20 +294,17 @@
     gap: 30px; 
   }
 
-  .btn-back { 
-    display: flex; 
-    align-items: center; 
-    gap: 8px; 
-    background: var(--bg-panel); 
-    color: var(--text-main); 
-    font-weight: 600; 
-    font-size: 0.9rem; 
-    padding: 8px 16px; 
-    border: var(--border-thin); 
-    border-radius: var(--radius-md); 
-    cursor: pointer; 
-    transition: all 0.2s; 
-  }
+  /* 4. Ajuste del botón "Volver atrás" (Elegante y visible) */
+    .btn-back {
+      width: auto !important; /* Le quitamos el ancho completo */
+      min-height: 40px; /* Altura cómoda para el dedo */
+      padding: 0 16px; 
+      justify-content: flex-start; /* Todo alineado a la izquierda */
+      border-radius: 30px; /* Le damos forma redondita de píldora */
+      background: var(--bg-panel);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.08); /* Una sombrita para que resalte y no se pierda */
+      border: 1px solid var(--border-color);
+    }
 
   .btn-back:hover { 
     background: var(--bg-app); 
@@ -570,5 +567,6 @@
       transform: translateY(-50%); /* Centramos la flecha verticalmente */
     }
   }
+
 
 </style>

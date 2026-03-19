@@ -793,4 +793,98 @@
     user-select: none;
   }
 
+/* =============================================
+     DISEÑO RESPONSIVO (Tablets y Móviles)
+     ============================================= */
+
+  /* Móviles (hasta 768px) */
+  @media (max-width: 768px) {
+    /* 1. Cabecera Principal */
+    .cabecera-principal {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 15px;
+    }
+
+    .info-cabecera {
+      width: 100%;
+    }
+
+    .fecha-seccion {
+      flex-wrap: wrap; /* Por si la pantalla es muy estrecha */
+      margin-top: 5px;
+    }
+
+    .fecha-seccion input {
+      flex: 1; /* Que el selector de fecha se estire */
+      min-width: 140px;
+      height: 44px; /* Más alto para que sea fácil tocar la fecha */
+      box-sizing: border-box;
+    }
+
+    /* 2. Botones Superiores (PDF y Finalizar) mitad y mitad */
+    .grupo-acciones {
+      width: 100%;
+      display: flex;
+      gap: 10px;
+    }
+
+    .grupo-acciones button {
+      flex: 1; /* 50% del ancho cada uno */
+      height: 48px; /* Altura táctil perfecta */
+      justify-content: center;
+      font-size: 0.95rem;
+      border-radius: 12px; /* Curva moderna */
+    }
+
+    /* 3. Cuadrícula del Muro (Tarjetas) */
+    .muro-grid {
+      grid-template-columns: repeat(auto-fill, minmax(100%, 1fr)); /* Forzamos 1 sola columna */
+    }
+    
+    .nota-card {
+      height: auto; /* Dejamos que la tarjeta crezca si el texto es largo */
+      min-height: 110px;
+    }
+
+    /* 4. Solución Anti-Desbordamiento del Checklist */
+    .checklist-grid {
+      grid-template-columns: 1fr; /* Sobrescribimos los 350px que rompen la pantalla */
+    }
+    
+    .check-item {
+      padding: 15px; /* Un poco más de área táctil */
+    }
+
+    /* 5. Modal de Escritura */
+    .focus-modal {
+      padding: 20px;
+      width: 95%;
+    }
+
+    .modal-footer .btn-primary {
+      width: 100% !important;
+      height: 48px !important;
+      justify-content: center !important;
+      border-radius: 12px !important; /* Curva móvil */
+    }
+  }
+
+  /* Móviles muy pequeños (hasta 480px) */
+  @media (max-width: 480px) {
+    .info-cabecera h2 {
+      font-size: 1.3rem; /* Evita que el título se parta feo */
+    }
+
+    /* El selector de fecha y los chips uno debajo del otro si no caben */
+    .fecha-seccion {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    
+    .fecha-seccion input {
+      width: 100%;
+    }
+  }
 </style>
