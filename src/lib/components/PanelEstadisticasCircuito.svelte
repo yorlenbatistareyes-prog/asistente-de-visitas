@@ -546,12 +546,11 @@
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);  /* ← ANTES: 0 4px 6px rgba(0,0,0,0.1) */
   }
-
-  .tabla-scroll-wrapper {
+.tabla-scroll-wrapper {
     overflow-x: auto;
-    border: 1px solid var(--border-color);  /* ← ANTES: #e2e8f0 */
+    border: 1px solid var(--border-color);
     border-radius: 10px;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); /* Puedes dejarlo o usar una variable */
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); 
   }
 
   .tabla-timothy {
@@ -562,27 +561,68 @@
   }
 
   .tabla-timothy th {
-    background: var(--bg-subtle);  /* ← ANTES: #f1f5f9 */
-    color: var(--text-muted);  /* ← ANTES: #475569 */
+    background: var(--bg-subtle);
+    color: var(--text-muted);
     font-weight: 700;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.05em;
     padding: 12px 10px;
-    border-bottom: 2px solid var(--border-color);  /* ← ANTES: #e2e8f0 */
+    border-bottom: 2px solid var(--border-color);
     position: sticky;
     top: 0;
+    z-index: 10; /* IMPORTANTE: Mantiene toda la cabecera por encima de las filas */
   }
+
+  /* ===================================================
+      CONGELAR LA PRIMERA COLUMNA (CONGREGACIÓN)
+     =================================================== */
+  .tabla-timothy th:first-child,
+  .tabla-timothy td:first-child {
+    position: sticky;
+    left: 0;
+    box-shadow: 3px 0 5px -2px rgba(0,0,0,0.08); 
+    
+    /* 🌟 COMPORTAMIENTO MÓVIL: Freno al ancho y salto de línea 🌟 */
+    max-width: 140px; 
+    white-space: normal !important; 
+    overflow-wrap: break-word;
+    line-height: 1.3;
+  }
+
+  /* 🌟 COMPORTAMIENTO PC/TABLET: A todo lo largo 🌟 */
+  @media (min-width: 768px) {
+    .tabla-timothy th:first-child,
+    .tabla-timothy td:first-child {
+      max-width: none; /* Le quitamos el freno de ancho */
+      white-space: nowrap !important; /* Obligamos a que el texto se estire en una sola línea */
+    }
+  }
+
+  .tabla-timothy td:first-child {
+    background-color: var(--bg-stats); 
+    z-index: 5; 
+  }
+
+  .tabla-timothy th:first-child {
+    background-color: var(--bg-subtle); 
+    z-index: 15; 
+  }
+
+  .tabla-timothy tr:hover td:first-child {
+    background-color: var(--row-hover); 
+  }
+  /* =================================================== */
 
   .tabla-timothy td {
     padding: 12px 10px;
-    border-bottom: 1px solid var(--border-color);  /* ← ANTES: #f1f5f9 */
-    color: var(--text-main);  /* ← ANTES: #1e293b */
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-main);
     text-align: center;
   }
 
   .tabla-timothy tr:hover {
-    background-color: var(--row-hover);  /* ← ANTES: #f8fafc */
+    background-color: var(--row-hover);
   }
 
   .tabla-timothy .txt-left {
