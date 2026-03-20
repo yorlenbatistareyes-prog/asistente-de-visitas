@@ -145,4 +145,63 @@
   }
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* =============================================
+     DISEÑO RESPONSIVO (Contenedor Circuito)
+     ============================================= */
+
+  @media (max-width: 768px) {
+    /* 1. Ajuste de márgenes generales */
+    .circuito-header {
+      padding: 15px 15px 0 15px; /* Menos espacio en los bordes */
+      gap: 10px;
+    }
+
+    /* 2. Botón Volver: Más visible y fácil de tocar */
+    .btn-back {
+      padding: 8px 0;
+      font-size: 0.9rem;
+    }
+
+    /* 3. Título y Badge: Uno debajo del otro */
+    .title-area {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .title-area h2 {
+      font-size: 1.5rem; /* Título un poco más pequeño para que no rompa */
+      line-height: 1.2;
+    }
+
+    /* 4. Pestañas (Tabs): Estilo móvil de alto impacto */
+    .tabs-container {
+      gap: 0; /* Quitamos el gap para que se estiren solas */
+      justify-content: space-between;
+    }
+
+    .tab {
+      flex: 1; /* Cada pestaña ocupa el 50% exacto */
+      justify-content: center; /* Centramos el texto e icono */
+      font-size: 0.85rem;
+      padding: 15px 0; /* Más altura para el dedo */
+      gap: 5px;
+    }
+
+    /* Ocultamos el texto de las pestañas en móviles muy pequeños si es necesario, 
+       pero por ahora con flex: 1 debería caber bien */
+  }
+
+  /* Móviles muy pequeños (hasta 480px) */
+  @media (max-width: 480px) {
+    .tab span {
+      display: inline-block; /* Si ves que no cabe, podrías usar display: none aquí y dejar solo iconos */
+    }
+    
+    .title-area h2 {
+      font-size: 1.3rem;
+    }
+  }
+
 </style>

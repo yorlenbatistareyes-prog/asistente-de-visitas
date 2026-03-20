@@ -414,6 +414,7 @@
     }
 
     /* 2. Cabecera y Fecha */
+    /* 2. Cabecera y Fecha (SOLUCIÓN DEFINITIVA ANTI-DESBORDE) */
     .revision-header {
       flex-direction: column;
       align-items: stretch;
@@ -423,14 +424,30 @@
     
     .fecha-seccion { 
       width: 100%; 
-      justify-content: space-between;
-      height: 48px;
-      box-sizing: border-box;
+      display: flex !important;
+      flex-direction: column !important; 
+      align-items: center !important;
+      gap: 12px !important;
+      
+      /* Forzamos a que la caja crezca */
+      height: auto !important; 
+      min-height: 100px !important; 
+      padding: 20px 15px !important;
+      
+      box-sizing: border-box !important;
+      overflow: visible !important; /* Permite que el contenido se vea si algo falla */
     }
     
     .input-fecha {
-      flex: 1;
-      text-align: right;
+      width: 100% !important; 
+      max-width: 280px !important;
+      height: 44px !important; /* Altura táctil estándar */
+      text-align: center !important;
+      background: var(--bg-app) !important; 
+      border-radius: 8px !important;
+      border: 1px solid var(--border-color) !important;
+      display: block !important;
+      margin: 0 auto !important;
     }
 
     /* 3. Cuadrícula de contadores (🌟 FORZADO A 2 COLUMNAS SIN DESBORDE 🌟) */
