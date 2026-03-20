@@ -1,5 +1,6 @@
 <script lang="ts">
   import TopBar from '$lib/components/layout/TopBar.svelte';
+  import BarraDeEstado from '$lib/components/layout/BarraDeEstado.svelte';
   import '../app.css';
 </script>
 
@@ -9,56 +10,44 @@
   <main class="main-content">
     <slot />
   </main>
+
+  <BarraDeEstado />
 </div>
 
 <style>
-  /* CONTENEDOR PRINCIPAL */
+  /* 1. EL MARCO DE LA APP: No se mueve nunca */
   .app-container { 
     display: flex; 
     flex-direction: column; 
-    height: 100vh; /* Respaldo para navegadores antiguos */
-    height: 100dvh; /* ¡CLAVE MÓVIL! Se adapta si el teclado o la barra de URL aparecen */
-    width: 100%; 
-    overflow-x: hidden; /* Evita que la pantalla se mueva hacia los lados por error */
+    height: 100dvh; /* Altura dinámica para móviles */
+    width: 100vw;   /* Ancho exacto de la ventana */
+    overflow: hidden; /* 🌟 EVITA EL SCROLL LATERAL DE LAS BARRAS */
+    position: relative;
   }
 
-  /* ÁREA DE CONTENIDO */
+  /* 2. EL CONTENIDO: Es el único que tiene permiso de hacer scroll */
   .main-content { 
-    flex: 1; 
-    overflow-y: auto; 
-    overflow-x: hidden;
+    flex: 1; /* Ocupa todo el espacio disponible entre las barras */
+    overflow-y: auto; /* Scroll vertical normal */
+    overflow-x: auto; /* 🌟 SI ALGO ES MUY ANCHO, EL SCROLL SUCEDE AQUÍ DENTRO */
     background: var(--bg-app); 
-    padding: 30px; 
-    box-sizing: border-box;
     width: 100%;
+    box-sizing: border-box;
     
-    /* Centra el contenido en pantallas ultra anchas para que no se estire de más */
-    margin: 0 auto; 
+    /* Espacio inferior para que la barra de estado no tape el contenido final */
+    padding-bottom: 40px; 
+  }
+
+  /* Opcional: Centrado del contenido en pantallas gigantes */
+  :global(.main-content > slot) {
+    display: block;
+    width: 100%;
     max-width: 1600px;
+    margin: 0 auto;
   }
 
-  /* =============================================
-     DISEÑO RESPONSIVO (Tablets y Móviles)
-     ============================================= */
-
-  /* Tablets en horizontal y Laptops pequeñas (hasta 1024px) */
-  @media (max-width: 1024px) {
-    .main-content {
-      padding: 25px 20px; /* Reducimos un poco los lados */
-    }
-  }
-
-  /* Móviles y Tablets en vertical (hasta 768px) */
+  /* Ajustes de padding para el contenido según el dispositivo */
   @media (max-width: 768px) {
-    .main-content {
-      padding: 15px; /* Aprovechamos más el ancho de la pantalla */
-    }
-  }
-
-  /* Móviles pequeños (hasta 480px) */
-  @media (max-width: 480px) {
-    .main-content {
-      padding: 10px 8px; /* Al límite de los bordes para ganar espacio valioso */
-    }
+    .main-content { padding: 15px 15px 50px 15px; }
   }
 </style>

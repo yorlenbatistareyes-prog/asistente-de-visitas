@@ -337,4 +337,103 @@
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+  /* =============================================
+     DISEÑO RESPONSIVO (Configuración Global)
+     ============================================= */
+
+  @media (max-width: 768px) {
+    .config-page {
+      padding: 15px;
+    }
+
+    /* 1. Cabecera: Título más compacto */
+    .config-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 25px;
+    }
+    
+    .config-header h1 {
+      font-size: 1.6rem;
+    }
+
+    /* 2. Secciones: El icono pasa arriba para dar espacio */
+    .config-section {
+      flex-direction: column;
+      padding: 20px;
+      gap: 15px;
+    }
+
+    .section-icon {
+      width: 45px;
+      height: 45px;
+      padding: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* 3. Formularios: Todo a una sola columna */
+    .form-row {
+      flex-direction: column;
+      gap: 15px;
+      margin-bottom: 0;
+    }
+
+    .form-group.half {
+      width: 100%;
+    }
+
+    /* 4. Botones de Backup: Uno debajo del otro */
+    .backup-buttons {
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .backup-buttons .btn-global {
+      width: 100%;
+      height: 48px; /* Altura táctil mejorada */
+      justify-content: center;
+    }
+
+    /* 5. Zona de Peligro */
+    .danger-btn {
+      width: 100%;
+      height: 48px;
+      justify-content: center;
+    }
+
+    /* 6. Footer de la página fijo o más grande */
+    .config-footer {
+      flex-direction: column-reverse; /* El botón principal queda arriba */
+      gap: 10px;
+    }
+
+    .config-footer .btn-global {
+      width: 100%;
+      height: 50px;
+      font-size: 1rem;
+    }
+  }
+
+  /* Ajustes para el Modal de Reset en móvil */
+  @media (max-width: 480px) {
+    .danger-modal {
+      padding: 20px;
+      gap: 20px;
+    }
+
+    .modal-footer {
+      flex-direction: column-reverse;
+      gap: 10px;
+    }
+
+    .modal-footer .btn-global {
+      width: 100%;
+      height: 48px;
+    }
+  }
+
 </style>
