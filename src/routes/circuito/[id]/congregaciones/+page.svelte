@@ -85,9 +85,26 @@
   }
 
   async function borrar(id: number | undefined, nombre: string) {
-    if (id && window.confirm(`¿Estás seguro de que deseas eliminar la congregación "${nombre}"? Todo su historial también se borrará.`)) {
+    if (!id) return;
+
+    console.log("Pausa iniciada para:", nombre);
+
+    // 1. Forzamos una confirmación explícita fuera del 'if'
+    const confirmacionOficial = window.confirm(`¿Seguro que deseas eliminar "${nombre}"?`);
+
+    // 2. EL FILTRO DEFINITIVO: Si el usuario no dio "Aceptar", matamos la función aquí.
+    if (confirmacionOficial !== true) {
+      console.log("Borrado cancelado. No se ejecutará ninguna acción.");
+      return; 
+    }
+
+    // 3. Solo si confirmacionOficial es estrictamente TRUE, llegamos aquí
+    try {
       await eliminarCongregacion(id);
       await cargarDatos();
+      console.log("Eliminación completada con éxito.");
+    } catch (error) {
+      console.error("Error crítico al eliminar:", error);
     }
   }
 
@@ -220,11 +237,22 @@
         </div>
 
         <div class="card-actions">
-          <button type="button" class="btn-icon-edit" title="Editar" on:click|preventDefault|stopPropagation={() => editarCongregacion(cong)}>
-            <Edit size={18} />
+          <button 
+             type="button" 
+             class="btn-icon-edit" 
+             title="Editar" 
+             on:click|preventDefault|stopPropagation={() => editarCongregacion(cong)}
+          >
+             <Edit size={18} />
           </button>
-          <button type="button" class="btn-icon-delete" title="Eliminar" on:click|preventDefault|stopPropagation={() => borrar(cong.id, cong.nombre)}>
-            <Trash2 size={18} />
+  
+          <button 
+             type="button" 
+             class="btn-icon-delete" 
+             title="Eliminar" 
+             on:click|preventDefault|stopPropagation={() => borrar(cong.id, cong.nombre)}
+          >
+             <Trash2 size={18} />
           </button>
         </div>
       </div>
