@@ -131,9 +131,21 @@
   }
 
   async function borrar(id: number | undefined, nombre: string) {
-    if (id && confirm(`¿Eliminar a ${nombre}?`)) {
+    if (!id) return;
+
+    // BLOQUEO TOTAL: El sistema se detiene aquí a esperar tu clic
+    const confirmado = window.confirm(`¿Estás seguro de que deseas eliminar a "${nombre}" del directorio?`);
+
+    // Si pulsas cancelar, salimos inmediatamente y no se ejecuta nada más
+    if (!confirmado) return;
+
+    try {
       await eliminarPersona(id);
-      await cargar();
+      await cargar(); // Refrescamos la lista
+      console.log("✅ Persona eliminada correctamente.");
+    } catch (error) {
+      console.error("Error al eliminar persona:", error);
+      alert("No se pudo eliminar el registro.");
     }
   }
 </script>
@@ -188,12 +200,21 @@
               </div>
               
               <div class="p-acciones">
-                <button class="btn-icon-edit" title="Editar" on:click={() => abrirEdicion(p)}>
-                  <Edit size={16} />
-                </button>
-                <button class="btn-icon-delete" title="Eliminar" on:click={() => borrar(p.id, p.nombre)}>
-                  <Trash2 size={16} />
-                </button>
+                 <button 
+                    class="btn-icon-edit" 
+                    title="Editar" 
+                    on:click|preventDefault|stopPropagation={() => abrirEdicion(p)}
+                 >
+                    <Edit size={16} />
+                 </button>
+  
+                 <button 
+                    class="btn-icon-delete" 
+                    title="Eliminar" 
+                    on:click|preventDefault|stopPropagation={() => borrar(p.id, p.nombre)}
+                 >
+                    <Trash2 size={16} />
+                 </button>
               </div>
             </div>
           {/each}

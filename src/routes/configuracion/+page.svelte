@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { User, Database, Globe, Save, ArrowLeft, Download, Upload, AlertTriangle, X } from 'lucide-svelte';
+  import { FolderInput, User, Database, Globe, Save, ArrowLeft, Download, Upload, AlertTriangle, X,
+    HardDriveDownload, ArchiveRestore
+   } from 'lucide-svelte';
   import { onMount } from 'svelte';
 
   import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
@@ -194,12 +196,25 @@
           <span>Conectado a <code>av_database.db</code></span>
         </div>
         
-        <div class="backup-buttons">
-          <button class="btn-global btn-outline" on:click={exportarCopia}>
-            <Download size={16} /> Exportar Copia (.db)
+        <div class="backup-cards">
+          <button class="backup-card" on:click={exportarCopia}>
+            <div class="icon-box save-box">
+              <Save size={24} />
+            </div>
+            <div class="card-text">
+              <h4>Crear Respaldo</h4>
+              <span>Guardar TODO</span>
+            </div>
           </button>
-          <button class="btn-global btn-outline" on:click={restaurarCopia}>
-            <Upload size={16} /> Restaurar Datos
+
+          <button class="backup-card" on:click={restaurarCopia}>
+            <div class="icon-box restore-box">
+              <FolderInput size={24} />
+            </div>
+            <div class="card-text">
+              <h4>Restaurar Datos</h4>
+              <span>Recuperar desde archivo</span>
+            </div>
           </button>
         </div>
         
@@ -291,7 +306,85 @@
   .db-status { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; margin-bottom: 20px; color: var(--text-main); }
   .status-dot { width: 10px; height: 10px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); }
 
-  .backup-buttons { display: flex; gap: 15px; margin-bottom: 30px; }
+  /* NUEVOS BOTONES DE RESPALDO (Estilo Tarjeta) */
+  .backup-cards { 
+    display: flex; 
+    gap: 15px; 
+    margin-bottom: 30px; 
+  }
+
+  .backup-card {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: var(--bg-app);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left; /* Para que el texto no se centre como en botones normales */
+  }
+
+  .backup-card:hover {
+    background: var(--bg-panel);
+    border-color: var(--primary);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    transform: translateY(-2px);
+  }
+
+  /* Cajas de color para los iconos */
+  .icon-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px; /* Cuadro con bordes suaves */
+  }
+
+  /* Azul para Guardar */
+  .save-box {
+    background: #eff6ff;
+    color: #2563eb;
+  }
+
+  /* Verde para Restaurar */
+  .restore-box {
+    background: #f0fdf4;
+    color: #16a34a;
+  }
+
+  /* Adaptación al Modo Oscuro */
+  :global(body.dark-mode) .save-box, :global(.dark) .save-box {
+    background: rgba(37, 99, 235, 0.15);
+    color: #60a5fa;
+  }
+  :global(body.dark-mode) .restore-box, :global(.dark) .restore-box {
+    background: rgba(22, 163, 74, 0.15);
+    color: #4ade80;
+  }
+
+  /* Textos de la tarjeta */
+  .card-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .card-text h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--text-main);
+    font-weight: 700;
+  }
+
+  .card-text span {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
   .btn-outline { background: var(--bg-app); color: var(--text-main); border: var(--border-thin); }
   .btn-outline:hover { background: var(--bg-panel); border-color: var(--primary); color: var(--primary); }
 
@@ -386,16 +479,10 @@
       width: 100%;
     }
 
-    /* 4. Botones de Backup: Uno debajo del otro */
-    .backup-buttons {
+    /* 4. Botones de Backup: Uno debajo del otro en móvil */
+    .backup-cards {
       flex-direction: column;
-      gap: 10px;
-    }
-
-    .backup-buttons .btn-global {
-      width: 100%;
-      height: 48px; /* Altura táctil mejorada */
-      justify-content: center;
+      gap: 12px;
     }
 
     /* 5. Zona de Peligro */
