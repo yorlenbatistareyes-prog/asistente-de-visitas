@@ -1,16 +1,17 @@
 <script lang="ts">
-  import { FolderSync, RefreshCcw, Trash, FolderX, FolderInput, User, Database, Globe, Save, ArrowLeft, Download, Upload, AlertTriangle, X,
-    HardDriveDownload, ArchiveRestore
-   } from 'lucide-svelte';
+  import { 
+    FolderSync, RefreshCcw, Trash, FolderX, FolderInput, User, Database, Globe, Save, 
+    ArrowLeft, Download, Upload, AlertTriangle, X, HardDriveDownload, ArchiveRestore
+  } from 'lucide-svelte';
   import { onMount } from 'svelte';
 
   import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
-  import { readFile, writeFile, BaseDirectory } from '@tauri-apps/plugin-fs';
+  import { readFile, writeFile, remove, BaseDirectory } from '@tauri-apps/plugin-fs';
   
   // IMPORTAMOS TUS FUNCIONES DESDE db.ts
   import { guardarConfig, cargarConfig, initDB } from '$lib/services/db';
   
-  // --- VARIABLES DE ESTADO ---
+  // --- VARIABLES DE ESTADO GLOBALES ---
   let nombreUsuario = "";
   let cargoUsuario = "Superintendente de Circuito";
   let nombreCircuito = "";
@@ -20,43 +21,41 @@
   let mostrarModalReset = false;
   let palabraConfirmacion = "";
 
-  let rutaSincronizacion = ""; // Vacío significa que no hay carpeta elegida
+  // --- VARIABLES DE ESTADO: SINCRONIZACIÓN ---
+  let rutaSincronizacion = ""; 
   let ultimaExportacion = "Desconocido";
   let ultimaImportacion = "Desconocido";
   let autoExportar = false;
 
-  // Funciones placeholder para la lógica (las conectaremos con Tauri después)
-  async function elegirCarpetaSync() {
-    // Aquí usaremos openDialog({ directory: true }) de Tauri
-    alert("Próximamente: Se abrirá el explorador para elegir la carpeta de Google Drive/OneDrive.");
+  // Función auxiliar para obtener la fecha y hora actual con buen formato
+  function obtenerFechaActual() {
+    return new Date().toLocaleString();
   }
 
-  async function exportarSync() {
-    alert("Copiando base de datos a: " + rutaSincronizacion);
-  }
-
-  async function importarSync() {
-    alert("Leyendo base de datos desde: " + rutaSincronizacion);
-  }
-
-  function restablecerCarpeta() {
-    rutaSincronizacion = "";
-    autoExportar = false;
-  }
-
-  function limpiarCarpetaSync() {
-    alert("Se borrará el archivo de sincronización de la nube.");
+  // Función auxiliar para crear la ruta exacta del archivo en la nube
+  // (Une la carpeta seleccionada con el nombre del archivo de forma segura)
+  function obtenerRutaArchivoSync() {
+    const separador = rutaSincronizacion.includes('\\') ? '\\' : '/'; // Detecta si es Windows o Mac/Linux
+    const barra = rutaSincronizacion.endsWith(separador) ? '' : separador;
+    return `${rutaSincronizacion}${barra}av_sync_backup.db`;
   }
 
   // --- CARGAR DATOS AL INICIAR ---
   onMount(async () => {
     try {
-      // Cargamos cada campo usando tu función de db.ts
       nombreUsuario = await cargarConfig('nombreUsuario') || "";
       cargoUsuario = await cargarConfig('cargoUsuario') || "Superintendente de Circuito";
       nombreCircuito = await cargarConfig('nombreCircuito') || "";
       piePagina = await cargarConfig('piePagina') || "Informe generado por Asistente de Visitas";
       idioma = await cargarConfig('idioma') || "Español";
+
+      // Cargar configuraciones de Sincronización
+      rutaSincronizacion = await cargarConfig('rutaSincronizacion') || "";
+      ultimaExportacion = await cargarConfig('ultimaExportacion') || "Desconocido";
+      ultimaImportacion = await cargarConfig('ultimaImportacion') || "Desconocido";
+      const autoExp = await cargarConfig('autoExportar');
+      autoExportar = autoExp === 'true';
+
     } catch (error) {
       console.error("No se pudo cargar la configuración de SQLite:", error);
     }
@@ -66,15 +65,115 @@
     window.history.back();
   }
 
-  // --- GUARDAR EN SQLITE ---
+  // --- LÓGICA DE SINCRONIZACIÓN EN LA NUBE (ESTILO EZRA) ---
+
+  async function elegirCarpetaSync() {
+    try {
+      // 1. Abrir diálogo de Tauri forzado SOLO a elegir directorios (carpetas)
+      const carpeta = await openDialog({
+        title: 'Seleccionar Carpeta en la Nube (Google Drive, OneDrive)',
+        directory: true, 
+        multiple: false
+      });
+
+      if (!carpeta) return; // Si cancela, no pasa nada
+
+      // 2. Guardamos la ruta en pantalla y en la base de datos
+      rutaSincronizacion = carpeta as string;
+      await guardarConfig('rutaSincronizacion', rutaSincronizacion);
+      
+      alert("✅ Carpeta de sincronización vinculada.");
+    } catch (error) {
+      console.error("Error al elegir carpeta:", error);
+      alert("❌ Ocurrió un error al abrir el explorador.");
+    }
+  }
+
+  async function exportarSync() {
+    if (!rutaSincronizacion) return;
+    try {
+      // 1. Leemos la base de datos local actual
+      const dbBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppLocalData });
+      
+      // 2. Escribimos los datos en la carpeta de la nube seleccionada
+      const rutaFinal = obtenerRutaArchivoSync();
+      await writeFile(rutaFinal, dbBytes); // Nota: Sin BaseDirectory porque es una ruta absoluta externa
+
+      // 3. Actualizamos la fecha de exportación
+      ultimaExportacion = obtenerFechaActual();
+      await guardarConfig('ultimaExportacion', ultimaExportacion);
+
+      alert("✅ Datos exportados correctamente a la carpeta de sincronización.");
+    } catch (error) {
+      console.error("Error exportando a la nube:", error);
+      alert("❌ Error al exportar. Comprueba que la carpeta sigue existiendo o tienes permisos.");
+    }
+  }
+
+  async function importarSync() {
+    if (!rutaSincronizacion) return;
+    try {
+      // 1. Leemos el archivo desde la carpeta de la nube
+      const rutaFinal = obtenerRutaArchivoSync();
+      const backupBytes = await readFile(rutaFinal);
+
+      // 2. Lo guardamos en el directorio local de la app (Sobrescribiendo la DB actual)
+      await writeFile('av_database.db', backupBytes, { baseDir: BaseDirectory.AppLocalData });
+
+      // 3. Actualizamos la fecha
+      ultimaImportacion = obtenerFechaActual();
+      await guardarConfig('ultimaImportacion', ultimaImportacion);
+
+      alert("✅ Datos sincronizados con éxito. La aplicación se reiniciará para aplicar los cambios.");
+      window.location.reload();
+    } catch (error) {
+      console.error("Error importando desde la nube:", error);
+      alert("❌ Error al importar. ¿Estás seguro de que hay un archivo de sincronización en esa carpeta?");
+    }
+  }
+
+  async function restablecerCarpeta() {
+    if (confirm("¿Seguro que deseas desvincular la carpeta? La app dejará de sincronizarse.")) {
+      rutaSincronizacion = "";
+      autoExportar = false;
+      await guardarConfig('rutaSincronizacion', "");
+      await guardarConfig('autoExportar', "false");
+    }
+  }
+
+  async function limpiarCarpetaSync() {
+    if (confirm("⚠️ ¿Deseas borrar el archivo de sincronización que está en tu Google Drive/OneDrive?")) {
+      try {
+        const rutaFinal = obtenerRutaArchivoSync();
+        await remove(rutaFinal); // Usamos remove de Tauri
+        
+        ultimaExportacion = "Desconocido";
+        ultimaImportacion = "Desconocido";
+        await guardarConfig('ultimaExportacion', "Desconocido");
+        await guardarConfig('ultimaImportacion', "Desconocido");
+        
+        alert("✅ Archivo de sincronización eliminado de la nube.");
+      } catch (error) {
+        console.error(error);
+        alert("❌ No se pudo borrar el archivo. Puede que ya no exista o esté bloqueado.");
+      }
+    }
+  }
+
+  // Se llama cuando haces clic en el checkbox de AutoExportar
+  async function toggleAutoExportar() {
+    await guardarConfig('autoExportar', autoExportar ? 'true' : 'false');
+  }
+
+  // --- GUARDAR CONFIGURACIÓN GLOBAL ---
   async function guardarCambios() {
     try {
-      // Guardamos cada campo individualmente
       await guardarConfig('nombreUsuario', nombreUsuario);
       await guardarConfig('cargoUsuario', cargoUsuario);
       await guardarConfig('nombreCircuito', nombreCircuito);
       await guardarConfig('piePagina', piePagina);
       await guardarConfig('idioma', idioma);
+      // Las variables de sincronización ya se guardan solas al tocarlas
       
       alert("✅ Configuración guardada en SQLite correctamente.");
       volver();
@@ -84,65 +183,49 @@
     }
   }
 
-  // --- LÓGICA DE BACKUPS (Pendiente de conectar con fs y dialog) ---
-  // --- LÓGICA DE BACKUPS CON TAURI ---
+  // --- LÓGICA DE BACKUPS MANUALES (Discos USB, etc.) ---
   async function exportarCopia() {
     try {
-      // 1. Abrimos la ventana para que elijas dónde guardar
       const rutaDestino = await saveDialog({
         title: 'Exportar Copia de Seguridad',
         defaultPath: 'Respaldo_Visitas_AV.db',
         filters: [{ name: 'Base de Datos SQLite', extensions: ['db'] }]
       });
+      if (!rutaDestino) return; 
 
-      if (!rutaDestino) return; // Si el usuario cancela o cierra la ventana, no hacemos nada
-
-      // 2. Leemos la base de datos original. 
-      // (Por defecto, el plugin SQL de Tauri v2 guarda los datos en AppLocalData o AppData)
       const dbBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppLocalData });
-
-      // 3. Escribimos esa copia exacta en la ruta elegida (tu memoria USB, Documentos, etc.)
       await writeFile(rutaDestino, dbBytes);
-
-      alert("✅ Copia de seguridad exportada con éxito.");
+      alert("✅ Copia de seguridad manual exportada con éxito.");
     } catch (error) {
       console.error("Error al exportar:", error);
-      alert("❌ Ocurrió un error al exportar. Es posible que la base de datos esté en uso o la ruta sea incorrecta.");
+      alert("❌ Ocurrió un error al exportar la copia manual.");
     }
   }
 
   async function restaurarCopia() {
     try {
-      // 1. Advertencia de seguridad crucial
-      if (!confirm("⚠️ ADVERTENCIA: Esto reemplazará todos tus datos actuales con los de la copia de seguridad. ¿Deseas continuar?")) return;
+      if (!confirm("⚠️ ADVERTENCIA: Esto reemplazará todos tus datos. ¿Deseas continuar?")) return;
 
-      // 2. Abrimos el explorador para buscar el archivo de respaldo
       const rutaOrigen = await openDialog({
         title: 'Restaurar Copia de Seguridad',
         filters: [{ name: 'Base de Datos SQLite', extensions: ['db'] }],
         multiple: false,
         directory: false
       });
-
       if (!rutaOrigen) return; 
 
-      // 3. Leemos los bytes del archivo que seleccionaste
       const backupBytes = await readFile(rutaOrigen as string);
-
-      // 4. Sobrescribimos nuestra base de datos actual con ese respaldo
       await writeFile('av_database.db', backupBytes, { baseDir: BaseDirectory.AppLocalData });
 
-      alert("✅ Datos restaurados correctamente. La aplicación se recargará para aplicar los cambios.");
-      
-      // 5. Recargamos la interfaz para que SQLite lea la nueva información
+      alert("✅ Datos restaurados correctamente. La aplicación se recargará.");
       window.location.reload();
     } catch (error) {
       console.error("Error al restaurar:", error);
-      alert("❌ Error al restaurar la base de datos. Verifica que el archivo sea un respaldo válido.");
+      alert("❌ Error al restaurar el respaldo manual.");
     }
   }
 
-  // --- LÓGICA DE RESETEO ---
+  // --- LÓGICA DE RESETEO (ZONA DE PELIGRO) ---
   function abrirModalReset() { mostrarModalReset = true; palabraConfirmacion = ""; }
   function cerrarModalReset() { mostrarModalReset = false; palabraConfirmacion = ""; }
 
@@ -150,7 +233,6 @@
     if (palabraConfirmacion === "ELIMINAR") {
       try {
         const db = await initDB();
-        // Vaciamos las tablas correctas definidas en db.ts
         await db.execute('DELETE FROM historial_visitas'); 
         await db.execute('DELETE FROM personas');
         await db.execute('DELETE FROM congregaciones');
