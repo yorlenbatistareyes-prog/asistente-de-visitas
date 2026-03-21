@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FolderInput, User, Database, Globe, Save, ArrowLeft, Download, Upload, AlertTriangle, X,
+  import { FolderSync, RefreshCcw, Trash, FolderX, FolderInput, User, Database, Globe, Save, ArrowLeft, Download, Upload, AlertTriangle, X,
     HardDriveDownload, ArchiveRestore
    } from 'lucide-svelte';
   import { onMount } from 'svelte';
@@ -19,6 +19,34 @@
   
   let mostrarModalReset = false;
   let palabraConfirmacion = "";
+
+  let rutaSincronizacion = ""; // Vacío significa que no hay carpeta elegida
+  let ultimaExportacion = "Desconocido";
+  let ultimaImportacion = "Desconocido";
+  let autoExportar = false;
+
+  // Funciones placeholder para la lógica (las conectaremos con Tauri después)
+  async function elegirCarpetaSync() {
+    // Aquí usaremos openDialog({ directory: true }) de Tauri
+    alert("Próximamente: Se abrirá el explorador para elegir la carpeta de Google Drive/OneDrive.");
+  }
+
+  async function exportarSync() {
+    alert("Copiando base de datos a: " + rutaSincronizacion);
+  }
+
+  async function importarSync() {
+    alert("Leyendo base de datos desde: " + rutaSincronizacion);
+  }
+
+  function restablecerCarpeta() {
+    rutaSincronizacion = "";
+    autoExportar = false;
+  }
+
+  function limpiarCarpetaSync() {
+    alert("Se borrará el archivo de sincronización de la nube.");
+  }
 
   // --- CARGAR DATOS AL INICIAR ---
   onMount(async () => {
@@ -182,6 +210,59 @@
           <label for="pie">Pie de Página (Impresión)</label>
           <input id="pie" type="text" class="input-global" bind:value={piePagina} />
         </div>
+      </div>
+    </section>
+
+    <section class="card-global config-section">
+      <div class="section-icon"><FolderSync size={24} /></div>
+      <div class="section-content">
+        <h3>Carpeta de Sincronización</h3>
+        <p>Elige una carpeta en la nube (Google Drive, OneDrive) para compartir datos entre tus dispositivos.</p>
+
+        <div class="sync-info-box">
+          {#if rutaSincronizacion === ""}
+            <p class="text-muted">Aún no se ha seleccionado una carpeta de sincronización.</p>
+          {:else}
+            <div class="sync-details">
+              <p><strong>Carpeta actual:</strong> <span class="ruta-path">{rutaSincronizacion}</span></p>
+              <p><strong>Última exportación:</strong> {ultimaExportacion}</p>
+              <p><strong>Última importación:</strong> {ultimaImportacion}</p>
+            </div>
+          {/if}
+        </div>
+
+        <div class="sync-actions-primary">
+          <button class="btn-global btn-sync-primary" on:click={elegirCarpetaSync}>
+            Elegir carpeta sincronizada
+          </button>
+          
+          <button class="btn-global btn-outline" disabled={!rutaSincronizacion} on:click={exportarSync}>
+            Exportar sincronización
+          </button>
+          
+          <button class="btn-global btn-outline" disabled={!rutaSincronizacion} on:click={importarSync}>
+            Importar sincronización
+          </button>
+        </div>
+
+        <div class="sync-auto-option">
+          <label class="checkbox-label" class:disabled={!rutaSincronizacion}>
+            <input type="checkbox" bind:checked={autoExportar} disabled={!rutaSincronizacion} />
+            <span class="checkmark"></span>
+            Exportar cambios automáticamente al cerrar
+          </label>
+        </div>
+
+        <div class="sync-actions-secondary">
+          <button class="btn-global btn-outline-warning" disabled={!rutaSincronizacion} on:click={restablecerCarpeta}>
+            <FolderX size={16} style="margin-right: 5px;" /> Restablecer carpeta
+          </button>
+          
+          <button class="btn-global btn-outline-danger" disabled={!rutaSincronizacion} on:click={limpiarCarpetaSync}>
+            <Trash size={16} style="margin-right: 5px;" /> Limpiar carpeta
+          </button>
+        </div>
+
       </div>
     </section>
 
@@ -522,5 +603,51 @@
       height: 48px;
     }
   }
+
+  /* --- ESTILOS DE SINCRONIZACIÓN (ESTILO EZRA) --- */
+  .sync-info-box {
+    border: 1px dashed var(--border-color);
+    background: rgba(0,0,0,0.02); /* Fondo súper tenue */
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+  }
+
+  :global(body.dark-mode) .sync-info-box { background: rgba(255,255,255,0.02); }
+
+  .sync-details p { margin: 4px 0 !important; color: var(--text-main) !important; font-size: 0.9rem !important; }
+  .sync-details strong { color: var(--text-muted); font-weight: 600; width: 140px; display: inline-block; }
+  .ruta-path { font-family: monospace; color: var(--primary); background: var(--bg-app); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-color);}
+
+  /* Botones Principales de Sincronización */
+  .sync-actions-primary { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+  
+  .btn-sync-primary {
+    background: #e11d48; /* Color rosa/rojo vibrante similar a Ezra */
+    color: white;
+    border: none;
+    font-weight: 700;
+  }
+  .btn-sync-primary:hover { background: #be123c; transform: translateY(-1px); }
+
+  /* Los botones outline se apagan solos si tienen el atributo disabled */
+  .btn-global:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+
+  /* Checkbox personalizado */
+  .sync-auto-option { margin-bottom: 25px; border-bottom: 1px solid var(--border-color); padding-bottom: 20px;}
+  .checkbox-label { display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text-main); font-size: 0.95rem; }
+  .checkbox-label.disabled { opacity: 0.5; cursor: not-allowed; }
+  
+  /* Botones secundarios */
+  .sync-actions-secondary { display: flex; gap: 10px; }
+  
+  .btn-outline-warning { color: #d97706; border: 1px solid #fcd34d; background: transparent; }
+  .btn-outline-warning:hover:not(:disabled) { background: #fffbeb; }
+  
+  .btn-outline-danger { color: #dc2626; border: 1px solid #fca5a5; background: transparent; }
+  .btn-outline-danger:hover:not(:disabled) { background: #fef2f2; }
 
 </style>
