@@ -252,7 +252,8 @@
     <button class="btn-back" on:click={volver}>
       <ArrowLeft size={20} /> Volver
     </button>
-    <h1>Configuración Global</h1>
+    <h1>Configuración de la aplicación</h1>
+    <p>Preferencias de la aplicación y usuario</p>
   </header>
 
   <div class="config-grid">
@@ -299,7 +300,7 @@
       <div class="section-icon"><FolderSync size={24} /></div>
       <div class="section-content">
         <h3>Carpeta de Sincronización</h3>
-        <p>Elige una carpeta en la nube (Google Drive, OneDrive) para compartir datos entre tus dispositivos.</p>
+        <p>Elige una carpeta en la nube (Google Drive, OneDrive, etc.) para compartir datos entre tus dispositivos.</p>
 
         <div class="sync-info-box">
           {#if rutaSincronizacion === ""}
@@ -329,7 +330,14 @@
 
         <div class="sync-auto-option">
           <label class="checkbox-label" class:disabled={!rutaSincronizacion}>
-            <input type="checkbox" bind:checked={autoExportar} disabled={!rutaSincronizacion} />
+            <input 
+              type="checkbox" 
+              checked={autoExportar} 
+              disabled={!rutaSincronizacion} 
+              on:change={async (e) => {
+                 autoExportar = (e.target as HTMLInputElement).checked;
+                 await guardarConfig('autoExportar', autoExportar ? 'true' : 'false');
+              }}/>
             <span class="checkmark"></span>
             Exportar cambios automáticamente al cerrar
           </label>

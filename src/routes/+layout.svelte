@@ -2,16 +2,67 @@
   import TopBar from '$lib/components/layout/TopBar.svelte';
   import BarraDeEstado from '$lib/components/layout/BarraDeEstado.svelte';
   import '../app.css';
+  
+  import { onMount } from 'svelte';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
+  import { readFile, writeFile, BaseDirectory } from '@tauri-apps/plugin-fs';
+  import { cargarConfig, guardarConfig } from '$lib/services/db';
+
+  onMount(() => {
+    const appWindow = getCurrentWindow();
+
+    // Guardamos la promesa del interceptor
+    const unlistenPromise = appWindow.onCloseRequested(async (event) => {
+      
+      // 1. Ponemos el freno de mano
+      event.preventDefault();
+
+      try {
+        const autoExp = await cargarConfig('autoExportar');
+        const ruta = await cargarConfig('rutaSincronizacion');
+
+        // 2. Si la casilla está marcada y hay ruta, HACE LA COPIA
+        if (autoExp === 'true' && ruta && ruta.trim() !== "") {
+          console.log("Iniciando auto-guardado...");
+          
+          const separador = ruta.includes('\\') ? '\\' : '/';
+          const barra = ruta.endsWith(separador) ? '' : separador;
+          const rutaFinal = `${ruta}${barra}av_sync_backup.db`;
+
+          const dbBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppLocalData });
+          await writeFile(rutaFinal, dbBytes);
+
+          const fecha = new Date().toLocaleString();
+          await guardarConfig('ultimaExportacion', fecha);
+          
+          console.log("Auto-guardado exitoso.");
+        }
+      } catch (error) {
+        console.error("Error en auto-guardado:", error);
+      } finally {
+        // 3. Quitamos el freno de mano
+        unlistenPromise.then(unlisten => unlisten());
+        
+        // 4. Cerramos la ventana (¡Ahora sí tiene permiso para hacerlo en 1 solo clic!)
+        await appWindow.close();
+      }
+    });
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten());
+    };
+  });
 </script>
 
 <div class="app-container">
   <TopBar />
-
+  
   <main class="main-content">
     <slot />
   </main>
 
   <BarraDeEstado />
+
 </div>
 
 <style>
