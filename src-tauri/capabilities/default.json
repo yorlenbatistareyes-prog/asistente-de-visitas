@@ -28,6 +28,7 @@
     "fs:allow-remove",
     "fs:allow-read-dir",
     "fs:allow-copy-file",
+    "fs:allow-stat",
     
     "dialog:default",
     "dialog:allow-open",

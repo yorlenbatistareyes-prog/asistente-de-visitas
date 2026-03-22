@@ -6,7 +6,7 @@
   import { onMount } from 'svelte';
 
   import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
-  import { readFile, writeFile, remove, BaseDirectory } from '@tauri-apps/plugin-fs';
+  import { readFile, writeFile, remove, stat, BaseDirectory } from '@tauri-apps/plugin-fs';
   
   // IMPORTAMOS TUS FUNCIONES DESDE db.ts
   import { guardarConfig, cargarConfig, initDB } from '$lib/services/db';
@@ -40,6 +40,39 @@
     return `${rutaSincronizacion}${barra}av_sync_backup.db`;
   }
 
+  // --- VARIABLES DE METADATOS DEL ARCHIVO ---
+  let fechaArchivoSync = "Buscando...";
+  let tamanoArchivoSync = "0 KB";
+
+  // --- FUNCIÓN PARA LEER EL ARCHIVO FÍSICO ---
+  async function revisarArchivoSync() {
+    if (!rutaSincronizacion || rutaSincronizacion.trim() === "") {
+      fechaArchivoSync = "No hay carpeta vinculada";
+      tamanoArchivoSync = "-";
+      return;
+    }
+
+    try {
+      const separador = rutaSincronizacion.includes('\\') ? '\\' : '/';
+      const barra = rutaSincronizacion.endsWith(separador) ? '' : separador;
+      const rutaFinal = `${rutaSincronizacion}${barra}av_sync_backup.db`;
+
+      const metadata = await stat(rutaFinal);
+      
+      if (metadata.mtime) {
+        const fecha = new Date(metadata.mtime);
+        fechaArchivoSync = fecha.toLocaleString();
+      }
+
+      const kb = (metadata.size / 1024).toFixed(1);
+      tamanoArchivoSync = `${kb} KB`;
+
+    } catch (error) {
+      fechaArchivoSync = "No hay archivo en la carpeta";
+      tamanoArchivoSync = "0 KB";
+    }
+  }
+
   // --- CARGAR DATOS AL INICIAR ---
   onMount(async () => {
     try {
@@ -55,6 +88,9 @@
       ultimaImportacion = await cargarConfig('ultimaImportacion') || "Desconocido";
       const autoExp = await cargarConfig('autoExportar');
       autoExportar = autoExp === 'true';
+
+      // 🌟 LLAMADA A LA NUEVA FUNCIÓN AQUÍ
+      await revisarArchivoSync();
 
     } catch (error) {
       console.error("No se pudo cargar la configuración de SQLite:", error);
@@ -99,9 +135,12 @@
       const rutaFinal = obtenerRutaArchivoSync();
       await writeFile(rutaFinal, dbBytes); // Nota: Sin BaseDirectory porque es una ruta absoluta externa
 
-      // 3. Actualizamos la fecha de exportación
+      // 3. Actualizamos la fecha de exportación local
       ultimaExportacion = obtenerFechaActual();
       await guardarConfig('ultimaExportacion', ultimaExportacion);
+
+      // 🌟 ACTUALIZAMOS LA LECTURA REAL DE LA NUBE
+      await revisarArchivoSync();
 
       alert("✅ Datos exportados correctamente a la carpeta de sincronización.");
     } catch (error) {
@@ -120,9 +159,12 @@
       // 2. Lo guardamos en el directorio local de la app (Sobrescribiendo la DB actual)
       await writeFile('av_database.db', backupBytes, { baseDir: BaseDirectory.AppLocalData });
 
-      // 3. Actualizamos la fecha
+      // 3. Actualizamos la fecha local
       ultimaImportacion = obtenerFechaActual();
       await guardarConfig('ultimaImportacion', ultimaImportacion);
+
+      // 🌟 ACTUALIZAMOS LA LECTURA REAL DE LA NUBE
+      await revisarArchivoSync();
 
       alert("✅ Datos sincronizados con éxito. La aplicación se reiniciará para aplicar los cambios.");
       window.location.reload();
@@ -138,6 +180,9 @@
       autoExportar = false;
       await guardarConfig('rutaSincronizacion', "");
       await guardarConfig('autoExportar', "false");
+      
+      // 🌟 LIMPIAMOS LA LECTURA DE LA NUBE EN PANTALLA
+      await revisarArchivoSync();
     }
   }
 
@@ -151,6 +196,9 @@
         ultimaImportacion = "Desconocido";
         await guardarConfig('ultimaExportacion', "Desconocido");
         await guardarConfig('ultimaImportacion', "Desconocido");
+        
+        // 🌟 ACTUALIZAMOS LA PANTALLA PARA QUE VEAS QUE QUEDÓ EN "0 KB"
+        await revisarArchivoSync();
         
         alert("✅ Archivo de sincronización eliminado de la nube.");
       } catch (error) {
@@ -308,12 +356,30 @@
           {:else}
             <div class="sync-details">
               <p><strong>Carpeta actual:</strong> <span class="ruta-path">{rutaSincronizacion}</span></p>
-              <p><strong>Última exportación:</strong> {ultimaExportacion}</p>
-              <p><strong>Última importación:</strong> {ultimaImportacion}</p>
+              <p><strong>Última exportación local:</strong> {ultimaExportacion}</p>
+              <p><strong>Última importación local:</strong> {ultimaImportacion}</p>
             </div>
           {/if}
         </div>
 
+        <div class="sync-status-card">
+          <div class="sync-header">
+            <h4>Estado del archivo de sincronización</h4>
+            <p class="sync-descripcion">
+              Lectura en tiempo real del archivo físico en tu carpeta vinculada. Si la fecha detectada aquí es más reciente que tu memoria local, significa que tienes datos nuevos listos para importar.
+            </p>
+          </div>
+          <div class="sync-body">
+            <div class="sync-dato">
+              <span class="etiqueta">Última modificación detectada:</span>
+              <span class="valor">{fechaArchivoSync}</span>
+            </div>
+            <div class="sync-dato">
+              <span class="etiqueta">Peso del archivo:</span>
+              <span class="valor">{tamanoArchivoSync}</span>
+            </div>
+          </div>
+        </div>
         <div class="sync-actions-primary">
           <button class="btn-global btn-sync-primary" on:click={elegirCarpetaSync}>
             Elegir carpeta sincronizada
@@ -740,4 +806,52 @@
   .btn-outline-danger { color: #dc2626; border: 1px solid #fca5a5; background: transparent; }
   .btn-outline-danger:hover:not(:disabled) { background: #fef2f2; }
 
+  /* 🌟 ESTILOS DE LA TARJETA DE SINCRONIZACIÓN FÍSICA */
+  .sync-status-card {
+    background: rgba(37, 99, 235, 0.05);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    margin-top: 10px;
+  }
+
+  .sync-header h4 {
+    margin: 0 0 10px 0;
+    font-size: 0.95rem;
+    color: #1e3a8a;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .sync-descripcion {
+    font-size: 0.8rem;
+    color: #475569;
+    margin: 0 0 12px 0;
+    line-height: 1.4;
+  }
+
+  .sync-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .sync-dato {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+  }
+
+  .sync-dato .etiqueta {
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .sync-dato .valor {
+    color: var(--text-main);
+    font-weight: 800;
+  }
 </style>
