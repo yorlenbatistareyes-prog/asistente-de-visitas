@@ -6,6 +6,7 @@
   import { onMount } from 'svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { readFile, writeFile, BaseDirectory } from '@tauri-apps/plugin-fs';
+  import { confirm as confirmDialog } from '@tauri-apps/plugin-dialog'; // 🌟 Importamos el diálogo
   import { cargarConfig, guardarConfig } from '$lib/services/db';
 
   onMount(() => {
@@ -14,14 +15,16 @@
     // Guardamos la promesa del interceptor
     const unlistenPromise = appWindow.onCloseRequested(async (event) => {
       
-      // 1. Ponemos el freno de mano
+      // 1. Ponemos el freno de mano inicial
       event.preventDefault();
+      
+      let deberiaCerrar = true; // Por defecto, asumimos que todo saldrá bien
 
       try {
         const autoExp = await cargarConfig('autoExportar');
         const ruta = await cargarConfig('rutaSincronizacion');
 
-        // 2. Si la casilla está marcada y hay ruta, HACE LA COPIA
+        // 2. Si la casilla está marcada y hay ruta, INTENTA HACER LA COPIA
         if (autoExp === 'true' && ruta && ruta.trim() !== "") {
           console.log("Iniciando auto-guardado...");
           
@@ -29,21 +32,41 @@
           const barra = ruta.endsWith(separador) ? '' : separador;
           const rutaFinal = `${ruta}${barra}av_sync_backup.db`;
 
-          const dbBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppLocalData });
-          await writeFile(rutaFinal, dbBytes);
+          try {
+            // Intentamos leer y escribir
+            const dbBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppLocalData });
+            await writeFile(rutaFinal, dbBytes);
 
-          const fecha = new Date().toLocaleString();
-          await guardarConfig('ultimaExportacion', fecha);
-          
-          console.log("Auto-guardado exitoso.");
+            // Si llegamos aquí, fue un éxito
+            const fecha = new Date().toLocaleString();
+            await guardarConfig('ultimaExportacion', fecha);
+            console.log("Auto-guardado exitoso.");
+
+          } catch (errorGuardado) {
+            // 🚨 ¡FALLO DE ESCRITURA! (Carpeta borrada, USB desconectada, sin internet, etc.)
+            console.error("Fallo al escribir en la ruta de sync:", errorGuardado);
+            deberiaCerrar = false; // Activamos el Modo Seguro
+          }
         }
-      } catch (error) {
-        console.error("Error en auto-guardado:", error);
-      } finally {
-        // 3. Quitamos el freno de mano
+      } catch (errorGeneral) {
+        console.error("Error comprobando configuración:", errorGeneral);
+      } 
+
+      // 3. 🛡️ EL MODO SEGURO: Si falló, le damos la opción al usuario
+      if (!deberiaCerrar) {
+        const forzarCierre = await confirmDialog(
+          "⚠️ NO SE PUDO GUARDAR LA COPIA AUTOMÁTICA.\n\n¿Desconectaste tu memoria USB o borraste la carpeta de sincronización?\n\nSi cierras la aplicación ahora, los cambios que hiciste hoy NO se subirán a la nube.\n\n¿Deseas forzar el cierre de todos modos?",
+          { title: "Error Crítico de Sincronización", kind: "warning" }
+        );
+
+        if (forzarCierre) {
+          deberiaCerrar = true; // El usuario asume el riesgo
+        }
+      }
+
+      // 4. Cierre definitivo solo si está autorizado
+      if (deberiaCerrar) {
         unlistenPromise.then(unlisten => unlisten());
-        
-        // 4. Cerramos la ventana (¡Ahora sí tiene permiso para hacerlo en 1 solo clic!)
         await appWindow.close();
       }
     });
