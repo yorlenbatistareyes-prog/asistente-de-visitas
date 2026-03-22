@@ -3,6 +3,7 @@
   import { page } from '$app/stores'; 
   import { Search, Upload, Plus, Trash2, Phone, Mail, User, MapPin, Edit, Users } from "lucide-svelte";
   import Papa from 'papaparse';
+  import { save as saveDialog, open as openDialog, confirm as confirmDialog } from '@tauri-apps/plugin-dialog';
   import { 
     obtenerPersonasPorCircuito, 
     guardarPersona, 
@@ -133,10 +134,13 @@
   async function borrar(id: number | undefined, nombre: string) {
     if (!id) return;
 
-    // BLOQUEO TOTAL: El sistema se detiene aquí a esperar tu clic
-    const confirmado = window.confirm(`¿Estás seguro de que deseas eliminar a "${nombre}" del directorio?`);
+    // Usamos confirmDialog tal como lo hicimos en congregaciones
+    const confirmado = await confirmDialog(
+      `¿Estás seguro de que deseas eliminar a "${nombre}" del directorio?`,
+      { title: 'Eliminar Persona', kind: 'warning' }
+    );
 
-    // Si pulsas cancelar, salimos inmediatamente y no se ejecuta nada más
+    // Si pulsas cancelar, salimos inmediatamente
     if (!confirmado) return;
 
     try {

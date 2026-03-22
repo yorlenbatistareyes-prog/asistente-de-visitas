@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import { Calendar, ChevronDown, ChevronUp, Trash2, FileText, Clock, Archive, ClipboardEdit, TrendingUp, TrendingDown, Minus } from 'lucide-svelte';
   
-  import { save } from '@tauri-apps/plugin-dialog';
+  import { save, confirm as confirmDialog } from '@tauri-apps/plugin-dialog';
+
   import { writeFile } from '@tauri-apps/plugin-fs';
   import { createPdf } from '$lib/utils/pdfConfig';
   import type { TDocumentDefinitions } from 'pdfmake/interfaces';
@@ -68,12 +69,22 @@
   function toggleExpandir(index: number) { expandidos[index] = !expandidos[index]; }
 
   async function eliminarVisita(idVisita: number) {
-    if (!confirm("¿Seguro que deseas eliminar este registro?")) return;
+    // 🌟 USAMOS EL CUADRO DE DIÁLOGO NATIVO DE TAURI
+    const confirmado = await confirmDialog(
+      "¿Seguro que deseas eliminar este registro del historial?",
+      { title: 'Eliminar Visita', kind: 'warning' }
+    );
+
+    // Si pulsas cancelar, salimos sin hacer nada
+    if (!confirmado) return;
+
     try {
       const db = await initDB();
       await db.execute('DELETE FROM historial_visitas WHERE id = $1', [idVisita]);
-      await cargarHistorial();
-    } catch(e) { alert("Error al eliminar."); }
+      await cargarHistorial(); // Refrescamos la lista
+    } catch(e) { 
+      alert("Error al eliminar el registro."); 
+    }
   }
 
   function procesarDatos(contenido: string) {

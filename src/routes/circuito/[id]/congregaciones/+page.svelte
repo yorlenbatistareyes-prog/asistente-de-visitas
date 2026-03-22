@@ -5,6 +5,8 @@
   import { Plus, Users, MapPin, Calendar, Upload, Edit, Trash2, Search } from "lucide-svelte"; 
   import Papa from 'papaparse'; 
   
+  import { save as saveDialog, open as openDialog, confirm as confirmDialog } from '@tauri-apps/plugin-dialog';
+
   import { fechaPorCongregacion } from '$lib/stores/appStore'; 
   import NuevaCongregacionModal from "$lib/components/modals/NuevaCongregacionModal.svelte";
   
@@ -85,26 +87,31 @@
   }
 
   async function borrar(id: number | undefined, nombre: string) {
-    if (!id) return;
-
-    console.log("Pausa iniciada para:", nombre);
-
-    // 1. Forzamos una confirmación explícita fuera del 'if'
-    const confirmacionOficial = window.confirm(`¿Seguro que deseas eliminar "${nombre}"?`);
-
-    // 2. EL FILTRO DEFINITIVO: Si el usuario no dio "Aceptar", matamos la función aquí.
-    if (confirmacionOficial !== true) {
-      console.log("Borrado cancelado. No se ejecutará ninguna acción.");
-      return; 
+    if (!id) {
+      alert(`Error: La congregación "${nombre}" no tiene un ID válido.`);
+      return;
     }
 
-    // 3. Solo si confirmacionOficial es estrictamente TRUE, llegamos aquí
+    // 🌟 Usamos el diálogo NATIVO de Tauri (Asíncrono), no el del navegador (Síncrono)
+    const confirmacionOficial = await confirmDialog(
+      `¿Seguro que deseas eliminar a la congregación "${nombre}"? Toda su información se perderá de forma permanente.`, 
+      { title: 'Eliminar Congregación', kind: 'warning' }
+    );
+
+    // Si el usuario pulsa 'Cancelar', la variable es false y salimos sin hacer nada
+    if (!confirmacionOficial) {
+      console.log("Borrado cancelado por el usuario.");
+      return;
+    }
+
+    console.log("Ejecutando eliminación...");
     try {
       await eliminarCongregacion(id);
       await cargarDatos();
-      console.log("Eliminación completada con éxito.");
+      console.log(`✅ ${nombre} eliminada correctamente.`);
     } catch (error) {
       console.error("Error crítico al eliminar:", error);
+      alert("❌ Ocurrió un error en la base de datos al intentar eliminar la congregación.");
     }
   }
 
@@ -217,8 +224,13 @@
   </div>
 
   <div class="grid-congregaciones">
-    {#each listaFiltrada as cong}
-      <div class="card-global cong-card" on:click={() => entrarACongregacion(cong.nombre)}>
+    {#each listaFiltrada as cong (cong.id || cong.nombre)}
+      
+      <div class="card-global cong-card" on:click={(e) => {
+      if ((e.target as HTMLElement)?.closest('button')) return; // Si tocaste un botón, cancela la entrada a la congregación
+        entrarACongregacion(cong.nombre);
+      }}>
+        
         <div class="card-icon">
           <Users size={30} />
         </div>
@@ -241,7 +253,7 @@
              type="button" 
              class="btn-icon-edit" 
              title="Editar" 
-             on:click|preventDefault|stopPropagation={() => editarCongregacion(cong)}
+             on:click={(e) => { e.preventDefault(); e.stopPropagation(); editarCongregacion(cong); }}
           >
              <Edit size={18} />
           </button>
@@ -250,7 +262,7 @@
              type="button" 
              class="btn-icon-delete" 
              title="Eliminar" 
-             on:click|preventDefault|stopPropagation={() => borrar(cong.id, cong.nombre)}
+             on:click={(e) => { e.preventDefault(); e.stopPropagation(); borrar(cong.id, cong.nombre); }}
           >
              <Trash2 size={18} />
           </button>
