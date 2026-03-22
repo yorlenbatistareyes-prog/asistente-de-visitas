@@ -1,10 +1,88 @@
 <script lang="ts">
-  import { Settings, Home, Monitor, Sun, Moon } from "lucide-svelte";
+  import { Settings, Home, Monitor, Sun, Moon, RefreshCw } from "lucide-svelte";
   import { createEventDispatcher, onMount } from 'svelte';
   import { currentTheme, applyTheme, type Theme } from '$lib/stores/themeStore';
   import { goto } from '$app/navigation';
 
+  // --- HERRAMIENTAS DE SINCRONIZACIÓN ---
+  import { stat, readFile, writeFile, BaseDirectory } from '@tauri-apps/plugin-fs';
+  import { message as messageDialog, confirm as confirmDialog } from '@tauri-apps/plugin-dialog';
+  import { cargarConfig, guardarConfig } from '$lib/services/db';
+
   const dispatch = createEventDispatcher();
+
+  // --- VARIABLES DE SINCRONIZACIÓN ---
+  let rutaSync = "";
+  let isSyncing = false; // Controla la animación
+
+  // 🌟 LÓGICA DE SINCRONIZACIÓN INTELIGENTE (VERSIÓN BLINDADA Y SIN ERRORES TS)
+  async function ejecutarSincronizacionInteligente() {
+    if (!rutaSync) return;
+    isSyncing = true; // Empieza la animación de giro
+
+    try {
+      const separador = rutaSync.includes('\\') ? '\\' : '/';
+      const barra = rutaSync.endsWith(separador) ? '' : separador;
+      const rutaFinal = `${rutaSync}${barra}av_sync_backup.db`;
+
+      // 1. Verificar si existe en la nube
+      let cloudStat: any = null; // <-- TS FIX
+      try { cloudStat = await stat(rutaFinal); } catch(e) {}
+
+      if (!cloudStat) {
+        // ESCENARIO A: Primera exportación
+        const localBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppLocalData });
+        await writeFile(rutaFinal, localBytes);
+        await guardarConfig('ultimaExportacion', new Date().toLocaleString());
+        await messageDialog("Se ha creado la primera copia de seguridad en tu carpeta.", { title: "Sincronizado", kind: "info" });
+      } else {
+        // 2. 🌟 RAYOS X: Leer AMBOS archivos para compararlos byte por byte
+        const localBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppLocalData });
+        const cloudBytes = await readFile(rutaFinal);
+
+        // Comparamos si su peso y su contenido son exactamente iguales
+        let sonIdenticos = false;
+        if (localBytes.length === cloudBytes.length) {
+          sonIdenticos = localBytes.every((val, index) => val === cloudBytes[index]);
+        }
+
+        // Si el contenido es el mismo, cortamos el proceso aquí (adiós bucle infinito)
+        if (sonIdenticos) {
+          await messageDialog("Tus datos ya están completamente sincronizados y al día.", { title: "Todo en orden", kind: "info" });
+          isSyncing = false;
+          return;
+        }
+
+        // 3. Si NO son idénticos, miramos la fecha para saber cuál cambió
+        const localStat = await stat('av_database.db', { baseDir: BaseDirectory.AppLocalData });
+        
+        // <-- TS FIX: Le decimos qué hacer si la fecha viene vacía
+        const localTime = localStat.mtime ? new Date(localStat.mtime).getTime() : 0;
+        const cloudTime = cloudStat.mtime ? new Date(cloudStat.mtime).getTime() : 0;
+
+        if (cloudTime > localTime) {
+          // ESCENARIO B: La nube es más nueva
+          const resp = await confirmDialog("Hay datos más recientes en tu carpeta compartida. ¿Deseas importarlos a este equipo?", { title: "Actualización detectada", kind: "info" });
+          if (resp) {
+            await writeFile('av_database.db', cloudBytes, { baseDir: BaseDirectory.AppLocalData });
+            await guardarConfig('ultimaImportacion', new Date().toLocaleString());
+            await messageDialog("Datos importados correctamente. La aplicación se reiniciará.", { title: "Éxito", kind: "info" });
+            window.location.reload();
+          }
+        } else {
+          // ESCENARIO C: Tu PC es más nueva
+          await writeFile(rutaFinal, localBytes);
+          await guardarConfig('ultimaExportacion', new Date().toLocaleString());
+          await messageDialog("Tus cambios recientes se han guardado en la carpeta de sincronización.", { title: "Sincronizado", kind: "info" });
+        }
+      }
+    } catch (error) {
+      console.error("Error en sincronización inteligente:", error);
+      await messageDialog("Ocurrió un error al intentar sincronizar. Revisa que la carpeta exista.", { title: "Error", kind: "error" });
+    } finally {
+      isSyncing = false; // Detiene el giro
+    }
+  }
 
   // Función para rotar entre los 3 estados: Sistema -> Claro -> Oscuro
   function cambiarTema() {
@@ -18,6 +96,8 @@
   // Aseguramos que el tema se aplique al iniciar la app
   onMount(() => {
     const unsubscribe = currentTheme.subscribe(t => applyTheme(t));
+    // Carga la ruta de sincronización
+    cargarConfig('rutaSincronizacion').then(ruta => rutaSync = ruta || "");
     return unsubscribe;
   });
 </script>
@@ -41,6 +121,12 @@
         <button class="top-btn" on:click={() => goto('/')}>
           <Home size={16} /> <span>Inicio</span>
         </button>
+
+        {#if rutaSync}
+          <button class="icon-btn {isSyncing ? 'syncing' : ''}" on:click={ejecutarSincronizacionInteligente} title="Sincronizar datos">
+            <RefreshCw size={18} />
+          </button>
+        {/if}
 
         <button class="icon-btn" on:click={cambiarTema} title="Cambiar tema">
           {#if $currentTheme === 'system'}
@@ -287,5 +373,22 @@
     .right-actions {
       gap: 4px; /* Juntamos un poquito más los botones */
     }
+  }
+
+  /* =============================================
+     ESTILOS DE SINCRONIZACIÓN
+     ============================================= */
+  .icon-btn.syncing {
+    color: #3b82f6; /* Se vuelve Azul brillante para indicar actividad */
+    pointer-events: none; /* Bloquea el botón para evitar doble clic */
+  }
+
+  .icon-btn.syncing :global(svg) {
+    animation: spin 1s linear infinite; /* Animación de giro */
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 </style>
