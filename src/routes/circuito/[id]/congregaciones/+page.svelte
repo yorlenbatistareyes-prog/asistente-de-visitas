@@ -5,7 +5,7 @@
   import { Plus, Users, MapPin, Calendar, Upload, Edit, Trash2, Search } from "lucide-svelte"; 
   import Papa from 'papaparse'; 
   
-  import { save as saveDialog, open as openDialog, confirm as confirmDialog } from '@tauri-apps/plugin-dialog';
+  import { save as saveDialog, open as openDialog, confirm as confirmDialog, message as messageDialog } from '@tauri-apps/plugin-dialog';
 
   import { fechaPorCongregacion } from '$lib/stores/appStore'; 
   import NuevaCongregacionModal from "$lib/components/modals/NuevaCongregacionModal.svelte";
@@ -15,6 +15,7 @@
     obtenerCongregaciones, 
     guardarCongregacion,
     eliminarCongregacion,
+    eliminarTodasLasCongregaciones,
     initDB,
     type Circuito,
     type Congregacion 
@@ -192,6 +193,32 @@
       }
     });
   }
+
+  async function borrarTodo() {
+    if (lista.length === 0) {
+      await messageDialog("No hay congregaciones para eliminar en este circuito.", { title: 'Información', kind: 'info' });
+      return;
+    }
+
+    if (!circuitoActual) return;
+
+    // Diálogo nativo
+    const confirmado = await confirmDialog(
+      "⚠️ PELIGRO: ¿Estás seguro de que deseas eliminar TODAS las congregaciones de este circuito?\n\n¡Esta acción borrará también todo el historial de visitas asociado a ellas de forma permanente!",
+      { title: 'Vaciar Congregaciones', kind: 'warning' }
+    );
+
+    if (!confirmado) return;
+
+    try {
+      await eliminarTodasLasCongregaciones(circuitoActual.nombre);
+      await cargarDatos(); // Refrescamos la lista para que quede en blanco
+      console.log("✅ Todas las congregaciones han sido eliminadas.");
+    } catch (error) {
+      console.error("Error al vaciar las congregaciones:", error);
+      await messageDialog("Ocurrió un error al intentar vaciar el registro.", { title: 'Error', kind: 'error' });
+    }
+  }
 </script>
 
 <div class="congregaciones-layout">
@@ -201,7 +228,7 @@
       <p>Añade y selecciona una congregación para gestionar sus informes.</p>
     </div>
     
-    <div style="display: flex; gap: 10px;">
+    <div class="toolbar-botones" style="display: flex; gap: 10px;">
 
       <label class="btn-importar">
          <Upload size={18} /> <span>Importar CSV</span>
@@ -210,6 +237,10 @@
 
       <button class="btn-global btn-primary" on:click={abrirModal}>
         <Plus size={18} /> Añadir Congregación
+      </button>
+
+      <button class="btn-danger-fino" on:click={borrarTodo} title="Limpiar todas las congregaciones">
+        <Trash2 size={18} /> <span class="texto-btn-danger">Limpiar</span>
       </button>
     </div>
   </div>
@@ -569,6 +600,75 @@
     .card-icon :global(svg) {
       width: 24px !important;
       height: 24px !important;
+    }
+  }
+
+  /* Estilo del botón de Limpiar */
+  .btn-danger-fino {
+    background-color: transparent;
+    color: #ef4444;
+    border: 1px solid #ef4444;
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+  }
+
+  .btn-danger-fino:hover {
+    background-color: #ef4444;
+    color: white;
+    box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+  }
+
+  /* --- AJUSTES PARA MÓVILES (Actualizamos tus reglas anteriores) --- */
+  @media (max-width: 768px) {
+    .header-section {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 15px;
+    }
+
+    /* 1. Contenedor de botones: EL SECRETO ES FLEX-WRAP: WRAP */
+    .header-section > div:last-child,
+    .toolbar-botones {
+      width: 100% !important;
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important; /* Esto permite que el botón rojo salte abajo */
+      gap: 10px !important;
+    }
+
+    /* 2. Botones de Acción (Importar y Añadir) se quedan al 50% arriba */
+    .toolbar-botones .btn-primary,
+    .toolbar-botones .btn-importar {
+      flex: 1 1 45% !important; /* 45% asegura que quepan los dos con el gap */
+      height: 44px !important;
+      padding: 0 5px !important;
+      font-size: 0.8rem !important;
+      display: flex !important;
+      justify-content: center !important;
+      align-items: center !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+    }
+
+    /* 3. El botón Rojo (Limpiar) se va abajo a ocupar todo el ancho */
+    .toolbar-botones .btn-danger-fino {
+      flex: 1 1 100% !important; /* 100% lo obliga a estar solo en su línea */
+      height: 44px !important;
+      justify-content: center !important;
+      margin-top: 5px;
+    }
+    
+    .texto-btn-danger {
+      display: inline !important;
     }
   }
 </style>

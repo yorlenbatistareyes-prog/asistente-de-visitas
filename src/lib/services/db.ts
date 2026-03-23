@@ -303,3 +303,9 @@ export async function eliminarTodasLasPersonas(circuitoId: number) {
   const db = await Database.load('sqlite:av_database.db');
   await db.execute('DELETE FROM personas WHERE circuito_id = $1', [circuitoId]);
 }
+
+export async function eliminarTodasLasCongregaciones(circuito: string) {
+  // Asegúrate de que el string sea exactamente el mismo que usas en initDB
+  const db = await Database.load('sqlite:av_database.db');
+  await db.execute('DELETE FROM congregaciones WHERE circuito = $1', [circuito]);
+}
