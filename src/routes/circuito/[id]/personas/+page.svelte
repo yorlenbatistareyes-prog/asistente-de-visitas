@@ -3,11 +3,12 @@
   import { page } from '$app/stores'; 
   import { Search, Upload, Plus, Trash2, Phone, Mail, User, MapPin, Edit, Users } from "lucide-svelte";
   import Papa from 'papaparse';
-  import { save as saveDialog, open as openDialog, confirm as confirmDialog } from '@tauri-apps/plugin-dialog';
+  import { save as saveDialog, open as openDialog, confirm as confirmDialog, message as messageDialog } from '@tauri-apps/plugin-dialog';
   import { 
     obtenerPersonasPorCircuito, 
     guardarPersona, 
-    eliminarPersona, 
+    eliminarPersona,
+    eliminarTodasLasPersonas,
     type Persona 
   } from '$lib/services/db';
 
@@ -152,6 +153,32 @@
       alert("No se pudo eliminar el registro.");
     }
   }
+
+  async function borrarTodo() {
+    if (personas.length === 0) {
+      // Alerta nativa informativa
+      await messageDialog("El registro de personas ya está vacío.", { title: 'Información', kind: 'info' });
+      return;
+    }
+
+    // Cuadro de confirmación NATIVO del sistema operativo (Windows / Android)
+    const confirmado = await confirmDialog(
+      "⚠️ ATENCIÓN: ¿Estás ABSOLUTAMENTE SEGURO de que deseas eliminar a TODAS las personas de este circuito?\n\nEsta acción no se puede deshacer.",
+      { title: 'Vaciar Directorio', kind: 'warning' }
+    );
+
+    if (!confirmado) return;
+
+    try {
+      await eliminarTodasLasPersonas(circuitoId);
+      await cargar(); // Refrescamos la lista para que quede en blanco
+      console.log("✅ Todas las personas han sido eliminadas.");
+    } catch (error) {
+      console.error("Error al vaciar el registro:", error);
+      // Alerta nativa de error
+      await messageDialog("Ocurrió un error al intentar vaciar el registro.", { title: 'Error', kind: 'error' });
+    }
+  }
 </script>
 
 <div class="seccion-personas">
@@ -174,6 +201,10 @@
       
       <button class="btn-primary-fino" on:click={() => { resetForm(); mostrandoModalPersona = true; }}>
         <Plus size={18} /> Añadir Persona
+      </button>
+
+      <button class="btn-danger-fino" on:click={borrarTodo} title="Limpiar todo el registro">
+        <Trash2 size={18} /> <span class="texto-btn-danger">Limpiar</span>
       </button>
     </div>
   </div>
@@ -592,6 +623,46 @@
     .filters-aside .btn-importar,
     .filters-aside .btn-primary-fino {
       font-size: 0.75rem !important; /* Achicamos letra si la pantalla es enana */
+    }
+  }
+
+  /* Estilo del botón de Limpiar */
+  .btn-danger-fino {
+    background-color: transparent;
+    color: #ef4444;
+    border: 1px solid #ef4444;
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+  }
+
+  .btn-danger-fino:hover {
+    background-color: #ef4444;
+    color: white;
+    box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+  }
+
+  /* --- AJUSTE VITAL PARA MÓVILES (Sobrescribe tu regla anterior) --- */
+  @media (max-width: 768px) {
+    .filters-aside { 
+      flex-wrap: wrap !important; /* Ahora sí permitimos que envuelvan */
+    }
+    
+    .filters-aside .btn-danger-fino {
+      flex: 1 1 100% !important; /* Obliga al botón rojo a saltar a una nueva línea entera abajo */
+      height: 44px !important;
+      justify-content: center;
+    }
+
+    .texto-btn-danger {
+      display: inline !important; /* Aseguramos que se lea "Limpiar" en el móvil */
     }
   }
 

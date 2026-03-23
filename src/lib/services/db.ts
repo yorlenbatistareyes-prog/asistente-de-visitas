@@ -297,3 +297,9 @@ export async function eliminarHistorial(id: number) {
     throw error;
   }
 }
+
+export async function eliminarTodasLasPersonas(circuitoId: number) {
+  // Usamos el mismo string de conexión que usas arriba en initDB()
+  const db = await Database.load('sqlite:av_database.db');
+  await db.execute('DELETE FROM personas WHERE circuito_id = $1', [circuitoId]);
+}
