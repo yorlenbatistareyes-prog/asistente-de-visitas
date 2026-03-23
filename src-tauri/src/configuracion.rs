@@ -1,7 +1,8 @@
 use crate::database::establecer_conexion; // Importamos la conexión del núcleo
+use crate::SyncState;
 
 #[tauri::command]
-pub fn guardar_config_rust(clave: String, valor: String) -> Result<(), String> {
+pub fn guardar_config_rust(clave: String, valor: String, state: tauri::State<'_, SyncState>) -> Result<(), String> {
     let conn = establecer_conexion().map_err(|e| e.to_string())?;
     
     conn.execute(
@@ -9,6 +10,13 @@ pub fn guardar_config_rust(clave: String, valor: String) -> Result<(), String> {
         rusqlite::params![clave, valor],
     ).map_err(|e| e.to_string())?;
     
+    // --- NUEVO: Actualizamos la memoria de Rust en tiempo real ---
+    if clave == "rutaSincronizacion" {
+        *state.ruta.lock().unwrap() = valor;
+    } else if clave == "autoExportar" {
+        *state.auto_exportar.lock().unwrap() = valor == "true";
+    }
+
     Ok(())
 }
 

@@ -10,6 +10,14 @@ use serde::{Deserialize, Serialize};
 use std::process::Command; // Necesario para abrir Word/Excel
 use tauri::Manager; // <--- NUEVO: Para buscar las carpetas seguras del sistema (AppData)
 
+use std::sync::Mutex; // <-- AÑADIR
+
+// <-- AÑADIR: Estructura del Estado Global
+pub struct SyncState {
+    pub ruta: Mutex<String>,
+    pub auto_exportar: Mutex<bool>,
+}
+
 // --- 1. ESTRUCTURAS (Igual que antes) ---
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PersonalTask {
@@ -90,6 +98,12 @@ fn save_document_record(name: String, path: String, doc_type: String, _size: Str
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+
+    .manage(SyncState { 
+            ruta: Mutex::new(String::new()), 
+            auto_exportar: Mutex::new(false) 
+        })
+
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
@@ -111,11 +125,41 @@ pub fn run() {
             if let Err(e) = database::inicializar_bd() {
                 eprintln!("Error crítico en BD: {}", e);
             }
+
+            // <-- AÑADIR ESTE BLOQUE: Cargar datos a la memoria de Rust
+            let state = app.state::<SyncState>();
+            if let Ok(Some(r)) = configuracion::cargar_config_rust("rutaSincronizacion".to_string()) {
+                *state.ruta.lock().unwrap() = r;
+            }
+            if let Ok(Some(a)) = configuracion::cargar_config_rust("autoExportar".to_string()) {
+                *state.auto_exportar.lock().unwrap() = a == "true";
+            }
+            // -----------------------
             
             Ok(())
         })
         // -------------------------------------------------
 
+        // <-- AÑADIR ESTE BLOQUE: Interceptor de cierre
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                let state = window.state::<SyncState>();
+                let ruta = state.ruta.lock().unwrap().clone();
+                let auto = *state.auto_exportar.lock().unwrap();
+
+                if auto && !ruta.is_empty() {
+                    if let Some(local_db) = database::DB_PATH.get() {
+                        let separador = if ruta.contains('\\') { "\\" } else { "/" };
+                        let barra = if ruta.ends_with(separador) { "" } else { separador };
+                        let ruta_final = format!("{}{}{}", ruta, barra, "av_sync_backup.db");
+
+                        let _ = std::fs::copy(local_db, &ruta_final); // Copia instantánea
+                    }
+                }
+            }
+        })
+        // -----------------------
+        
         .invoke_handler(tauri::generate_handler![
             greet,
             get_personal_agenda,
