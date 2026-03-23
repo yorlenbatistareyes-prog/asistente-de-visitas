@@ -195,9 +195,6 @@
 
   /* Móviles muy pequeños (hasta 480px) */
   @media (max-width: 480px) {
-    .tab span {
-      display: inline-block; /* Si ves que no cabe, podrías usar display: none aquí y dejar solo iconos */
-    }
     
     .title-area h2 {
       font-size: 1.3rem;

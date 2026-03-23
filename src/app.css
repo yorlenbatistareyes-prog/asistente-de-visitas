@@ -329,9 +329,9 @@ body, html {
   }
 
   /* TARJETAS DE CIRCUITO */
-  .rassembly-card {
-    min-height: auto !important;
-  }
+.rassembly-card {
+  min-height: 0 !important;
+}
 
   .card-header {
     padding: 20px 20px 0 20px !important;

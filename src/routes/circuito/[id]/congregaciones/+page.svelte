@@ -257,10 +257,22 @@
   <div class="grid-congregaciones">
     {#each listaFiltrada as cong (cong.id || cong.nombre)}
       
-      <div class="card-global cong-card" on:click={(e) => {
-      if ((e.target as HTMLElement)?.closest('button')) return; // Si tocaste un botón, cancela la entrada a la congregación
-        entrarACongregacion(cong.nombre);
-      }}>
+      <div 
+        class="card-global cong-card" 
+        role="button" 
+        tabindex="0"
+        on:click={(e) => {
+          if ((e.target as HTMLElement)?.closest('button')) return; // Si tocaste un botón, cancela la entrada a la congregación
+          entrarACongregacion(cong.nombre);
+        }}
+        on:keydown={(e) => {
+          if ((e.target as HTMLElement)?.closest('button')) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault(); // Evita que la página salte si presionan la barra espaciadora
+            entrarACongregacion(cong.nombre);
+          }
+        }}
+      >
         
         <div class="card-icon">
           <Users size={30} />

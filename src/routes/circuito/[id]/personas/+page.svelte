@@ -224,7 +224,12 @@
         <div class="tabla-personas">
           {#each personasAgrupadas[nombreCongregacion] as p}
             <div class="persona-row">
-              <div class="p-info" on:click={() => abrirEdicion(p)}>
+              <div class="p-info" role="button" tabindex="0" on:click={() => abrirEdicion(p)}
+                on:keydown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {e.preventDefault();
+                    abrirEdicion(p);
+                  }
+                }}>
                 <span class="p-nombre">{p.apellidos}, {p.nombre}</span>
                 <span class="p-meta">{p.privilegio || 'Publicador'}</span>
               </div>
@@ -274,39 +279,39 @@
       <div class="form-grid">
         <div class="col">
           <div class="form-group">
-            <label>Nombre *</label>
-            <input type="text" class="input-global" bind:value={nuevaP.nombre} />
+            <label for="nombre_input">Nombre *</label>
+            <input id="nombre_input" type="text" class="input-global" bind:value={nuevaP.nombre} />
           </div>
           <div class="form-group">
-            <label>Segundo Nombre</label>
-            <input type="text" class="input-global" bind:value={nuevaP.segundo_nombre} />
+            <label for="segundo_nombre_input">Segundo Nombre</label>
+            <input id="segundo_nombre_input" type="text" class="input-global" bind:value={nuevaP.segundo_nombre} />
           </div>
           <div class="form-group">
-            <label>Apellidos *</label>
-            <input type="text" class="input-global" bind:value={nuevaP.apellidos} />
+            <label for="apellidos_input">Apellidos *</label>
+            <input id="apellidos_input" type="text" class="input-global" bind:value={nuevaP.apellidos} />
           </div>
           <div class="form-group">
-            <label>Congregación</label>
-            <input type="text" class="input-global" bind:value={nuevaP.congregacion} />
+            <label for="congregacion_input">Congregación</label>
+            <input id="congregacion_input" type="text" class="input-global" bind:value={nuevaP.congregacion} />
           </div>
         </div>
 
         <div class="col">
           <div class="form-group">
-            <label>Privilegio</label>
-            <input type="text" class="input-global" bind:value={nuevaP.privilegio} placeholder="Ej: Anciano" />
+            <label for="privilegio_input">Privilegio</label>
+            <input id="privilegio_input" type="text" class="input-global" bind:value={nuevaP.privilegio} placeholder="Ej: Anciano" />
           </div>
           <div class="form-group">
-            <label>Teléfono Celular</label>
-            <input type="text" class="input-global" bind:value={nuevaP.telefono_celular} />
+            <label for="telefono_celular_input">Teléfono Celular</label>
+            <input id="telefono_celular_input" type="text" class="input-global" bind:value={nuevaP.telefono_celular} />
           </div>
           <div class="form-group">
-            <label>Correo Electrónico</label>
-            <input type="email" class="input-global" bind:value={nuevaP.email} />
+            <label for="email_input">Correo Electrónico</label>
+            <input id="email_input" type="email" class="input-global" bind:value={nuevaP.email} />
           </div>
           <div class="form-group">
-            <label>Dirección Completa</label>
-            <textarea class="input-global" bind:value={nuevaP.direccion} rows="2"></textarea>
+            <label for="direccion_input">Dirección Completa</label>
+            <textarea id="direccion_input" class="input-global" bind:value={nuevaP.direccion} rows="2"></textarea>
           </div>
         </div>
       </div>
@@ -334,7 +339,7 @@
     flex: 1; height: 44px; border-radius: 50px; display: flex; align-items: center; 
     padding: 0 20px; background: var(--bg-panel); border: 1px solid var(--border-color);
   }
-  .search-icon { color: var(--text-muted); }
+  
   .search-input { background: transparent; border: none; outline: none; color: var(--text-main); width: 100%; margin-left: 10px; font-size: 0.9rem; }
   .search-input::placeholder { color: var(--text-muted); }
 
