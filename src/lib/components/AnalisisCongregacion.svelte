@@ -442,7 +442,15 @@
     {#each modulos as mod}
       <div 
         class="nota-card {registro[mod.id] && registro[mod.id].trim() !== '' ? 'completada' : 'vacia'}"
+        role="button"
+        tabindex="0"
         on:click={() => moduloActivo = mod}
+        on:keydown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            moduloActivo = mod;
+          }
+        }}
       >
         <div class="nota-header">
           <h4>{mod.titulo}</h4>

@@ -239,14 +239,6 @@
   }
 
   .text-group p,
-  .text-group .subtitulo {
-    margin: 0;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    white-space: normal;
-    line-height: 1.2;
-    margin-top: 2px;
-  }
 
   .right-actions {
     display: flex;
@@ -335,9 +327,7 @@
     }
     
     .text-group p,
-    .text-group .subtitulo {
-      font-size: 0.75rem;
-    }
+
 
     .top-btn span {
       display: none; /* Ocultamos la palabra "Inicio", dejamos solo el icono */
