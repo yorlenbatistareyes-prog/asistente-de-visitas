@@ -5,6 +5,14 @@
   "windows": ["*"],
   "permissions": [
     "core:default",
+    "core:app:allow-version",
+    "core:window:allow-close",
+    
+    
+    "sql:default",
+    "sql:allow-load",
+    "sql:allow-execute",
+    "sql:allow-select",
     
     "opener:default",
     "opener:allow-open-path",
@@ -20,6 +28,7 @@
     "fs:allow-remove",
     "fs:allow-read-dir",
     "fs:allow-copy-file",
+    "fs:allow-stat",
     
     "dialog:default",
     "dialog:allow-open",

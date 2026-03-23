@@ -1,586 +1,898 @@
 <script lang="ts">
-  import { FileText, Save, CheckCircle } from "lucide-svelte";
-  import { createEventDispatcher } from 'svelte';
+  import { FileText, Save, CheckCircle, CheckCircle2, Circle, X } from "lucide-svelte";
+  import { createEventDispatcher, onMount } from 'svelte';
   
-  // TAURI & STORES (Arquitectura Nueva: LazyStore)
-  import { LazyStore } from '@tauri-apps/plugin-store'; 
-  import { writeFile, readTextFile, BaseDirectory, exists } from "@tauri-apps/plugin-fs";
+  import { guardarConfig, cargarConfig } from '$lib/services/db';
+  
   import { save } from "@tauri-apps/plugin-dialog";
+  import { writeFile } from "@tauri-apps/plugin-fs";
   
-  // PDF
-  import jsPDF from "jspdf";
-  import autoTable from "jspdf-autotable";
-
-  // STORES DE UI (Solo para actualizar la vista del Dashboard en tiempo real)
+  import type { TDocumentDefinitions, TableCell } from 'pdfmake/interfaces';
+  import { createPdf } from '$lib/utils/pdfConfig';
+  
   import { fechaPorCongregacion, resumenUltimoAnalisis } from '$lib/stores/appStore';
-
   const dispatch = createEventDispatcher();
   
   export let nombreCongregacion: string;
   export let datosEdicion: any = null;
 
-  // INTERFAZ DE DATOS
   interface RegistroCongregacion {
     fechaVisita: string;
-    opinionGeneral: string;
-    ministerio: string;
-    territorio: string;
-    atencionTerritorio: string;
-    precursoresMetas: string;
-    reuniones: string;
+    opinionAncianos: string;
+    ministerioCristiano: string;
+    reunionesCongregacion: string;
     pastoreo: string;
-    crecimiento: string;
-    superServicio: string;
-    publicaciones: string;
-    metas: string;
-    cuerpoAncianos: string;
-    local: string;
-    miscelaneos: string;
-    irregulares: string;
-    potencial: string;
-    analisisPrecursores: string;
+    precursores: string;
+    irregularesInactivos: string;
+    responsabilidades: string;
     contabilidad: string;
+    miscelaneos: string;
     seguimiento: string;
+    recomendaciones: string; 
+    localReunion: string;    
+    checklist: boolean[];
   }
 
+  // --- LOS PUNTOS DE TU LISTA ---
+  const puntosChecklist = [
+    "Verificar que se siguen los procedimientos de contabilidad.",
+    "Revisar Formularios Movimiento mensual de publicaciones (S-28).",
+    "Revisar S-303 de la última visita para ver aspectos en los que se dejó a trabajar.",
+    "Verificar que tengan seleccionados los territorios a trabajar durante la semana.",
+    "Solicitar lista de temas propuestos para incluir en la agenda de la reunión con los ancianos; confeccionarla.",
+    "Verificar si alguien solicitó salir a predicar con nosotros.",
+    "Verificar el programa de la semana.",
+    "Verificar las visitas de pastoreo programadas para la semana."
+  ];
+
   const valoresPorDefecto: RegistroCongregacion = {
-    fechaVisita: "", opinionGeneral: "", ministerio: "", territorio: "",
-    atencionTerritorio: "", precursoresMetas: "", reuniones: "", pastoreo: "",
-    crecimiento: "", superServicio: "", publicaciones: "", metas: "", cuerpoAncianos: "",
-    local: "", miscelaneos: "", irregulares: "", potencial: "", analisisPrecursores: "",
-    contabilidad: "", seguimiento: ""
+    fechaVisita: "", opinionAncianos: "", ministerioCristiano: "", reunionesCongregacion: "",
+    pastoreo: "", precursores: "", irregularesInactivos: "", responsabilidades: "",
+    contabilidad: "", miscelaneos: "", seguimiento: "",
+    recomendaciones: "", localReunion: "", 
+    checklist: new Array(8).fill(false) 
   };
 
   let registro: RegistroCongregacion = { ...valoresPorDefecto };
   let congregacionActual = "";
-  
-  // CONEXIÓN DIRECTA A BASE DE DATOS (Vital para el respaldo)
-  const store = new LazyStore('registro_circuito_v1.json');
-  let mapaObservaciones: Record<string, any> = {};
 
-  // --- REACTIVIDAD Y CARGA DE DATOS ---
+  // --- ESTADO DE LOS CHIPS VISUALES ---
+  let estadoTarjetas: Record<string, 'guardando' | 'guardado' | null> = {};
+
+  type ClaveRegistro = keyof Omit<RegistroCongregacion, 'fechaVisita' | 'checklist'>;
   
-  // 1. Si cambia la congregación seleccionada en el menú
+  // --- LISTA DE MÓDULOS EXPANDIDA Y ORDENADA ---
+  const modulos: { id: ClaveRegistro, titulo: string, guias: string[] }[] = [
+    { 
+      id: 'opinionAncianos', 
+      titulo: '1. Opinión de Ancianos', 
+      guias: [
+        'Aspectos positivos que observan en la congregación.', 
+        'Necesidades o tendencias que les preocupan.'
+      ] 
+    },
+
+    { 
+      id: 'ministerioCristiano', 
+      titulo: '2. Ministerio Cristiano', 
+      guias: [
+        'Prioridad a la predicación de casa en casa y diferentes facetas.', 
+        'Trabajo del territorio / Revisitas / Cursos bíblicos.', 
+        'Entusiasmo de los publicadores.'
+      ] 
+    },
+
+    { 
+      id: 'reunionesCongregacion', 
+      titulo: '3. Reuniones de Congregación', 
+      guias: [
+        'Asistencia, y participación.',
+        'Calidad en la enseñanza.',
+        'Procedimientos / Sugerencias.'
+      ] 
+    },
+
+    { 
+      id: 'pastoreo', 
+      titulo: '4. Pastoreo', 
+      guias: [
+        '¿Se hacen visitas periódicas y eficaces?', 
+        'Progreso espiritual, adoración en familia y metas de los hermanos.'
+      ] 
+    },
+
+    { 
+      id: 'precursores', 
+      titulo: '5. Precursores', 
+      guias: [
+        'Actitud hacia el servicio.', 
+        'Dificultades que enfrentan los precursores.',
+        'Apoyo de los ancianos.'
+      ] 
+    },
+
+    { 
+      id: 'irregularesInactivos', 
+      titulo: '6. Irregulares e Inactivos', 
+      guias: [
+        'Nombres y razones principales.', 
+        'Ayuda específica del cuerpo de ancianos.'
+      ] 
+    },
+
+    { 
+      id: 'responsabilidades', 
+      titulo: '7. Responsabilidades', 
+      guias: [
+        'Unidad y paz del cuerpo de ancianos y siervos.', 
+        'Labor del sup. de servicio.',
+        'Labor del SEC.',
+        'Labor de los SG.',
+        'Otros.'
+      ] 
+    },
+
+    { 
+      id: 'contabilidad', 
+      titulo: '8. Contabilidad', 
+      guias: [
+        '¿Archivos actualizados correctamente?', 
+        '¿Uso adecuado de la contabilidad en línea?'
+      ] 
+    },
+    
+    { 
+      id: 'recomendaciones', 
+      titulo: '11. Recomendaciones / Nombramientos y Bajas', 
+      guias: [
+        'Nombramientos recomendados (Ancianos, Siervos Ministeriales).',
+        'Bajas o eliminaciones de privilegios.'
+      ] 
+    },
+
+    { 
+      id: 'localReunion', 
+      titulo: '12. Local de Reunión / Mantenimiento', 
+      guias: [
+        'Condición general del Salón del Reino.',
+        'Necesidades de mantenimiento, seguridad o limpieza.'
+      ] 
+    },
+
+    { 
+      id: 'miscelaneos', 
+      titulo: '9. Misceláneos', 
+      guias: [
+        'Atención a pecados graves u otros asuntos no cubiertos.',
+        'Hermanos y hermanas con potencial para mayores privilegios.'
+      ] 
+    },
+
+    { 
+      id: 'seguimiento', 
+      titulo: '10. Seguimiento', 
+      guias: [
+        'Asuntos pendientes antes de la próxima visita.', 
+        'Asuntos que deben enviarse a la sucursal.'
+      ] 
+    }
+  ];
+
+  let moduloActivo: typeof modulos[0] | null = null;
+
   $: if (nombreCongregacion && nombreCongregacion !== congregacionActual) {
     congregacionActual = nombreCongregacion;
-    if (!datosEdicion) {
-        cargarDatosBorrador();
-    }
+    if (!datosEdicion) cargarDatosBorrador();
   }
+  $: if (datosEdicion) registro = { ...valoresPorDefecto, ...datosEdicion };
 
-  // 2. Si entramos en modo edición desde el historial
-  $: if (datosEdicion) {
-    // Si hay datos de edición, tienen prioridad sobre el borrador
-    registro = { ...valoresPorDefecto, ...datosEdicion };
-  }
-
-  // Función para cargar lo que se estaba escribiendo (Borrador)
   async function cargarDatosBorrador() {
     try {
-      // Obtenemos el objeto 'observaciones' completo del archivo JSON
-      const obs = await store.get<Record<string, any>>('observaciones');
-      mapaObservaciones = obs || {};
-      
-      const guardado = mapaObservaciones[nombreCongregacion];
-      if (guardado) {
-        registro = { ...valoresPorDefecto, ...guardado };
+      const claveBorrador = `borrador_${nombreCongregacion}`;
+      const valor = await cargarConfig(claveBorrador);
+      if (valor && valor !== "{}") {
+        registro = { ...valoresPorDefecto, ...JSON.parse(valor) };
       } else {
         registro = { ...valoresPorDefecto };
       }
-    } catch (e) {
-      console.log("Creando registro nuevo.");
-      registro = { ...valoresPorDefecto };
+    } catch (e) { 
+      console.error("Error cargando borrador:", e);
+      registro = { ...valoresPorDefecto }; 
     }
   }
 
-  // --- GUARDAR BORRADOR (DISCO DURO) ---
-  async function guardarCambios() {
-    if (!nombreCongregacion) { alert("⚠️ No hay congregación seleccionada."); return; }
-    
+  async function guardarCambios(idModificado?: string) {
+    if (!nombreCongregacion) return;
+
+    if (idModificado) {
+      estadoTarjetas[idModificado] = 'guardando';
+      estadoTarjetas = { ...estadoTarjetas }; 
+    }
+
     try {
-      // 1. Aseguramos tener la última versión del mapa
-      const obs = await store.get<Record<string, any>>('observaciones') || {};
-      mapaObservaciones = obs;
-
-      // 2. Actualizamos solo esta congregación
-      mapaObservaciones[nombreCongregacion] = registro;
+      const claveBorrador = `borrador_${nombreCongregacion}`;
+      const valorJSON = JSON.stringify(registro);
+      await guardarConfig(claveBorrador, valorJSON);
       
-      // 3. Escribimos en el archivo físico
-      await store.set('observaciones', mapaObservaciones);
-      await store.save(); // ¡IMPORTANTE! Esto confirma la escritura en disco
+      if (idModificado) await new Promise(r => setTimeout(r, 400));
       
-      alert("✅ Borrador guardado correctamente.");
+      if (idModificado) {
+        estadoTarjetas[idModificado] = 'guardado';
+        estadoTarjetas = { ...estadoTarjetas };
+      }
     } catch (error) { 
-      console.error(error); 
-      alert("❌ Error al guardar en disco."); 
+      console.error(error);
+      alert("❌ Error al guardar borrador."); 
+      if (idModificado) {
+        estadoTarjetas[idModificado] = null;
+        estadoTarjetas = { ...estadoTarjetas };
+      }
     }
   }
 
-  // --- FINALIZAR (Mover a Historial) ---
+  async function cerrarYGuardar() {
+    if (moduloActivo) {
+      const idActual = moduloActivo.id;
+      moduloActivo = null; 
+      await guardarCambios(idActual); 
+    }
+  }
+
   async function finalizarInforme() {
     if (!nombreCongregacion || !registro.fechaVisita) { alert("⚠️ Ingresa la fecha antes de finalizar."); return; }
-    if (!confirm("¿Finalizar y limpiar formulario? Esta acción guardará el informe en el historial.")) return;
+    if (!confirm("¿Finalizar y limpiar formulario?")) return;
 
     try {
-      // 1. Generar resumen de texto
-      const resumen = Object.entries(registro)
-        .filter(([key]) => key !== 'fechaVisita')
+      let resumen = Object.entries(registro)
+        .filter(([key]) => key !== 'fechaVisita' && key !== 'id' && key !== 'checklist')
         .map(([k, v]) => {
-          const nombreModulo = k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
-            .replace('Cuerpo Ancianos', 'Cuerpo de Ancianos');
+          const nombreModulo = k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
           return `${nombreModulo}: ${v || 'Sin observaciones'}`;
-        })
-        .join('\n\n');
+        }).join('\n\n');
+
+      resumen += "\n\n--- LISTA DE VERIFICACIÓN ---\n";
+      puntosChecklist.forEach((punto, i) => {
+         const marcado = registro.checklist && registro.checklist[i];
+         const simbolo = marcado ? "[X]" : "[  ]";
+         resumen += `${simbolo} ${punto}\n`;
+      });
       
-      // 2. Actualizar Stores de UI (Badges y textos en Dashboard)
       resumenUltimoAnalisis.update(r => ({ ...r, [nombreCongregacion]: resumen }));
       fechaPorCongregacion.update(f => ({ ...f, [nombreCongregacion]: registro.fechaVisita }));
-
-      // 3. Emitir evento para que el Dashboard guarde el Historial Físico
+      
       dispatch('guardarEnHistorial', { 
         congregacion: nombreCongregacion, 
         fecha: registro.fechaVisita, 
-        contenido: resumen 
+        contenido: resumen,
+        tipo: 'Análisis' 
       });
       
-      // 4. Limpiar el borrador en el archivo físico
-      const obs = await store.get<Record<string, any>>('observaciones') || {};
-      if (obs[nombreCongregacion]) {
-        obs[nombreCongregacion] = { ...valoresPorDefecto }; // Reseteamos data
-        await store.set('observaciones', obs);
-        await store.save();
-      }
-      
-      // 5. Limpiar formulario visual
+      await guardarConfig(`borrador_${nombreCongregacion}`, "{}");
       registro = { ...valoresPorDefecto };
       dispatch('limpiarFormulario');
-      
-      alert("✅ Informe finalizado y guardado en el historial.");
-    } catch (e) { console.error(e); alert("❌ Error al finalizar."); }
+      alert("✅ Informe finalizado y guardado en historial.");
+    } catch (e) { alert("❌ Error al finalizar."); }
   }
 
-  // --- GENERAR PDF ---
+// --- GENERAR PDF CON PDFMAKE (ESTILO ASSEMBLY SEGURO) ---
   async function generarPDF() {
-    let firmaUsuario = "";
+    let firmaUsuario = "Superintendente de Circuito";
+    let cargoPdf = "Superintendente de Circuito";
     let textoPiePagina = "Informe generado por Asistente de Visitas"; 
-
-    // Leer configuración del usuario para el pie de página
-    try {
-      if (await exists('config_usuario.json', { baseDir: BaseDirectory.AppLocalData })) {
-        const content = await readTextFile('config_usuario.json', { baseDir: BaseDirectory.AppLocalData });
-        const config = JSON.parse(content);
-        if (config.nombre) firmaUsuario = `Generado por: ${config.nombre}` + (config.rol ? ` (${config.rol})` : "");
-        if (config.piePagina) textoPiePagina = config.piePagina;
-      }
-    } catch (e) { console.log("Usando configuración por defecto."); }
-
-    const doc = new jsPDF();
     
-    // Encabezado
-    doc.setFontSize(18); doc.setTextColor(40, 40, 40);
-    doc.text(`Análisis: ${nombreCongregacion}`, 14, 20);
-    doc.setFontSize(11); doc.setTextColor(80, 80, 80);
-    doc.text(`Fecha de la visita: ${registro.fechaVisita || 'No especificada'}`, 14, 27);
+    try {
+      const resNombre = await cargarConfig("nombreUsuario");
+      if (resNombre) firmaUsuario = resNombre;
+      const resCargo = await cargarConfig("cargoUsuario");
+      if (resCargo) cargoPdf = resCargo;
+      const resPie = await cargarConfig("piePagina");
+      if (resPie) textoPiePagina = resPie;
+    } catch (e) {
+      console.error("Error al cargar configuración para PDF", e);
+    }
 
-    const bodyData = Object.entries(registro)
-      .filter(([k]) => k !== 'fechaVisita')
-      .map(([k, v]) => {
-         let label = k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-         if(k === 'cuerpoAncianos') label = 'Cuerpo de Ancianos';
-         if(k === 'precursoresMetas') label = 'Precursores y Metas';
-         return [label, v || 'Sin observaciones'];
+    // 1. Tabla de Módulos
+    const modulosBody: TableCell[][] = [
+      [
+        { text: 'SECCIÓN', style: 'tableHeader', alignment: 'center' }, 
+        { text: 'OBSERVACIONES Y NOTAS', style: 'tableHeader', alignment: 'center' }
+      ]
+    ];
+
+    modulos.forEach(mod => {
+      modulosBody.push([
+        { text: mod.titulo.toUpperCase(), bold: true, fillColor: '#f8fafc', margin: [0, 5, 0, 5] },
+        { text: (registro as any)[mod.id] || 'Sin observaciones registradas.', margin: [0, 5, 0, 5] }
+      ]);
+    });
+
+   // 2. Tabla del Checklist
+    const checklistBody: TableCell[][] = [];
+    puntosChecklist.forEach((punto, i) => {
+      const estaMarcado = registro.checklist && registro.checklist[i];
+      checklistBody.push([
+        { 
+          text: estaMarcado ? '[ X ]' : '[   ]', 
+          color: estaMarcado ? '#16a34a' : '#94a3b8', // Verde para marcado, gris para vacío
+          bold: true, 
+          alignment: 'center', 
+          margin: [0, 3, 0, 3],
+          fontSize: 11 // Un poco más grande para que simule bien una casilla
+        },
+        { text: punto, margin: [0, 3, 0, 3] }
+      ]);
+    });
+
+    // 3. Definición del documento (Aseguramos la fuente Roboto que inyectamos)
+    const docDefinition: TDocumentDefinitions = {
+      content: [
+        { text: 'INFORME DE ANÁLISIS', style: 'header' },
+        {
+          columns: [
+            { text: `CONGREGACIÓN: ${nombreCongregacion.toUpperCase()}`, bold: true },
+            { text: `VISITA: ${registro.fechaVisita || '---'}`, alignment: 'right' }
+          ],
+          margin: [0, 0, 0, 15]
+        },
+        {
+          table: {
+            headerRows: 1,
+            widths: ['35%', '65%'],
+            body: modulosBody
+          },
+          layout: 'lightHorizontalLines',
+          margin: [0, 0, 0, 25]
+        },
+        { text: 'VERIFICACIÓN DE PROCEDIMIENTOS PREVIOS', style: 'subheader', margin: [0, 0, 0, 10] },
+        {
+          table: {
+            widths: ['15%', '85%'],
+            body: checklistBody
+          },
+          layout: 'noBorders',
+          margin: [0, 0, 0, 40]
+        },
+        {
+          canvas: [{ type: 'line', x1: 150, y1: 0, x2: 360, y2: 0, lineWidth: 1, lineColor: '#94a3b8' }],
+          alignment: 'center',
+          margin: [0, 0, 0, 5]
+        },
+        { text: firmaUsuario, alignment: 'center', bold: true, fontSize: 11 },
+        { text: cargoPdf, alignment: 'center', color: '#64748b', fontSize: 10 }
+      ],
+      styles: {
+        header: { fontSize: 18, bold: true, color: '#e11d48', margin: [0, 0, 0, 10] },
+        subheader: { fontSize: 12, bold: true, color: '#334155' },
+        tableHeader: { bold: true, fontSize: 11, color: '#ffffff', fillColor: '#334155', margin: [0, 5, 0, 5] }
+      },
+      defaultStyle: {
+        font: 'Roboto', // <--- IMPORTANTE: Debe coincidir con lo que inyectamos en pdfConfig
+        fontSize: 10,
+        color: '#1e293b'
+      },
+      footer: function(currentPage: number, pageCount: number) {
+        return {
+          columns: [
+            { text: textoPiePagina, color: '#94a3b8', fontSize: 8, margin: [40, 10, 0, 0] },
+            { text: `Página ${currentPage} de ${pageCount}`, alignment: 'right', color: '#94a3b8', fontSize: 8, margin: [0, 10, 40, 0] }
+          ]
+        };
+      }
+    };
+
+    // 4. Generar y guardar
+        // 4. Generar y guardar
+    try {
+      const nombreSeguro = nombreCongregacion.normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9\s]/g, "_");
+      
+      const rutaDestino = await save({ 
+        defaultPath: `Analisis_${nombreSeguro}_${registro.fechaVisita || 'Borrador'}.pdf`, 
+        filters: [{ name: 'PDF', extensions: ['pdf'] }] 
       });
 
-    // Tabla PDF corregida (cellWidth)
-    autoTable(doc, { 
-      startY: 35, 
-      head: [['Módulo', 'Observaciones']],
-      body: bodyData,
-      theme: 'grid',
-      headStyles: { fillColor: [225, 29, 72], textColor: 255, fontStyle: 'bold' },
-      columnStyles: { 
-        0: { fontStyle: 'bold', cellWidth: 60 }, 
-        1: { cellWidth: 'auto' } 
-      },
-      didDrawPage: (data) => {
-        const pageSize = doc.internal.pageSize;
-        doc.setFontSize(8); doc.setTextColor(150, 150, 150);
-        
-        // Firma izquierda
-        if (firmaUsuario) doc.text(firmaUsuario, 14, pageSize.height - 10);
-        
-        // Pie derecha
-        const ancho = doc.getTextWidth(textoPiePagina);
-        doc.text(textoPiePagina, pageSize.width - 14 - ancho, pageSize.height - 10);
+      if (!rutaDestino) return;
+
+      console.log("🔵 Solicitando binario al motor...");
+      
+      const bytes = await createPdf(docDefinition);
+      console.log('Bytes generados:', bytes.length);
+      
+      if (bytes.length === 0) {
+        throw new Error('El PDF generado está vacío');
       }
-    });
-
-    const nombreSeguro = nombreCongregacion.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, "_");
-    const res = await save({ 
-        defaultPath: `Analisis_${nombreSeguro}_${registro.fechaVisita}.pdf`,
-        filters: [{ name: 'PDF', extensions: ['pdf'] }]
-    });
-    
-    if (res) {
-        await writeFile(res, new Uint8Array(doc.output('arraybuffer')));
-        alert("✅ PDF exportado correctamente.");
+      
+      await writeFile(rutaDestino, bytes);
+      alert("✅ Informe PDF generado y guardado correctamente."); 
+      
+    } catch (error: any) {
+      console.error('Error detallado:', error);
+      alert(`❌ Error: ${error.message || JSON.stringify(error)}`);
     }
-  }
-
-  // Estado de las guías de ayuda
-  let guias = {
-    g1: false, g2: false, g3: false, g4: false, g5: false, g6: false, g7: false, g8: false,
-    g9: false, g10: false, g11: false, g12: false, g13: false, g14: false, g15: false,
-    g16: false, g17: false, g18: false, g19: false
-  };
+    }
 </script>
 
 <div class="contenedor-analisis">
+  
   <div class="cabecera-principal">
-    <h2>Asistente de visitas: {nombreCongregacion}</h2>
+    <div class="info-cabecera">
+      <h2>Muro de Análisis: {nombreCongregacion}</h2>
+      <div class="fecha-seccion">
+        <label for="fv">Semana de visita:</label>
+        <input type="date" id="fv" bind:value={registro.fechaVisita} on:change={() => guardarCambios('fecha')} />
+        
+        {#if estadoTarjetas['fecha'] === 'guardando'}
+          <span class="chip guardando">Guardando...</span>
+        {:else if estadoTarjetas['fecha'] === 'guardado'}
+          <span class="chip guardado">Guardado</span>
+        {/if}
+      </div>
+    </div>
+    
     <div class="grupo-acciones">
-      <button class="btn-rojo" on:click={guardarCambios}><Save size={18} /> Guardar cambios</button>
-      <button class="btn-gris" on:click={generarPDF}><FileText size={18} /> PDF</button>
-      <button class="btn-azul" on:click={finalizarInforme}><CheckCircle size={18} /> Finalizar y Limpiar</button>
+      <button class="btn-gris" on:click={generarPDF}><FileText size={16} /> PDF</button>
+      <button class="btn-azul" title="Guardar en historial y limpiar" on:click={finalizarInforme}><CheckCircle size={16} /> Finalizar</button>
     </div>
   </div>
 
-  <div class="fecha-seccion">
-    <label for="fv" class="fecha-label">Fecha de la visita:</label>
-    <input type="date" id="fv" bind:value={registro.fechaVisita} />
-  </div>
+  <p class="instruccion">Haz clic en cualquier tarjeta para añadir o editar las notas de esa sección.</p>
 
-  <div class="modulo">
-    <h3 class="modulo-titulo">1. OPINIÓN DE LOS ANCIANOS</h3>
-    <button class="guia-toggle" on:click={() => guias.g1 = !guias.g1}>{guias.g1 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g1}
-        <div class="guia-contenido">
-            <p>Aspectos positivos que observan.</p>
-            <p>Necesidades que les preocupan.</p>
+  <div class="muro-grid">
+    {#each modulos as mod}
+      <div 
+        class="nota-card {registro[mod.id] && registro[mod.id].trim() !== '' ? 'completada' : 'vacia'}"
+        role="button"
+        tabindex="0"
+        on:click={() => moduloActivo = mod}
+        on:keydown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            moduloActivo = mod;
+          }
+        }}
+      >
+        <div class="nota-header">
+          <h4>{mod.titulo}</h4>
+          
+          <div class="indicador-estado">
+            {#if estadoTarjetas[mod.id] === 'guardando'}
+              <span class="chip guardando">Guardando...</span>
+            {:else if estadoTarjetas[mod.id] === 'guardado'}
+              <span class="chip guardado">Guardado</span>
+            {:else if registro[mod.id] && registro[mod.id].trim() !== ''}
+              <CheckCircle2 size={18} color="#10b981" />
+            {:else}
+              <Circle size={18} color="#cbd5e1" />
+            {/if}
+          </div>
         </div>
-    {/if}
-    <textarea bind:value={registro.opinionGeneral}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">2. MINISTERIO CRISTIANO</h3>
-    <button class="guia-toggle" on:click={() => guias.g2 = !guias.g2}>{guias.g2 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g2}
-      <div class="guia-contenido">
-        <p>¿En qué aspectos tienen buenos resultados y en cuáles necesitan mejoras?</p>
-        <p>¿Participan en diferentes facetas (calles, negocios, teléfono, etc.)?</p>
-        <p>Cursos bíblicos: ¿Cómo lograr dirigir más?</p>
-        <p>¿Los nombrados dan ejemplo de entusiasmo?</p>
-        <p>¿Están los SG brindando ayuda personal y estímulo?</p>
+        
+        <div class="nota-body">
+          {#if registro[mod.id] && registro[mod.id].trim() !== ''}
+            <p class="preview-text">{registro[mod.id]}</p>
+          {:else}
+            <p class="empty-text">Sin observaciones aún...</p>
+          {/if}
+        </div>
       </div>
-    {/if}
-    <textarea bind:value={registro.ministerio}></textarea>
+    {/each}
   </div>
 
-  <div class="modulo">
-    <h3 class="modulo-titulo">3. SOBRE LA PREDICACIÓN DE CASA EN CASA</h3>
-    <button class="guia-toggle" on:click={() => guias.g3 = !guias.g3}>{guias.g3 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g3}
-      <div class="guia-contenido">
-        <p>¿Está la congregación dando prioridad a la predicación de casa en casa?</p>
-        <p>¿Qué actitud manifiestan los publicadores?</p>
-        <p>¿Son entusiastas o manifiestan temor?</p>
-        <p>¿Se realiza en horas en que es más probable encontrar a la gente?</p>
-        <p>¿Apoyan los publicadores regularmente las RSC?</p>
-        <p>¿Los nombrados y precursores llevan la delantera?</p>
-        <p>Si algunos no salen a predicar con la congregación, ¿cuál es la razón?</p>
-        <p>¿Se dirigen RSC prácticas?</p>
-        <p>¿Necesitan ayuda para ser más eficaces al hacer revisitas o desarrollar habilidades al conversar?</p>
-        <p>¿Toman en serio el ministerio volviendo a visitar a los interesados?</p>
-        <p>¿Se están usando apropiada y eficazmente las publicaciones en la predicación?</p>
+  <div class="seccion-checklist">
+    <div class="checklist-header">
+      <h3><CheckCircle2 size={18} color="#10b981" /> Tareas de Verificación Previas</h3>
+      {#if estadoTarjetas['checklist'] === 'guardando'}
+        <span class="chip guardando">Guardando...</span>
+      {:else if estadoTarjetas['checklist'] === 'guardado'}
+        <span class="chip guardado">Guardado</span>
+      {/if}
+    </div>
+    
+    <div class="checklist-grid">
+      {#each puntosChecklist as punto, i}
+        <label class="check-item {registro.checklist && registro.checklist[i] ? 'marcado' : ''}">
+          <input 
+            type="checkbox" 
+            bind:checked={registro.checklist[i]} 
+            on:change={() => guardarCambios('checklist')}
+          />
+          <span class="check-texto">{punto}</span>
+        </label>
+      {/each}
+    </div>
+  </div>
+  </div> {#if moduloActivo}
+  <div class="modal-backdrop" on:click={cerrarYGuardar}>
+    <div class="modal-content focus-modal" on:click|stopPropagation>
+      
+      <div class="modal-header">
+        <h3>{moduloActivo.titulo}</h3>
+        <button class="btn-close" on:click={cerrarYGuardar}><X size={20}/></button>
       </div>
-    {/if}
-    <textarea bind:value={registro.territorio}></textarea>
-  </div>
 
-  <div class="modulo">
-    <h3 class="modulo-titulo">4. DANDO LA DEBIDA ATENCIÓN AL TERRITORIO</h3>
-    <button class="guia-toggle" on:click={() => guias.g4 = !guias.g4}>{guias.g4 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g4}
-        <div class="guia-contenido">
-            <p>¿Se predican de manera completa?</p>
-            <p>¿Se trabajan los NC antes de terminar un territorio?</p>
-            <p>¿Hay mapa grande actualizado?</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.atencionTerritorio}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">5. SERVICIO DE PRECURSOR REGULAR Y AUXILIAR</h3>
-    <button class="guia-toggle" on:click={() => guias.g5 = !guias.g5}>{guias.g5 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g5}
-        <div class="guia-contenido">
-            <p>¿Actitud hacia el servicio?</p>
-            <p>¿Animan a quienes tienen potencial?</p>
-            <p>¿Los nombrados dan ejemplo?</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.precursoresMetas}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">6. REUNIONES DE CONGREGACIÓN</h3>
-    <button class="guia-toggle" on:click={() => guias.g6 = !guias.g6}>{guias.g6 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g6}
-      <div class="guia-contenido">
-        <p>¿Retos para asistir presencialmente?</p>
-        <p>¿Causas de aumento o disminución notable?</p>
-        <p>¿Medidas para ayudar a enfermos o mayores?</p>
-        <p>¿Calidad de discursos públicos?</p>
-        <p>¿Capacitación de siervos ministeriales?</p>
-        <p>¿Participación de buena gana en comentarios?</p>
+      <div class="guia-box">
+        <p class="guia-titulo">Puntos a evaluar:</p>
+        <ul>
+          {#each moduloActivo.guias as guia}
+            <li>{guia}</li>
+          {/each}
+        </ul>
       </div>
-    {/if}
-    <textarea bind:value={registro.reuniones}></textarea>
-  </div>
 
-  <div class="modulo">
-    <h3 class="modulo-titulo">7. PASTOREO</h3>
-    <button class="guia-toggle" on:click={() => guias.g7 = !guias.g7}>{guias.g7 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g7}
-        <div class="guia-contenido">
-            <p>¿Visitas periódicas y eficaces?</p>
-            <p>¿Se benefician los hermanos?</p>
-            <p>¿Qué se hace por inactivos o expulsados?</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.pastoreo}></textarea>
-  </div>
+      <textarea 
+        class="focus-textarea" 
+        bind:value={registro[moduloActivo.id]} 
+        placeholder="Escribe tus observaciones aquí..."
+        autofocus
+      ></textarea>
 
-  <div class="modulo">
-    <h3 class="modulo-titulo">8. CRECIMIENTO DE LA CONGREGACIÓN</h3>
-    <button class="guia-toggle" on:click={() => guias.g8 = !guias.g8}>{guias.g8 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g8}
-        <div class="guia-contenido">
-            <p>¿Progreso de estudiantes?</p>
-            <p>¿Asisten a reuniones?</p>
-            <p>¿Uso eficaz de "Disfrute de la vida"?</p>
-            <p>¿Ayuda a maestros?</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.crecimiento}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">9. EL TRABAJO DEL SUPERINTENDENTE DE SERVICIO</h3>
-    <button class="guia-toggle" on:click={() => guias.g9 = !guias.g9}>{guias.g9 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g9}
-        <div class="guia-contenido">
-            <p>¿Visita periódicamente los grupos?</p>
-            <p>¿Cómo realiza las visitas?</p>
-            <p>¿Colaboran los SG?</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.superServicio}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">10. PUBLICACIONES</h3>
-    <button class="guia-toggle" on:click={() => guias.g10 = !guias.g10}>{guias.g10 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g10}
-        <div class="guia-contenido">
-            <p>¿Excedente de publicaciones?</p>
-            <p>¿Inventario mensual en JW Hub (S-28) correcto?</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.publicaciones}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">11. METAS Y PROGRESO ESPIRITUAL</h3>
-    <button class="guia-toggle" on:click={() => guias.g11 = !guias.g11}>{guias.g11 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g11}
-        <div class="guia-contenido">
-            <p>¿Estudio personal y adoración en familia?</p>
-            <p>¿Metas de jóvenes?</p>
-            <p>¿Salud espiritual de matrimonios?</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.metas}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">12. EL CUERPO DE ANCIANOS Y SIERVOS</h3>
-    <button class="guia-toggle" on:click={() => guias.g12 = !guias.g12}>{guias.g12 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g12}
-        <div class="guia-contenido">
-            <p>¿Llevan la delantera en predicación/pastoreo?</p>
-            <p>¿Unidad y paz en el CA?</p>
-            <p>¿Programa de capacitación?</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.cuerpoAncianos}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">13. EL LOCAL DE REUNIÓN</h3>
-    <button class="guia-toggle" on:click={() => guias.g13 = !guias.g13}>{guias.g13 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g13}
-        <div class="guia-contenido">
-            <p>¿Limpieza y mantenimiento (LDC)?</p>
-            <p>¿Planes de seguridad?</p>
-            <p>¿Tablero de anuncios?</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.local}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">14. MISCELÁNEOS</h3>
-    <button class="guia-toggle" on:click={() => guias.g14 = !guias.g14}>{guias.g14 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g14}
-        <div class="guia-contenido">
-            <p>Efecto de cambios en vestimenta/barba.</p>
-            <p>Atención a pecados graves.</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.miscelaneos}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">15. IRREGULARES E INACTIVOS</h3>
-    <button class="guia-toggle" on:click={() => guias.g15 = !guias.g15}>{guias.g15 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g15}
-        <div class="guia-contenido">
-            <p>Nombres.</p>
-            <p>Razones.</p>
-            <p>Planes de ayuda específica.</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.irregulares}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">16. HERMANOS CON POTENCIAL</h3>
-    <button class="guia-toggle" on:click={() => guias.g16 = !guias.g16}>{guias.g16 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g16}
-        <div class="guia-contenido">
-            <p>Hermanos para siervos/ancianos.</p>
-            <p>Hermanas para precursoras.</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.potencial}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">17. PRECURSORES (ACTIVIDAD)</h3>
-    <button class="guia-toggle" on:click={() => guias.g17 = !guias.g17}>{guias.g17 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g17}
-      <div class="guia-contenido">
-        <p>¿Horario práctico?</p>
-        <p>¿Todas las facetas?</p>
-        <p>¿Cursos bíblicos?</p>
-        <p>¿Apoyo de ancianos?</p>
-        <p>¿Asistencia a reuniones de servicio?</p>
-        <p>¿Salen solo entre ellos?</p>
+      <div class="modal-footer">
+        <button class="btn-global btn-primary" on:click={cerrarYGuardar}>
+          <Save size={16} /> Listo y Guardar
+        </button>
       </div>
-    {/if}
-    <textarea bind:value={registro.analisisPrecursores}></textarea>
+    </div>
   </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">18. CONTABILIDAD</h3>
-    <button class="guia-toggle" on:click={() => guias.g18 = !guias.g18}>{guias.g18 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g18}
-        <div class="guia-contenido">
-            <p>¿Archivos revisados?</p>
-            <p>¿Uso correcto de contabilidad en línea?</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.contabilidad}></textarea>
-  </div>
-
-  <div class="modulo">
-    <h3 class="modulo-titulo">19. SEGUIMIENTO</h3>
-    <button class="guia-toggle" on:click={() => guias.g19 = !guias.g19}>{guias.g19 ? 'OCULTAR' : 'VER PREGUNTAS'}</button>
-    {#if guias.g19}
-        <div class="guia-contenido">
-            <p>Asuntos antes de la próxima visita.</p>
-            <p>Asuntos para la sucursal.</p>
-        </div>
-    {/if}
-    <textarea bind:value={registro.seguimiento}></textarea>
-  </div>
-</div>
+{/if}
 
 <style>
-  .contenedor-analisis { padding: 20px; font-family: system-ui; background: #fff; }
+  /* 1. CONTENEDOR PRINCIPAL */
+  .contenedor-analisis { 
+    padding: 20px; 
+    font-family: var(--font-family); 
+    background: var(--bg-app);
+    border-radius: var(--radius-lg); 
+    min-height: 100%; 
+    color: var(--text-main);
+  }
+  
   .cabecera-principal { 
     display: flex; 
     justify-content: space-between; 
-    align-items: center; 
-    border-bottom: 3px solid #3498db; 
-    margin-bottom: 25px; 
-    padding-bottom: 10px; 
+    align-items: flex-end; 
+    margin-bottom: 10px; 
+    border-bottom: var(--border-thin); 
+    padding-bottom: 15px;
   }
-  .grupo-acciones { display: flex; gap: 8px; }
-  button { 
-    cursor: pointer; 
-    font-weight: bold; 
-    border-radius: 6px; 
-    border: none; 
-    padding: 10px 14px; 
+
+  .info-cabecera h2 { 
+    margin: 0 0 10px 0; 
+    font-size: 1.4rem; 
+    color: var(--text-main); 
+    font-weight: 800; 
+  }
+
+  .fecha-seccion { 
     display: flex; 
     align-items: center; 
+    gap: 10px; 
+    font-size: 0.9rem; 
+    color: var(--text-muted); 
+    font-weight: 600; 
+  }
+
+  .fecha-seccion input { 
+    border: var(--border-thin); 
+    border-radius: var(--radius-sm); 
+    padding: 4px 8px; 
+    color: var(--text-main); 
+    font-weight: bold; 
+    background: var(--bg-panel);
+  }
+  
+  .instruccion { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px; }
+
+  /* 2. BOTONES */
+  .grupo-acciones {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  button { 
+    cursor: pointer; 
+    font-weight: 600; 
+    border-radius: var(--radius-md); 
+    border: none; 
+    padding: 8px 14px; 
+    display: inline-flex; 
+    align-items: center; 
     gap: 6px; 
+    font-size: 0.85rem; 
+    transition: all 0.2s; 
+  }
+
+  button:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  .btn-gris { background-color: var(--text-muted); color: white; }
+  .btn-azul { background-color: #2563eb; color: white; }
+
+  /* 3. GRID Y TARJETAS */
+  .muro-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); 
+    gap: 15px; 
+  }
+
+  .nota-card {
+    background: var(--bg-panel); 
+    border: var(--border-thin);
+    border-radius: var(--radius-md);
+    padding: 15px;
+    height: 110px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .nota-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary); 
+  }
+
+  .nota-card.completada { border-left: 4px solid #10b981; }
+  .nota-card.vacia { border-left: 4px solid var(--border-color); }
+
+  .nota-header h4 { 
+    margin: 0; 
+    font-size: 0.9rem; 
+    color: var(--text-main); 
+    font-weight: 700; 
+    line-height: 1.2; 
+  }
+
+  /* 4. MODAL Y FORMULARIO */
+  .modal-backdrop {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(15, 23, 42, 0.6); 
+    backdrop-filter: blur(4px);
+    display: flex; justify-content: center; align-items: center; z-index: 9999;
+  }
+
+  .focus-modal {
+    background: var(--bg-panel); 
+    color: var(--text-main);
+    width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto;
+    border-radius: var(--radius-lg); padding: 25px; box-sizing: border-box;
+    box-shadow: var(--shadow-3d);
+    display: flex; flex-direction: column; gap: 15px; animation: zoomIn 0.2s ease-out;
+  }
+
+  .modal-header h3 { margin: 0; font-size: 1.3rem; color: var(--text-main); font-weight: 800; }
+  
+  .guia-box { 
+    background: rgba(22, 101, 52, 0.1); 
+    border: 1px solid rgba(22, 101, 52, 0.2); 
+    padding: 12px 15px; 
+    border-radius: var(--radius-sm); 
+  }
+
+  .focus-textarea {
+    width: 100%; min-height: 200px; box-sizing: border-box;
+    background: var(--bg-app); 
+    color: var(--text-main);
+    border-radius: var(--radius-sm); 
+    border: var(--border-thin); 
+    padding: 15px; font-size: 1rem; line-height: 1.5; font-family: inherit;
+    resize: vertical; outline: none; transition: border-color 0.2s;
+  }
+
+  .focus-textarea:focus { border-color: var(--primary); }
+
+  /* BOTÓN PRINCIPAL (Rojo Vino Intenso / Borgoña Oscuro) FORZADO */
+  .btn-primary { 
+    background-color: #5c0a1f !important; /* El !important fuerza el color */
+    color: white !important; 
+    padding: 10px 20px !important; 
+    border-radius: 30px !important; 
+    box-shadow: 0 2px 4px rgba(92, 10, 31, 0.3); 
+    border: none;
+    font-weight: 600;
     transition: all 0.2s ease;
   }
-  button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  }
-  .btn-rojo { background-color: #e11d48; color: white; }
-  .btn-rojo:hover { background-color: #be123c; }
-  .btn-gris { background-color: #64748b; color: white; }
-  .btn-gris:hover { background-color: #475569; }
-  .btn-azul { background-color: #2563eb; color: white; }
-  .btn-azul:hover { background-color: #1d4ed8; }
-  
-  .modulo { 
-    background: #fcfcfc; 
-    border: 1px solid #e2e8f0; 
-    border-radius: 10px; 
-    padding: 18px; 
-    margin-bottom: 20px; 
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
-  }
-  .modulo-titulo { font-size: 0.9rem; color: #111; margin-bottom: 8px; font-weight: 800; }
-  .guia-toggle { background: #fef2f2; color: #b91c1c; font-size: 0.7rem; padding: 4px 8px; margin-bottom: 8px; border-radius: 4px; }
-  
-  /* ESTILOS DE PREGUNTAS (Separadas) */
-  .guia-contenido { 
-    background: #fff1f2; 
-    border-left: 4px solid #e11d48; 
-    padding: 12px; 
-    margin-bottom: 10px; 
-    font-size: 0.85rem; 
-    border-radius: 0 4px 4px 0; 
-  }
-  .guia-contenido p { 
-    margin: 6px 0; 
-    display: block; 
-  }
-  .guia-contenido p::before { 
-    content: "• "; 
-    color: #e11d48; 
-    font-weight: bold; 
-    margin-right: 5px;
+
+  .btn-primary:hover { 
+    background-color: #3a0411 !important; /* Rojo casi negro al pasar el ratón */
+    transform: translateY(-1px); 
+    box-shadow: 0 4px 6px rgba(92, 10, 31, 0.4);
   }
   
-  textarea { 
-    width: 100%; 
-    min-height: 100px; 
-    border-radius: 6px; 
-    border: 1.5px solid #cbd5e1; 
-    padding: 10px; 
-    resize: vertical; 
-    font-family: inherit; 
+  .btn-primary:active {
+    transform: scale(0.97); 
   }
-  .fecha-seccion { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; background: #f8fafc; padding: 10px; border-radius: 6px; }
+
+  /* CHIPS (Ahora más finos y estilizados) */
+  .chip {
+    /* Reducimos el primer número (arriba/abajo) de 4px a 2px */
+    padding: 2px 10px; 
+    
+    border-radius: 50px; /* Mismo borde redondeado bonito */
+    
+    /* Reducimos un poquito la letra para que no se vea gigante en el chip fino */
+    font-size: 0.75rem; 
+    
+    font-weight: 700; /* Mantenemos la negrita */
+    display: inline-block;
+    letter-spacing: 0.2px;
+    
+    /* Aseguramos que el texto esté perfectamente centrado verticalmente */
+    line-height: 1.2; 
+    vertical-align: middle;
+  }
+
+  .chip.guardado { 
+    background-color: #22c55e; /* Mismo verde vibrante de tu imagen */
+    color: #ffffff; /* Mismo texto blanco puro */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.12); /* Sombrita aún más sutil */
+  }
+
+  .chip.guardando { 
+    background-color: #facc15; /* Fondo amarillo */
+    color: #713f12; /* Texto marrón oscuro */
+  }
+
+  @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+  /* 5. CHECKLIST */
+  .seccion-checklist {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: var(--border-thin);
+  }
+
+  .checklist-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 15px;
+  }
+
+  .checklist-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .checklist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 12px;
+  }
+
+  .check-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: var(--bg-panel);
+    padding: 12px 15px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .check-item:hover {
+    border-color: var(--primary);
+  }
+
+  .check-item.marcado {
+    background: rgba(16, 185, 129, 0.05);
+    border-color: #10b981;
+  }
+
+  .check-item input[type="checkbox"] {
+    margin-top: 3px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #10b981;
+  }
+
+  .check-texto {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: var(--text-main);
+    user-select: none;
+  }
+
+/* =============================================
+     DISEÑO RESPONSIVO (Tablets y Móviles)
+     ============================================= */
+
+  /* Móviles (hasta 768px) */
+  @media (max-width: 768px) {
+    /* 1. Cabecera Principal */
+    .cabecera-principal {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 15px;
+    }
+
+    .info-cabecera {
+      width: 100%;
+    }
+
+    .fecha-seccion {
+      flex-wrap: wrap; /* Por si la pantalla es muy estrecha */
+      margin-top: 5px;
+    }
+
+    .fecha-seccion input {
+      flex: 1; /* Que el selector de fecha se estire */
+      min-width: 140px;
+      height: 44px; /* Más alto para que sea fácil tocar la fecha */
+      box-sizing: border-box;
+    }
+
+    /* 2. Botones Superiores (PDF y Finalizar) mitad y mitad */
+    .grupo-acciones {
+      width: 100%;
+      display: flex;
+      gap: 10px;
+    }
+
+    .grupo-acciones button {
+      flex: 1; /* 50% del ancho cada uno */
+      height: 48px; /* Altura táctil perfecta */
+      justify-content: center;
+      font-size: 0.95rem;
+      border-radius: 12px; /* Curva moderna */
+    }
+
+    /* 3. Cuadrícula del Muro (Tarjetas) */
+    .muro-grid {
+      grid-template-columns: repeat(auto-fill, minmax(100%, 1fr)); /* Forzamos 1 sola columna */
+    }
+    
+    .nota-card {
+      height: auto; /* Dejamos que la tarjeta crezca si el texto es largo */
+      min-height: 110px;
+    }
+
+    /* 4. Solución Anti-Desbordamiento del Checklist */
+    .checklist-grid {
+      grid-template-columns: 1fr; /* Sobrescribimos los 350px que rompen la pantalla */
+    }
+    
+    .check-item {
+      padding: 15px; /* Un poco más de área táctil */
+    }
+
+    /* 5. Modal de Escritura */
+    .focus-modal {
+      padding: 20px;
+      width: 95%;
+    }
+
+    .modal-footer .btn-primary {
+      width: 100% !important;
+      height: 48px !important;
+      justify-content: center !important;
+      border-radius: 12px !important; /* Curva móvil */
+    }
+  }
+
+  /* Móviles muy pequeños (hasta 480px) */
+  @media (max-width: 480px) {
+    .info-cabecera h2 {
+      font-size: 1.3rem; /* Evita que el título se parta feo */
+    }
+
+    /* El selector de fecha y los chips uno debajo del otro si no caben */
+    .fecha-seccion {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    
+    .fecha-seccion input {
+      width: 100%;
+    }
+  }
 </style>

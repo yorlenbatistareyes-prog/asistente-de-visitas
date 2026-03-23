@@ -1,74 +1,54 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { circuitoActivo, listaCongregaciones, mostrarCircuitBar } from '$lib/stores/appStore';
-  import { cargarDatos } from '$lib/persistencia';
-  
-  // Componentes de Layout
   import TopBar from '$lib/components/layout/TopBar.svelte';
-  import CircuitBar from '$lib/components/layout/CircuitBar.svelte';
-
-  // --- CORRECCIÓN DE LA RUTA ---
-  // Antes: import ... from '$lib/modals/...' (Mal)
-  // Ahora: Agregamos '/components/' a la ruta
-  import ConfiguracionGlobalModal from '$lib/components/modals/ConfiguracionGlobalModal.svelte';
-
-  let mostrarConfig = false;
-
-  onMount(async () => {
-    try {
-      await cargarDatos();
-      console.log("Datos cargados.");
-    } catch (e) {
-      console.error("Error persistencia:", e);
-    }
-  });
+  import BarraDeEstado from '$lib/components/layout/BarraDeEstado.svelte';
+  import '../app.css';
 </script>
 
 <div class="app-container">
-  <TopBar on:abrirConfig={() => mostrarConfig = true} />
-
-  {#if $mostrarCircuitBar}
-    <CircuitBar />
-  {/if}
-
+  <TopBar />
+  
   <main class="main-content">
     <slot />
   </main>
 
-  {#if mostrarConfig}
-    <ConfiguracionGlobalModal on:close={() => mostrarConfig = false} />
-  {/if}
+  <BarraDeEstado />
+
 </div>
 
 <style>
-  :global(body, html) {
-    margin: 0;
-    padding: 0;
-    height: 100vh;
-    overflow: hidden; 
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    color: #1a1a1a;
+  /* 1. EL MARCO DE LA APP: No se mueve nunca */
+  .app-container { 
+    display: flex; 
+    flex-direction: column; 
+    height: 100dvh; /* Altura dinámica para móviles */
+    width: 100vw;   /* Ancho exacto de la ventana */
+    overflow: hidden; /* 🌟 EVITA EL SCROLL LATERAL DE LAS BARRAS */
+    position: relative;
   }
 
-  :global(input, button, select, textarea) {
-    font-family: inherit;
-  }
-
-  .app-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh; 
+  /* 2. EL CONTENIDO: Es el único que tiene permiso de hacer scroll */
+  .main-content { 
+    flex: 1; /* Ocupa todo el espacio disponible entre las barras */
+    overflow-y: auto; /* Scroll vertical normal */
+    overflow-x: auto; /* 🌟 SI ALGO ES MUY ANCHO, EL SCROLL SUCEDE AQUÍ DENTRO */
+    background: var(--bg-app); 
     width: 100%;
-    position: relative; /* Importante para que el modal se posicione bien */
+    box-sizing: border-box;
+    
+    /* Espacio inferior para que la barra de estado no tape el contenido final */
+    padding-bottom: 40px; 
   }
 
-  .main-content {
-    flex: 1;
-    background: #f4f4f4;
-    overflow-y: auto; 
-    display: flex;
-    flex-direction: column;
+  /* Opcional: Centrado del contenido en pantallas gigantes */
+  :global(.main-content > slot) {
+    display: block;
+    width: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  /* Ajustes de padding para el contenido según el dispositivo */
+  @media (max-width: 768px) {
+    .main-content { padding: 15px 15px 50px 15px; }
   }
 </style>

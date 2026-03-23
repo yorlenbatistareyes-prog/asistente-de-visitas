@@ -1,22 +1,20 @@
 import { writable } from 'svelte/store';
+// Importamos la interfaz directamente desde tu base de datos para no duplicar código
+import type { Congregacion } from '$lib/services/db';
 
-export interface Congregacion {
-  nombre: string;
-  enVisita: boolean; // <--- FALTABA ESTO
-  ciudad?: string;
-  provincia?: string;
-  pais?: string;
-  idioma?: string;
-  esLenguaSenas?: boolean;
-  telefono?: string;
-  horaSemana?: string;
-  horaFinSemana?: string;
-  diaSemana?: string;
-  diaFinSemana?: string;
-}
+// Inicializamos vacío. Más adelante haremos que recuerde el último circuito abierto.
+export const circuitoActivo = writable<string>(""); 
 
-export const circuitoActivo = writable("Holguín-14");
 export const listaCongregaciones = writable<Congregacion[]>([]);
+
+// Estas dos variables ahora solo sirven para que la pantalla se actualice 
+// visualmente al instante tras finalizar un informe, pero el guardado real va a SQLite.
 export const fechaPorCongregacion = writable<Record<string, string>>({});
 export const resumenUltimoAnalisis = writable<Record<string, string>>({});
-export const mostrarCircuitBar = writable(true);
+
+// --- NUEVO: Notificador para actualizar estadísticas globales ---
+export const actualizacionHistorial = writable(0);
+
+export function notificarCambioHistorial() {
+  actualizacionHistorial.update(n => n + 1);
+}
