@@ -293,6 +293,20 @@
       }
     }
   }
+
+  function cerrarModalBackdrop(event: MouseEvent) {
+  // Solo cierra si se hizo clic directamente en el backdrop, no en el contenido
+  if (event.target === event.currentTarget) {
+    cerrarModalReset();
+  }
+}
+
+function handleModalKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    cerrarModalReset();
+  }
+}
 </script>
 
 <div class="config-page">
@@ -474,45 +488,52 @@
 </div>
 
 {#if mostrarModalReset}
-  <div class="modal-backdrop" on:click={cerrarModalReset}>
-    <div class="modal-content danger-modal" on:click|stopPropagation>
-      <div class="modal-header">
-        <div class="header-title-danger">
-          <AlertTriangle size={24} color="#ef4444" />
-          <h3>¿Estás completamente seguro?</h3>
-        </div>
-        <button class="btn-close" on:click={cerrarModalReset}><X size={20}/></button>
+  <div
+  class="modal-backdrop"
+  role="button"
+  tabindex="0"
+  aria-label="Cerrar modal"
+  on:click={cerrarModalBackdrop}
+  on:keydown={handleModalKeydown}
+>
+  <div class="modal-content danger-modal">
+    <div class="modal-header">
+      <div class="header-title-danger">
+        <AlertTriangle size={24} color="#ef4444" />
+        <h3>¿Estás completamente seguro?</h3>
       </div>
+      <button class="btn-close" on:click={cerrarModalReset}><X size={20}/></button>
+    </div>
 
-      <p class="modal-warning">
-        Estás a punto de borrar <strong>todas las congregaciones, personas y el historial de análisis</strong>. 
-        Esta acción destruirá los datos permanentemente.
-      </p>
+    <p class="modal-warning">
+      Estás a punto de borrar <strong>todas las congregaciones, personas y el historial de análisis</strong>. 
+      Esta acción destruirá los datos permanentemente.
+    </p>
 
-      <div class="form-group">
-        <label for="confirm">Para continuar, escribe <strong>ELIMINAR</strong> en el recuadro:</label>
-        <input 
-          id="confirm" 
-          type="text" 
-          class="input-global" 
-          bind:value={palabraConfirmacion} 
-          placeholder="Escribe ELIMINAR"
-          autocomplete="off"
-        />
-      </div>
+    <div class="form-group">
+      <label for="confirm">Para continuar, escribe <strong>ELIMINAR</strong> en el recuadro:</label>
+      <input 
+        id="confirm" 
+        type="text" 
+        class="input-global" 
+        bind:value={palabraConfirmacion} 
+        placeholder="Escribe ELIMINAR"
+        autocomplete="off"
+      />
+    </div>
 
-      <div class="modal-footer">
-        <button class="btn-global" on:click={cerrarModalReset}>Cancelar</button>
-        <button 
-          class="btn-global danger-btn-solid" 
-          disabled={palabraConfirmacion !== 'ELIMINAR'}
-          on:click={confirmarReset}
-        >
-          Borrar Todo
-        </button>
-      </div>
+    <div class="modal-footer">
+      <button class="btn-global" on:click={cerrarModalReset}>Cancelar</button>
+      <button 
+        class="btn-global danger-btn-solid" 
+        disabled={palabraConfirmacion !== 'ELIMINAR'}
+        on:click={confirmarReset}
+      >
+        Borrar Todo
+      </button>
     </div>
   </div>
+</div>
 {/if}
 
 <style>

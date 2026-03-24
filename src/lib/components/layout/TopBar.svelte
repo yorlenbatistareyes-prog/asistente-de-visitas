@@ -43,7 +43,8 @@
         // Comparamos si su peso y su contenido son exactamente iguales
         let sonIdenticos = false;
         if (localBytes.length === cloudBytes.length) {
-          sonIdenticos = localBytes.every((val, index) => val === cloudBytes[index]);
+        // Tipamos los parámetros para eliminar el error de TypeScript
+        sonIdenticos = localBytes.every((val: number, index: number) => val === cloudBytes[index]);
         }
 
         // Si el contenido es el mismo, cortamos el proceso aquí (adiós bucle infinito)
