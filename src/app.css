@@ -63,6 +63,11 @@
 body, html {
   margin: 0;
   padding: 0;
+  /* 👇 Esta línea empuja la app debajo del reloj y la batería 👇 */
+  padding-top: env(safe-area-inset-top); 
+  /* 👇 Esta línea evita que la app se esconda bajo la barra de navegación inferior 👇 */
+  padding-bottom: env(safe-area-inset-bottom); 
+  
   font-family: var(--font-family);
   color: var(--text-main);
   background-color: var(--bg-app);

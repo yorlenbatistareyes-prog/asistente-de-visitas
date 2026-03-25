@@ -5,6 +5,7 @@
   import { save, confirm as confirmDialog } from '@tauri-apps/plugin-dialog';
 
   import { writeFile } from '@tauri-apps/plugin-fs';
+  import { BaseDirectory } from '@tauri-apps/api/path';
   import { createPdf } from '$lib/utils/pdfConfig';
   import type { TDocumentDefinitions } from 'pdfmake/interfaces';
   import { initDB } from '$lib/services/db';
@@ -198,12 +199,28 @@
     const docDefinition: TDocumentDefinitions = { content: contenidoPdf, pageMargins: [40, 40, 40, 40], defaultStyle: { font: 'Roboto', fontSize: 10 }, footer: function(currentPage, pageCount) { return { text: `Página ${currentPage} de ${pageCount}`, alignment: 'center', color: '#94a3b8', fontSize: 8, margin: [0, 10, 0, 0] }; } };
     try {
       const nombreSeguro = nombreCongregacion.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, "_");
-      const rutaDestino = await save({ defaultPath: `${tipoVisita.replace(/\s+/g, "")}_${nombreSeguro}_${visita.fecha}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+      const nombreSugerido = `${tipoVisita.replace(/\s+/g, "")}_${nombreSeguro}_${visita.fecha}.pdf`;
+      
+      // 1. Abrimos tu cuadro de diálogo preferido
+      const rutaDestino = await save({ 
+        defaultPath: nombreSugerido, 
+        filters: [{ name: 'PDF', extensions: ['pdf'] }] 
+      });
+      
       if (!rutaDestino) return; 
+
+      // 2. Generamos los bytes
       const bytes = await createPdf(docDefinition);
+      
+      // 3. Escribimos el archivo (Asegúrate de que 'writeFile' sea de '@tauri-apps/plugin-fs')
       await writeFile(rutaDestino, bytes);
-      alert("✅ PDF exportado correctamente.");
-    } catch (error: any) { alert(`❌ Error al exportar: ${error.message}`); }
+      
+      alert("✅ ¡PDF guardado correctamente! Ya puedes abrirlo con tu lector de PDF.");
+
+    } catch (error: any) { 
+      const mensajeReal = typeof error === 'string' ? error : JSON.stringify(error);
+      alert(`❌ Error al exportar: ${mensajeReal}`); 
+    }
   }
 </script>
 
