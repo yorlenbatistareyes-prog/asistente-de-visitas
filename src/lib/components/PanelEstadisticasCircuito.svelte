@@ -17,9 +17,11 @@
       nuevos: number;
       readmitidos: number;
       reactivados: number;
+      tarjetassacadas: number;
       sacados: number;
       precursoresRegulares: number;
       precursoresAuxiliares: number;
+      precursoresAuxiliaresPermanentes: number;
       ancianos: number;
       siervosMinisteriales: number;
       irregulares: number;
@@ -44,8 +46,8 @@
   // NUEVO: Estado de visibilidad de cada columna (Por defecto, todas encendidas)
   let configColumnas = {
     total: true, bautizados: true, mayores65: true,
-    nuevos: true, readmitidos: true, reactivados: true, sacados: true,
-    precursoresRegulares: true, precursoresAuxiliares: true,
+    nuevos: true, readmitidos: true, reactivados: true, tarjetassacadas: true, sacados: true,
+    precursoresRegulares: true, precursoresAuxiliares: true, precursoresAuxiliaresPermanentes: true,
     ancianos: true, siervosMinisteriales: true,
     irregulares: true, inactivos: true, sinCursos: true,
     // --- NUEVOS ---
@@ -55,9 +57,9 @@
   };
 
   let metricasGlobales = {
-    total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, sacados: 0,
-    precursoresRegulares: 0, precursoresAuxiliares: 0, ancianos: 0, siervosMinisteriales: 0,
-    irregulares: 0, inactivos: 0, sinCursos: 0,
+    total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, tarjetassacadas: 0, sacados: 0,
+    precursoresRegulares: 0, precursoresAuxiliares: 0,  precursoresAuxiliaresPermanentes: 0, 
+    ancianos: 0, siervosMinisteriales: 0, irregulares: 0, inactivos: 0, sinCursos: 0,
     // --- NUEVOS ---
     totalTerritorios: 0, 
     territoriosSinTrabajar6Meses: 0, 
@@ -68,7 +70,7 @@
     if (!listaCongregaciones || listaCongregaciones.length === 0) return;
     try {
       const db = await initDB();
-      let t = { total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, sacados: 0, precursoresRegulares: 0, precursoresAuxiliares: 0, ancianos: 0, siervosMinisteriales: 0, irregulares: 0, inactivos: 0, sinCursos: 0, totalTerritorios: 0, territoriosSinTrabajar6Meses: 0, territoriosSinTrabajar1Ano: 0 };
+      let t = { total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, tarjetassacadas: 0, sacados: 0, precursoresRegulares: 0, precursoresAuxiliares: 0, precursoresAuxiliaresPermanentes: 0, ancianos: 0, siervosMinisteriales: 0, irregulares: 0, inactivos: 0, sinCursos: 0, totalTerritorios: 0, territoriosSinTrabajar6Meses: 0, territoriosSinTrabajar1Ano: 0 };
       let contador = 0;
       
       // NUEVO: Array temporal para construir la tabla del desglose
@@ -104,9 +106,11 @@
               t.nuevos += val('nuevos');
               t.readmitidos += val('readmitidos');
               t.reactivados += val('reactivados');
+              t.tarjetassacadas += val('tarjetassacadas');
               t.sacados += val('sacados');
               t.precursoresRegulares += val('precursoresRegulares');
               t.precursoresAuxiliares += val('precursoresAuxiliares');
+               t.precursoresAuxiliaresPermanentes += val('precursoresAuxiliaresPermanentes'); 
               t.ancianos += val('ancianos');
               t.siervosMinisteriales += val('siervosMinisteriales');
               t.irregulares += val('irregulares');
@@ -127,9 +131,11 @@
                   nuevos: val('nuevos'),
                   readmitidos: val('readmitidos'),
                   reactivados: val('reactivados'),
+                  tarjetassacadas: val('tarjetassacadas'),
                   sacados: val('sacados'),
                   precursoresRegulares: val('precursoresRegulares'),
                   precursoresAuxiliares: val('precursoresAuxiliares'),
+                  precursoresAuxiliaresPermanentes: val('precursoresAuxiliaresPermanentes'), 
                   ancianos: val('ancianos'),
                   siervosMinisteriales: val('siervosMinisteriales'),
                   irregulares: val('irregulares'),
@@ -217,22 +223,32 @@
       <div class="stats-group theme-orange">
         <div class="group-title"><TrendingUp size={12}/> Movimiento</div>
         <div class="stat-items">
+        
           <div class="stat-box">
             <span class="val">{metricasGlobales.nuevos}</span><span class="lbl">Nuevos</span>
             <span class="pct">{metricasGlobales.total > 0 ? ((metricasGlobales.nuevos / metricasGlobales.total)*100).toFixed(1) : '0.0'}%</span>
           </div>
+
           <div class="stat-box">
             <span class="val">{metricasGlobales.readmitidos}</span><span class="lbl">Readm.</span>
             <span class="pct">{metricasGlobales.total > 0 ? ((metricasGlobales.readmitidos / metricasGlobales.total)*100).toFixed(1) : '0.0'}%</span>
           </div>
+
           <div class="stat-box">
             <span class="val">{metricasGlobales.reactivados}</span><span class="lbl">React.</span>
             <span class="pct">{metricasGlobales.total > 0 ? ((metricasGlobales.reactivados / metricasGlobales.total)*100).toFixed(1) : '0.0'}%</span>
           </div>
+
           <div class="stat-box">
-            <span class="val">{metricasGlobales.sacados}</span><span class="lbl">Sacadas</span>
+            <span class="val">{metricasGlobales.tarjetassacadas}</span><span class="lbl">T. Sacadas</span>
+            <span class="pct">{metricasGlobales.total > 0 ? ((metricasGlobales.tarjetassacadas / metricasGlobales.total)*100).toFixed(1) : '0.0'}%</span>
+          </div>
+
+          <div class="stat-box">
+            <span class="val">{metricasGlobales.sacados}</span><span class="lbl">Sacados</span>
             <span class="pct">{metricasGlobales.total > 0 ? ((metricasGlobales.sacados / metricasGlobales.total)*100).toFixed(1) : '0.0'}%</span>
           </div>
+
         </div>
       </div>
 
@@ -246,6 +262,11 @@
           <div class="stat-box">
             <span class="val">{metricasGlobales.precursoresAuxiliares}</span><span class="lbl">Aux.</span>
             <span class="pct">{metricasGlobales.total > 0 ? ((metricasGlobales.precursoresAuxiliares / metricasGlobales.total)*100).toFixed(1) : '0.0'}%</span>
+          </div>
+
+          <div class="stat-box">
+            <span class="val">{metricasGlobales. precursoresAuxiliaresPermanentes}</span><span class="lbl">Aux. Perm.</span>
+            <span class="pct">{metricasGlobales.total > 0 ? ((metricasGlobales. precursoresAuxiliaresPermanentes / metricasGlobales.total)*100).toFixed(1) : '0.0'}%</span>
           </div>
         </div>
       </div>
@@ -331,11 +352,13 @@
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.nuevos}><span class="toggle-slider"></span><span class="toggle-label">Nuevos</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.readmitidos}><span class="toggle-slider"></span><span class="toggle-label">Readmitidos</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.reactivados}><span class="toggle-slider"></span><span class="toggle-label">Reactivados</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.tarjetassacadas}><span class="toggle-slider"></span><span class="toggle-label">Sacados</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.sacados}><span class="toggle-slider"></span><span class="toggle-label">Sacados</span></label>
 
                 <div class="menu-seccion">Precursores y Nombrados</div>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.precursoresRegulares}><span class="toggle-slider"></span><span class="toggle-label">Prec. Regulares</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.precursoresAuxiliares}><span class="toggle-slider"></span><span class="toggle-label">Prec. Auxiliares</span></label>
+                <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.precursoresAuxiliaresPermanentes}><span class="toggle-slider"></span><span class="toggle-label">Prec. Auxiliares Perm.</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.ancianos}><span class="toggle-slider"></span><span class="toggle-label">Ancianos</span></label>
                 <label class="toggle-container"><input type="checkbox" bind:checked={configColumnas.siervosMinisteriales}><span class="toggle-slider"></span><span class="toggle-label">Siervos Min.</span></label>
 
@@ -369,10 +392,13 @@
                 {#if configColumnas.nuevos}<th title="Nuevos">Nvos.</th>{/if}
                 {#if configColumnas.readmitidos}<th title="Readmitidos">Rdm.</th>{/if}
                 {#if configColumnas.reactivados}<th title="Reactivados">Rct.</th>{/if}
+                {#if configColumnas.tarjetassacadas}<th title="Tarjetas sacadas">T.Sac.</th>{/if}
                 {#if configColumnas.sacados}<th title="Sacados">Sac.</th>{/if}
                 
                 {#if configColumnas.precursoresRegulares}<th title="Precursores Regulares">P.Reg.</th>{/if}
                 {#if configColumnas.precursoresAuxiliares}<th title="Precursores Auxiliares">P.Aux.</th>{/if}
+                {#if configColumnas.precursoresAuxiliaresPermanentes}<th title="Precursores Auxiliares Permanentes">P.Aux.Perm.</th>{/if}
+                
                 
                 {#if configColumnas.ancianos}<th title="Ancianos">Anc.</th>{/if}
                 {#if configColumnas.siervosMinisteriales}<th title="Siervos Ministeriales">S.M.</th>{/if}
@@ -398,10 +424,12 @@
                   {#if configColumnas.nuevos}<td>{item.datos.nuevos}</td>{/if}
                   {#if configColumnas.readmitidos}<td>{item.datos.readmitidos}</td>{/if}
                   {#if configColumnas.reactivados}<td>{item.datos.reactivados}</td>{/if}
+                  {#if configColumnas.tarjetassacadas}<td>{item.datos.tarjetassacadas}</td>{/if}
                   {#if configColumnas.sacados}<td>{item.datos.sacados}</td>{/if}
                   
                   {#if configColumnas.precursoresRegulares}<td>{item.datos.precursoresRegulares}</td>{/if}
                   {#if configColumnas.precursoresAuxiliares}<td>{item.datos.precursoresAuxiliares}</td>{/if}
+                  {#if configColumnas.precursoresAuxiliaresPermanentes}<td>{item.datos.precursoresAuxiliaresPermanentes}</td>{/if}
                   
                   {#if configColumnas.ancianos}<td>{item.datos.ancianos}</td>{/if}
                   {#if configColumnas.siervosMinisteriales}<td>{item.datos.siervosMinisteriales}</td>{/if}

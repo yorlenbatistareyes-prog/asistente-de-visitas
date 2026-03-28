@@ -28,8 +28,10 @@
     { id: 'reactivados', titulo: 'Reactivados', color: 'green' },
     { id: 'irregulares', titulo: 'Irregulares', color: 'orange' },
     { id: 'inactivos', titulo: 'Inactivos', color: 'red' },
-    { id: 'sacados', titulo: 'Tarjetas sacadas', color: 'slate' },
+    { id: 'Tarjetas sacadas', titulo: 'Tarjetas sacadas', color: 'slate' },
+    { id: 'sacados', titulo: 'sacados', color: 'slate' },
     { id: 'precursoresAuxiliares', titulo: 'Precursores Auxiliares', color: 'blue' },
+    { id: 'precursoresAuxiliaresPermanentes', titulo: 'Precursores Auxiliares Permanentes', color: 'blue' }, 
     { id: 'precursoresRegulares', titulo: 'Precursores Regulares', color: 'blue' },
     { id: 'ancianos', titulo: 'Ancianos', color: 'slate' },
     { id: 'siervosMinisteriales', titulo: 'Siervos Ministeriales', color: 'slate' },
@@ -218,7 +220,8 @@
       alert("✅ ¡PDF guardado correctamente! Ya puedes abrirlo con tu lector de PDF.");
 
     } catch (error: any) { 
-      const mensajeReal = typeof error === 'string' ? error : JSON.stringify(error);
+      // 👇 Ahora sí extraemos el mensaje oculto de la alerta 👇
+      const mensajeReal = error.message ? error.message : (typeof error === 'string' ? error : JSON.stringify(error));
       alert(`❌ Error al exportar: ${mensajeReal}`); 
     }
   }

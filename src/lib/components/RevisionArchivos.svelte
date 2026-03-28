@@ -3,6 +3,7 @@
   import { onMount, createEventDispatcher } from 'svelte';
   import { cargarConfig, guardarConfig, initDB } from '$lib/services/db';
   import { notificarCambioHistorial } from '$lib/stores/appStore';
+    import type ArrowUp_0_1 from 'lucide-svelte/icons/arrow-up-0-1';
 
   export let nombreCongregacion = '';
   const dispatch = createEventDispatcher();
@@ -10,8 +11,8 @@
   let contadores: Record<string, number> = {
     total: 0, mayores65: 0, sinCursos: 0, nuevos: 0,
     bautizados: 0, readmitidos: 0, reactivados: 0,
-    irregulares: 0, inactivos: 0, sacados: 0,
-    precursoresAuxiliares: 0, precursoresRegulares: 0, 
+    irregulares: 0, inactivos: 0, tarjetassacadas: 0, sacados: 0,
+    precursoresAuxiliares: 0, precursoresAuxiliaresPermanentes: 0, precursoresRegulares: 0, 
     ancianos: 0, siervosMinisteriales: 0,
     // --- NUEVO ---
     totalTerritorios: 0, 
@@ -38,8 +39,10 @@
     { id: 'reactivados', titulo: 'Reactivados', color: 'green' },
     { id: 'irregulares', titulo: 'Irregulares', color: 'orange' },
     { id: 'inactivos', titulo: 'Inactivos', color: 'red' },
-    { id: 'sacados', titulo: 'Tarjetas sacadas', color: 'slate' },
+    { id: 'Tarjetas sacadas', titulo: 'Tarjetas sacadas', color: 'slate' },
+    { id: 'sacados', titulo: 'Sacados', color: 'slate' },
     { id: 'precursoresAuxiliares', titulo: 'Precursores Auxiliares', color: 'blue' },
+    { id: 'precursoresAuxiliaresPermanentes', titulo: 'Prec. Auxiliares Permanentes', color: 'blue' },
     { id: 'precursoresRegulares', titulo: 'Precursores Regulares', color: 'blue' },
     { id: 'ancianos', titulo: 'Ancianos', color: 'slate' },
     { id: 'siervosMinisteriales', titulo: 'Siervos Ministeriales', color: 'slate' },
@@ -106,7 +109,7 @@
     if (valorAnterior > 0) porcentaje = (Math.abs(diferencia) / valorAnterior) * 100;
 
     // Añadimos los territorios sin trabajar, porque si suben es algo negativo (rojo)
-    const invertidos = ['sinCursos', 'irregulares', 'inactivos', 'sacados', 'territoriosSinTrabajar1Ano', 'territoriosSinTrabajar6Meses'];
+    const invertidos = ['sinCursos', 'irregulares', 'inactivos', 'tarjetas sacadas', 'sacados', 'territoriosSinTrabajar1Ano', 'territoriosSinTrabajar6Meses'];
     const esMaloSubir = invertidos.includes(clave);
 
     let color = 'gris';
