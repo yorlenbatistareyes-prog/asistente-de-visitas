@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Asistente de Visitas", 
+  "productName": "AVisitas", 
   "version": "../package.json",
   "identifier": "com.bitia.asistente-de-visitas",
   "build": {
