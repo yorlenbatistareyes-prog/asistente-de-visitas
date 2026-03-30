@@ -332,7 +332,7 @@ function handleModalKeydown(event: KeyboardEvent) {
             <input id="username" type="text" class="input-global" bind:value={nombreUsuario} />
           </div>
           <div class="form-group half">
-            <label for="cargo">Cargo o Asignación</label>
+            <label for="cargo">Asignación</label>
             <input id="cargo" type="text" class="input-global" bind:value={cargoUsuario} />
           </div>
         </div>

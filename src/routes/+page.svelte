@@ -123,7 +123,7 @@
       <p>Administrar todos los circuitos en un solo lugar.</p>
     </div>
     <button class="btn-global btn-primary" on:click={() => (mostrandoModal = true)}>
-      <Plus size={18} /> Nuevo Circuito
+      <Plus size={18} /> Añadir Circuito
     </button>
   </div>
 
@@ -142,9 +142,9 @@
       <div class="filter-item card-global">
         <select bind:value={filtroEstado} class="minimal-select">
           <option value="todos">Todos los circuitos</option>
-          <option value="actual">Actuales</option>
-          <option value="futuro">Futuros</option>
-          <option value="anterior">Pasados</option>
+          <option value="actual">Solo actual</option>
+          <option value="futuro">Solo futuros</option>
+          <option value="anterior">Solo pasados</option>
         </select>
       </div>
 
