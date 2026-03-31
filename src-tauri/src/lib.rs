@@ -5,18 +5,21 @@ pub mod circuitos;
 pub mod congregaciones;
 pub mod personas;
 pub mod historial;
+pub mod drive;
 
 use serde::{Deserialize, Serialize};
 use std::process::Command; // Necesario para abrir Word/Excel
 use tauri::Manager; // <--- NUEVO: Para buscar las carpetas seguras del sistema (AppData)
 
-use std::sync::Mutex; // <-- AÑADIR
+use std::sync::{Mutex, OnceLock}; // <-- AÑADIR
 
-// <-- AÑADIR: Estructura del Estado Global
-pub struct SyncState {
-    pub ruta: Mutex<String>,
-    pub auto_exportar: Mutex<bool>,
-}
+use std::env;
+use chrono::Local;
+
+// --- 2. VARIABLES GLOBALES Y ESTADOS ---
+
+// Esta es nuestra "caja fuerte" global para el archivo pendiente
+static ARCHIVO_PENDIENTE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 
 // --- 1. ESTRUCTURAS (Igual que antes) ---
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -39,6 +42,22 @@ pub struct DocRecord {
 }
 
 // --- 2. COMANDOS ---
+
+#[tauri::command]
+fn verificar_archivo_pendiente() -> Option<String> {
+    let cache = ARCHIVO_PENDIENTE.get_or_init(|| Mutex::new(None));
+    let archivo = cache.lock().unwrap().take();
+    println!("🔍 Verificando archivo pendiente: {:?}", archivo);
+    archivo
+}
+
+#[tauri::command]
+fn hay_archivo_pendiente() -> bool {
+    let cache = ARCHIVO_PENDIENTE.get_or_init(|| Mutex::new(None));
+    let hay = cache.lock().unwrap().is_some();
+    println!("🔍 ¿Hay archivo pendiente?: {}", hay);
+    hay
+}
 
 // Abre archivos saltándose la seguridad estricta de Tauri
 #[tauri::command]
@@ -94,15 +113,24 @@ fn save_document_record(name: String, path: String, doc_type: String, _size: Str
     "OK".to_string()
 }
 
+
+
+#[tauri::command]
+fn generar_nombre_respaldo() -> String {
+    // Genera la hora en formato 12h con AM/PM (Ej: 2026-03-30_08-33-PM)
+    let fecha_hora = Local::now().format("%Y-%m-%d_%I-%M-%p").to_string();
+    
+    // Extraemos el nombre del dispositivo
+    let dispositivo = whoami::devicename().unwrap_or("Desconocido".to_string());
+    
+    // Unimos todo
+    format!("Respaldo_{}_{}.avisits", fecha_hora, dispositivo)
+}
+
 // --- 3. MAIN ---
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-
-    .manage(SyncState { 
-            ruta: Mutex::new(String::new()), 
-            auto_exportar: Mutex::new(false) 
-        })
 
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
@@ -126,39 +154,20 @@ pub fn run() {
                 eprintln!("Error crítico en BD: {}", e);
             }
 
-            // <-- AÑADIR ESTE BLOQUE: Cargar datos a la memoria de Rust
-            let state = app.state::<SyncState>();
-            if let Ok(Some(r)) = configuracion::cargar_config_rust("rutaSincronizacion".to_string()) {
-                *state.ruta.lock().unwrap() = r;
+            // 🌟 NUEVO BLOQUE: Guardar ruta en la caja fuerte (doble clic / archivo asociado)
+            for arg in std::env::args().skip(1) {
+                if arg.to_lowercase().ends_with(".avisits") {
+                    let cache = ARCHIVO_PENDIENTE.get_or_init(|| Mutex::new(None));
+                    *cache.lock().unwrap() = Some(arg.clone());
+                    println!("📦 Archivo .avisits detectado y guardado: {}", arg);
+                    break; // solo el primer .avisits importa para restauración
+                }
             }
-            if let Ok(Some(a)) = configuracion::cargar_config_rust("autoExportar".to_string()) {
-                *state.auto_exportar.lock().unwrap() = a == "true";
-            }
-            // -----------------------
+            // -----------------------------------------------------------
             
             Ok(())
         })
         // -------------------------------------------------
-
-        // <-- AÑADIR ESTE BLOQUE: Interceptor de cierre
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                let state = window.state::<SyncState>();
-                let ruta = state.ruta.lock().unwrap().clone();
-                let auto = *state.auto_exportar.lock().unwrap();
-
-                if auto && !ruta.is_empty() {
-                    if let Some(local_db) = database::DB_PATH.get() {
-                        let separador = if ruta.contains('\\') { "\\" } else { "/" };
-                        let barra = if ruta.ends_with(separador) { "" } else { separador };
-                        let ruta_final = format!("{}{}{}", ruta, barra, "av_sync_backup.db");
-
-                        let _ = std::fs::copy(local_db, &ruta_final); // Copia instantánea
-                    }
-                }
-            }
-        })
-        // -----------------------
         
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -188,7 +197,14 @@ pub fn run() {
             historial::eliminar_historial_rust,
             historial::obtener_totales_circuito_recientes_rust, // <-- AÑADIR
             historial::obtener_desglose_ultimas_visitas_rust,   // <-- AÑADIR
+            
+            drive::login_google_drive,
+
+            generar_nombre_respaldo,
+            verificar_archivo_pendiente,
+            hay_archivo_pendiente,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

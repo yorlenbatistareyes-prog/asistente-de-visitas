@@ -1,6 +1,6 @@
 [package]
 name = "asistente-de-visitas"
-version = "1.0.4"
+version = "1.0.5"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -35,3 +35,11 @@ tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 # --- Utilidades Extras (Backups/PDFs) ---
 zip = "7.0.0"
 flate2 = "1.1.5"
+
+# --- Conexión a Google Drive (Sincronización) ---
+yup-oauth2 = "8.3"
+google-drive3 = "5.0"
+tokio = { version = "1", features = ["full"] }
+
+chrono = "0.4"
+whoami = "2.1"

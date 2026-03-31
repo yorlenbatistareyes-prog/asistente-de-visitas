@@ -2,6 +2,25 @@
   import TopBar from '$lib/components/layout/TopBar.svelte';
   import BarraDeEstado from '$lib/components/layout/BarraDeEstado.svelte';
   import '../app.css';
+  import { invoke } from '@tauri-apps/api/core';
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+
+  // Listener global para archivos externos
+  onMount(async () => {
+    const hayArchivo = await invoke<boolean>('hay_archivo_pendiente');
+    if (hayArchivo) {
+      console.log("¡HAY ARCHIVO PENDIENTE!");
+      const archivo = await invoke<string | null>('verificar_archivo_pendiente');
+      if (archivo) {
+        console.log("Archivo recibido:", archivo);
+        // Guardar en sessionStorage para que la página de configuración lo recoja
+        sessionStorage.setItem('archivoPendiente', archivo);
+        // Navegar a configuración
+        goto('/configuracion');
+      }
+    }
+  });
 </script>
 
 <div class="app-container">

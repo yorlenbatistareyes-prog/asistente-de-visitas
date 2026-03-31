@@ -13,3 +13,8 @@ vite.config.ts.timestamp-*
 # --- TAURI (ESTO ES LO QUE FALTABA) ---
 src-tauri/target
 src-tauri/gen
+
+# Ignorar tokens de Google Drive
+drive_token.json
+src-tauri/drive_token.json
+src-tauri/credentials.json
