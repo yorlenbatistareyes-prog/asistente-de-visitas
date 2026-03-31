@@ -18,3 +18,6 @@ src-tauri/gen
 drive_token.json
 src-tauri/drive_token.json
 src-tauri/credentials.json
+
+av_database.db
+firma-yorlen.keystore
