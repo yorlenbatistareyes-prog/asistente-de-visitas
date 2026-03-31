@@ -13,3 +13,10 @@ vite.config.ts.timestamp-*
 # --- TAURI (ESTO ES LO QUE FALTABA) ---
 src-tauri/target
 src-tauri/gen
+
+# Archivos de seguridad del Asistente
+firma-yorlen.keystore
+
+src-tauri/av_database.db
+credentials.json
+drive_token.json
