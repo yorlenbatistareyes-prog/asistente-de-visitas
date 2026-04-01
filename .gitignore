@@ -21,3 +21,7 @@ src-tauri/credentials.json
 
 av_database.db
 firma-yorlen.keystore
+
+# Firma de Android (Privado)
+keystore.properties
+
