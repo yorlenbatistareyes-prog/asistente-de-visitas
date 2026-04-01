@@ -127,6 +127,42 @@ fn generar_nombre_respaldo() -> String {
     format!("Respaldo_{}_{}.avisits", fecha_hora, dispositivo)
 }
 
+
+use std::fs;
+use tauri::process::restart; // Importamos la función de reinicio de Tauri
+
+#[tauri::command]
+fn restaurar_bd(app_handle: tauri::AppHandle, ruta_origen: String) -> Result<(), String> {
+    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    
+    // Guardamos la copia con un nombre temporal para que Windows no moleste
+    let restore_path = app_data_dir.join("av_database_restore.db");
+    std::fs::copy(&ruta_origen, &restore_path).map_err(|e| format!("Error al copiar: {}", e))?;
+
+    // Reiniciamos la app inmediatamente
+    tauri::process::restart(&app_handle.env());
+
+    Ok(())
+}
+
+
+// 🌟 NUEVA FUNCIÓN: CREAR RESPALDO PERFECTO 🌟
+#[tauri::command]
+fn crear_respaldo_bd(app_handle: tauri::AppHandle, ruta_destino: String) -> Result<(), String> {
+    // 1. Buscamos dónde está la base de datos original
+    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let db_path = app_data_dir.join("av_database.db");
+
+    // 2. Nos conectamos a ella
+    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+
+    // 3. MAGIA: VACUUM INTO crea una copia perfecta en un solo archivo, uniendo .db y .wal
+    conn.execute("VACUUM INTO ?1", rusqlite::params![ruta_destino])
+        .map_err(|e| format!("Error al crear el respaldo seguro: {}", e))?;
+
+    Ok(())
+}
+
 // --- 3. MAIN ---
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -140,30 +176,43 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::default().build())
 
         .setup(|app| { 
-            // CAMBIO AQUÍ: Usamos app_data_dir() para ir a Roaming automáticamente
-            // Antes tenías: app_local_data_dir()
             let app_data_dir = app.path().app_data_dir().expect("Error buscando AppData");
-            
             std::fs::create_dir_all(&app_data_dir).expect("Error creando carpeta segura");
             
-            let db_path = app_data_dir.join("av_database.db").to_string_lossy().to_string();
+            // Creamos la ruta como PathBuf para poder manipular los archivos
+            let db_path_buf = app_data_dir.join("av_database.db");
             
+            // 🌟 EL TRUCO: Cambiazo antes de que SQLite y el plugin despierten
+            let restore_path = app_data_dir.join("av_database_restore.db");
+            if restore_path.exists() {
+                println!("🔄 Restauración detectada. Limpiando archivos viejos...");
+                // Borramos los temporales viejos que causaban el Error 500
+                let _ = std::fs::remove_file(app_data_dir.join("av_database.db-wal"));
+                let _ = std::fs::remove_file(app_data_dir.join("av_database.db-shm"));
+                let _ = std::fs::remove_file(&db_path_buf); // Borramos la BD actual
+                
+                // Renombramos el archivo temporal para que sea la nueva BD oficial
+                let _ = std::fs::rename(&restore_path, &db_path_buf);
+            }
+            // ----------------------------------------------------------
+            
+            // Ahora sí, la convertimos a String y la guardamos globalmente
+            let db_path = db_path_buf.to_string_lossy().to_string();
             database::DB_PATH.set(db_path).expect("Error guardando ruta global");
             
             if let Err(e) = database::inicializar_bd() {
                 eprintln!("Error crítico en BD: {}", e);
             }
 
-            // 🌟 NUEVO BLOQUE: Guardar ruta en la caja fuerte (doble clic / archivo asociado)
+            // Guardar ruta en la caja fuerte (doble clic / archivo asociado)
             for arg in std::env::args().skip(1) {
                 if arg.to_lowercase().ends_with(".avisits") {
                     let cache = ARCHIVO_PENDIENTE.get_or_init(|| Mutex::new(None));
                     *cache.lock().unwrap() = Some(arg.clone());
                     println!("📦 Archivo .avisits detectado y guardado: {}", arg);
-                    break; // solo el primer .avisits importa para restauración
+                    break; 
                 }
             }
-            // -----------------------------------------------------------
             
             Ok(())
         })
@@ -203,6 +252,9 @@ pub fn run() {
             generar_nombre_respaldo,
             verificar_archivo_pendiente,
             hay_archivo_pendiente,
+
+            restaurar_bd,
+            crear_respaldo_bd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

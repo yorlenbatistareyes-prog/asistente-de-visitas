@@ -344,23 +344,22 @@
       // 1. Pedimos a Rust el nombre inteligente con hora exacta
       const nombreSugerido = await invoke<string>("generar_nombre_respaldo");
 
-      // 2. ABRIR VENTANA AL INSTANTE (Al no haber pausas ni cierres de modales previos, Windows no se bloquea)
+      // 2. Abrir ventana para elegir dónde guardar
       const rutaDestino = await saveDialog({
         title: 'Exportar Copia de Seguridad',
         defaultPath: nombreSugerido,
         filters: [{ name: 'Respaldo Asistente', extensions: ['avisits'] }]
       });
       
-      if (!rutaDestino) return; // Si cierras la ventana sin guardar, se cancela silenciosamente
+      if (!rutaDestino) return; 
 
-      // 3. Copiamos la base de datos a la ruta elegida
-      const dbBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppData });
-      await writeFile(rutaDestino, dbBytes);
+      // 3. 🌟 LA MAGIA: Llamamos a Rust para que haga la copia perfecta (VACUUM INTO)
+      await invoke('crear_respaldo_bd', { rutaDestino: rutaDestino as string });
       
       alert("✅ Copia de seguridad guardada con éxito en:\n\n" + rutaDestino);
     } catch (error) {
       console.error("Error crítico al exportar:", error);
-      alert("❌ Ocurrió un error al guardar la copia manual.");
+      alert("❌ Ocurrió un error al guardar la copia manual: " + error);
     }
   }
 
@@ -418,24 +417,15 @@
   // Esta función se ejecuta cuando presionas "Restaurar" en el modal
   async function confirmarRestauracion() {
     try {
-      // 1. Leemos el archivo seleccionado
-      const backupBytes = await readFile(rutaArchivoSeleccionado);
-      
-      // 2. REEMPLAZO TOTAL: Machacamos la BD actual
-      await writeFile('av_database.db', backupBytes, { baseDir: BaseDirectory.AppData });
-
-      // 🌟 EL SECRETO: Borramos los archivos temporales de SQLite
-      try { await remove('av_database.db-wal', { baseDir: BaseDirectory.AppData }); } catch (e) {}
-      try { await remove('av_database.db-shm', { baseDir: BaseDirectory.AppData }); } catch (e) {}
-
       mostrarModalRestaurar = false;
       alert("✅ Datos restaurados correctamente. La aplicación se reiniciará para aplicar los cambios.");
       
-      // 3. Recargamos la app para que SQLite lea la nueva información
-      window.location.reload();
+      // Llamamos a Rust y le pasamos la ruta del archivo que el usuario eligió
+      await invoke('restaurar_bd', { rutaOrigen: rutaArchivoSeleccionado });
+      
     } catch (error) {
       console.error("Error al aplicar la restauración:", error);
-      alert("❌ Error crítico al sobrescribir la base de datos.");
+      alert("❌ Error crítico al sobrescribir la base de datos: " + error);
     }
   }
 
