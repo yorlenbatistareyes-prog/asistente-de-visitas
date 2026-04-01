@@ -117,13 +117,23 @@ fn save_document_record(name: String, path: String, doc_type: String, _size: Str
 
 #[tauri::command]
 fn generar_nombre_respaldo() -> String {
-    // Genera la hora en formato 12h con AM/PM (Ej: 2026-03-30_08-33-PM)
     let fecha_hora = Local::now().format("%Y-%m-%d_%I-%M-%p").to_string();
     
-    // Extraemos el nombre del dispositivo
-    let dispositivo = whoami::devicename().unwrap_or("Desconocido".to_string());
+    // Intentamos obtener el nombre (esto funciona bien en Windows)
+    let mut dispositivo = whoami::devicename().unwrap_or("Unknown".to_string());
+
+    // Si estamos en Android, intentamos sacar la marca y el modelo real
+    #[cfg(target_os = "android")]
+    {
+        if dispositivo == "Unknown" || dispositivo == "Desconocido" {
+            // Le pedimos a Android la marca y el modelo (ej: Samsung_SM-G991B)
+            // Estas variables suelen estar disponibles en el entorno de ejecución de Tauri en Android
+            let marca = std::env::var("RO_PRODUCT_MANUFACTURER").unwrap_or_else(|_| "Movil".to_string());
+            let modelo = std::env::var("RO_PRODUCT_MODEL").unwrap_or_else(|_| "Android".to_string());
+            dispositivo = format!("{}_{}", marca, modelo);
+        }
+    }
     
-    // Unimos todo
     format!("Respaldo_{}_{}.avisits", fecha_hora, dispositivo)
 }
 
@@ -149,17 +159,23 @@ fn restaurar_bd(app_handle: tauri::AppHandle, ruta_origen: String) -> Result<(),
 // 🌟 NUEVA FUNCIÓN: CREAR RESPALDO PERFECTO 🌟
 #[tauri::command]
 fn crear_respaldo_bd(app_handle: tauri::AppHandle, ruta_destino: String) -> Result<(), String> {
-    // 1. Buscamos dónde está la base de datos original
+    // 1. Buscamos la base de datos original en la carpeta interna de la app
     let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     let db_path = app_data_dir.join("av_database.db");
 
-    // 2. Nos conectamos a ella
-    let conn = rusqlite::Connection::open(db_path).map_err(|e| e.to_string())?;
+    if !db_path.exists() {
+        return Err("No se encontró la base de datos para respaldar".to_string());
+    }
 
-    // 3. MAGIA: VACUUM INTO crea una copia perfecta en un solo archivo, uniendo .db y .wal
-    conn.execute("VACUUM INTO ?1", rusqlite::params![ruta_destino])
-        .map_err(|e| format!("Error al crear el respaldo seguro: {}", e))?;
+    // 2. COPIA BINARIA: Leemos el archivo completo y lo escribimos en el destino
+    // Esto es mucho más fiable en Android que usar "VACUUM INTO"
+    let contenido = std::fs::read(&db_path)
+        .map_err(|e| format!("Error al leer base de datos: {}", e))?;
 
+    std::fs::write(&ruta_destino, contenido)
+        .map_err(|e| format!("Error al escribir el archivo de respaldo: {}", e))?;
+
+    println!("✅ Respaldo completado con éxito en: {}", ruta_destino);
     Ok(())
 }
 

@@ -341,7 +341,7 @@
   // --- LÓGICA DE BACKUPS MANUALES (.avisits) ---
   async function exportarCopia() {
     try {
-      // 1. Pedimos a Rust el nombre inteligente con hora exacta
+      // 1. Pedimos a Rust el nombre inteligente
       const nombreSugerido = await invoke<string>("generar_nombre_respaldo");
 
       // 2. Abrir ventana para elegir dónde guardar
@@ -353,8 +353,9 @@
       
       if (!rutaDestino) return; 
 
-      // 3. 🌟 LA MAGIA: Llamamos a Rust para que haga la copia perfecta (VACUUM INTO)
-      await invoke('crear_respaldo_bd', { rutaDestino: rutaDestino as string });
+      // 3. 🌟 LA MAGIA (Estilo Deepseek): Leemos la BD y escribimos directo desde el frontend
+      const dbBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppData });
+      await writeFile(rutaDestino as string, dbBytes);
       
       alert("✅ Copia de seguridad guardada con éxito en:\n\n" + rutaDestino);
     } catch (error) {
@@ -415,13 +416,25 @@
   }
 
   // Esta función se ejecuta cuando presionas "Restaurar" en el modal
+  // Esta función se ejecuta cuando presionas "Restaurar" en el modal
   async function confirmarRestauracion() {
     try {
       mostrarModalRestaurar = false;
-      alert("✅ Datos restaurados correctamente. La aplicación se reiniciará para aplicar los cambios.");
       
-      // Llamamos a Rust y le pasamos la ruta del archivo que el usuario eligió
-      await invoke('restaurar_bd', { rutaOrigen: rutaArchivoSeleccionado });
+      // 1. Leemos el archivo (Esto entiende perfectamente las rutas de Android y Windows)
+      const backupBytes = await readFile(rutaArchivoSeleccionado);
+
+      // 2. Lo guardamos directamente sobrescribiendo nuestra base de datos activa
+      await writeFile('av_database.db', backupBytes, { baseDir: BaseDirectory.AppData });
+
+      // 3. Limpiamos los archivos temporales para evitar el Error 500
+      try { await remove('av_database.db-wal', { baseDir: BaseDirectory.AppData }); } catch (e) {}
+      try { await remove('av_database.db-shm', { baseDir: BaseDirectory.AppData }); } catch (e) {}
+
+      alert("✅ Datos restaurados correctamente. La aplicación se recargará para aplicar los cambios.");
+      
+      // 4. Recargamos la interfaz para que vuelva a leer la BD limpia
+      window.location.reload();
       
     } catch (error) {
       console.error("Error al aplicar la restauración:", error);
