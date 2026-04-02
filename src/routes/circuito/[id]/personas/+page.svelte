@@ -4,6 +4,8 @@
   import { Search, Upload, Plus, Trash2, Phone, Mail, User, MapPin, Edit, Users } from "lucide-svelte";
   import Papa from 'papaparse';
   import { save as saveDialog, open as openDialog, confirm as confirmDialog, message as messageDialog } from '@tauri-apps/plugin-dialog';
+  import { readFile } from '@tauri-apps/plugin-fs';
+  
   import { 
     obtenerPersonasPorCircuito, 
     guardarPersona, 
@@ -70,44 +72,80 @@
   });
 
 
-  async function importarCSV(e: any) {
+  async function importarCSV() {
     if (!circuitoId) {
       alert("Error: No se pudo detectar el ID del circuito.");
       return;
     }
 
-    const file = e.target.files[0];
-    if (!file) return;
+    try {
+      // 1. Detectamos si es Android
+      const esAndroid = navigator.userAgent.toLowerCase().includes('android');
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const datosCSV = results.data as Record<string, string>[];
-        for (const fila of datosCSV) {
-          if (!fila["Nombre"]) continue;
-          try {
-            await guardarPersona({
-              circuito_id: circuitoId, 
-              nombre: fila["Nombre"] || "",
-              segundo_nombre: fila["Segundo nombre"] || "",
-              apellidos: fila["Apellidos"] || "",
-              privilegio: fila["Tipo de privilegio"] || "",
-              congregacion: fila["Congregación"] || "",
-              direccion: fila["Dirección completa (Postal)"] || "",
-              telefono_celular: fila["Teléfono (Celular)"] || "",
-              telefono_fijo: fila["Teléfono"] || "",
-              email: fila["Correo electrónico (Correo electrónico (jw.org))"] || ""
-            });
-          } catch (err) {
-            console.error("Error guardando a:", fila["Nombre"], err);
-          }
-        }
-        await cargar(); 
-        alert("✅ Importación completada");
-        e.target.value = ""; 
+      // 2. Preparamos el diálogo de Tauri sin filtros para Android
+      const opcionesDialogo: any = {
+        title: 'Seleccionar archivo CSV',
+        multiple: false,
+        directory: false
+      };
+
+      if (!esAndroid) {
+        opcionesDialogo.filters = [{ name: 'Documentos CSV', extensions: ['csv'] }];
       }
-    });
+
+      // 3. Abrimos el selector de archivos nativo
+      const seleccion = await openDialog(opcionesDialogo);
+      if (!seleccion) return;
+
+      const rutaOrigen = Array.isArray(seleccion) ? seleccion[0] : seleccion;
+
+      // 4. Verificación de seguridad
+      if (!rutaOrigen.toLowerCase().endsWith('.csv')) {
+        alert("❌ Formato incorrecto. Por favor selecciona un archivo .csv");
+        return;
+      }
+
+      // 5. Leemos el archivo saltando las restricciones de Android
+      const csvBytes = await readFile(rutaOrigen as string);
+      const textoCSV = new TextDecoder().decode(csvBytes);
+
+      // 6. Procesamos los datos con PapaParse
+      Papa.parse(textoCSV, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+          const datosCSV = results.data as Record<string, string>[];
+          let importadas = 0;
+
+          for (const fila of datosCSV) {
+            if (!fila["Nombre"]) continue;
+            try {
+              await guardarPersona({
+                circuito_id: circuitoId, 
+                nombre: fila["Nombre"] || "",
+                segundo_nombre: fila["Segundo nombre"] || "",
+                apellidos: fila["Apellidos"] || "",
+                privilegio: fila["Tipo de privilegio"] || "",
+                congregacion: fila["Congregación"] || "",
+                direccion: fila["Dirección completa (Postal)"] || "",
+                telefono_celular: fila["Teléfono (Celular)"] || "",
+                telefono_fijo: fila["Teléfono"] || "",
+                email: fila["Correo electrónico (Correo electrónico (jw.org))"] || ""
+              });
+              importadas++;
+            } catch (err) {
+              console.error("Error guardando a:", fila["Nombre"], err);
+            }
+          }
+          await cargar(); 
+          alert(`✅ Importación completada: ${importadas} personas añadidas.`);
+        }
+      });
+
+    } catch (error) {
+      console.error("Error al importar CSV:", error);
+      alert("❌ Error al leer el archivo.");
+    }
   }
 
   function abrirEdicion(persona: Persona) {
@@ -194,10 +232,9 @@
     </div>
 
     <div class="filters-aside">
-      <label class="btn-importar card-global">
+      <button class="btn-importar card-global" on:click={importarCSV}>
            <Upload size={18} /> <span>Importar CSV</span>
-           <input type="file" accept=".csv" on:change={importarCSV} hidden />
-      </label>
+      </button>
       
       <button class="btn-primary-fino" on:click={() => { resetForm(); mostrandoModalPersona = true; }}>
         <Plus size={18} /> Añadir Persona
