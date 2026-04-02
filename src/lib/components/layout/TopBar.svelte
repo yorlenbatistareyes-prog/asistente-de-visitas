@@ -143,7 +143,7 @@
            <Settings size={18} />
         </button>
 
-        <button class="icon-btn" on:click={() => goto('/ayuda')} title="Centro de Ayuda">
+        <button class="icon-btn" on:click={() => goto('/ayuda')} title="Temas de Ayuda">
            <HelpCircle size={18} />
         </button>
         

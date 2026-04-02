@@ -43,10 +43,8 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.15": [
-      { texto: "Corregida la importación de CSV para congregaciones y personas.", tipo: "correcion" },
-      { texto: "Añadido sistema de notificaciones para nuevas actualizaciones.", tipo: "notificacion" },
-      { texto: "Optimización visual para dispositivos Android.", tipo: "movil" }
+    "1.0.16": [
+      { texto: "Arreglos en téminos utilizados.", tipo: "mejora" }
     ]
   };
 

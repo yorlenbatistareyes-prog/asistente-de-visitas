@@ -55,7 +55,7 @@
       <button class="btn-back" on:click={volver}>
         <ArrowLeft size={20} /> Volver
       </button>
-      <h1>Centro de Ayuda</h1>
+      <h1>Temas de Ayuda</h1>
       <p>Guía de uso del Asistente de Visitas</p>
     </div>
   </div>
