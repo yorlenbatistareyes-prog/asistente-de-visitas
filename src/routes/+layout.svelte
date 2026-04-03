@@ -43,8 +43,8 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.16": [
-      { texto: "Arreglos en téminos utilizados.", tipo: "mejora" }
+    "1.0.17": [
+      { texto: "estabilidad recuperada en versión para android.", tipo: "mejora" }
     ]
   };
 
