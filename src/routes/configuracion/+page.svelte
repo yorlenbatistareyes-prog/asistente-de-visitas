@@ -7,7 +7,7 @@
   import { onMount } from 'svelte';
 
   import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
-  import { readFile, writeFile, remove, stat, readDir, BaseDirectory } from '@tauri-apps/plugin-fs';
+  import { exists, readFile, writeFile, remove, stat, readDir, BaseDirectory } from '@tauri-apps/plugin-fs';
   import { invoke } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
   // IMPORTAMOS TUS FUNCIONES DESDE db.ts
@@ -121,30 +121,26 @@
 
       // 🌟 RECOGER ARCHIVO DE LA CAJA FUERTE DE RUST
       // Le preguntamos a Rust si la app se abrió con un doble clic
-      const archivoDeDobleClic = await invoke<string | null>("verificar_archivo_pendiente");
-      
-      if (archivoDeDobleClic) {
-        console.log("📂 Archivo recibido desde la caché:", archivoDeDobleClic);
-        rutaArchivoSeleccionado = archivoDeDobleClic;
+      // 🌟 REVISAR EL BUZÓN DE ANDROID
+      try {
+        // Buscamos si Android nos dejó el archivo en la caché
+        const existeBuzon = await exists('importacion_pendiente.avisits', { baseDir: BaseDirectory.AppCache });
+        
+        if (existeBuzon) {
+          console.log("📂 ¡Archivo detectado por doble clic en Android!");
+          rutaArchivoSeleccionado = "BUZON_ANDROID"; // Usamos esto como señal secreta
 
-        const partesRuta = rutaArchivoSeleccionado.split(/[/\\]/);
-        const nombreSinExtension = partesRuta[partesRuta.length - 1].replace('.avisits', '');
-        const trozos = nombreSinExtension.split('_');
+          // Llenamos la información visual de tu tarjeta
+          infoArchivo.fecha = "Archivo externo";
+          infoArchivo.dispositivo = "Toque rápido en Android";
 
-        if (trozos.length >= 4) {
-          // Formato: Respaldo_2026-03-30_08-33-PM_Dispositivo
-          const horaFormateada = trozos[2].replace('-', ':').replace('-', ' ');
-          infoArchivo.fecha = `${trozos[1]} a las ${horaFormateada}`;
-          infoArchivo.dispositivo = trozos.slice(3).join('_');
-        } else if (trozos.length === 3) {
-          infoArchivo.fecha = trozos[1];
-          infoArchivo.dispositivo = trozos[2];
+          // Abrimos tu modal
+          setTimeout(() => {
+            mostrarModalRestaurar = true;
+          }, 300);
         }
-
-        // Abrimos el modal con un respiro para que Svelte pinte la interfaz
-        setTimeout(() => {
-          mostrarModalRestaurar = true;
-        }, 300);
+      } catch (e) {
+        console.log("No hay archivos en el buzón o no es Android");
       }
 
       // También verificar si vino desde el evento global
@@ -416,24 +412,33 @@
   }
 
   // Esta función se ejecuta cuando presionas "Restaurar" en el modal
-  // Esta función se ejecuta cuando presionas "Restaurar" en el modal
   async function confirmarRestauracion() {
     try {
       mostrarModalRestaurar = false;
       
-      // 1. Leemos el archivo (Esto entiende perfectamente las rutas de Android y Windows)
-      const backupBytes = await readFile(rutaArchivoSeleccionado);
+      let backupBytes;
+      
+      // 1. Verificamos de dónde viene el archivo
+      if (rutaArchivoSeleccionado === "BUZON_ANDROID") {
+        // Viene del doble clic en Android: Leemos del buzón
+        backupBytes = await readFile('importacion_pendiente.avisits', { baseDir: BaseDirectory.AppCache });
+        // ¡SÚPER IMPORTANTE! Lo borramos para que no te vuelva a salir el modal al reiniciar
+        await remove('importacion_pendiente.avisits', { baseDir: BaseDirectory.AppCache });
+      } else {
+        // Viene del botón "Restaurar" manual: Leemos la ruta normal
+        backupBytes = await readFile(rutaArchivoSeleccionado);
+      }
 
       // 2. Lo guardamos directamente sobrescribiendo nuestra base de datos activa
       await writeFile('av_database.db', backupBytes, { baseDir: BaseDirectory.AppData });
 
-      // 3. Limpiamos los archivos temporales para evitar el Error 500
+      // 3. Limpiamos los archivos temporales de SQLite
       try { await remove('av_database.db-wal', { baseDir: BaseDirectory.AppData }); } catch (e) {}
       try { await remove('av_database.db-shm', { baseDir: BaseDirectory.AppData }); } catch (e) {}
 
       alert("✅ Datos restaurados correctamente. La aplicación se recargará para aplicar los cambios.");
       
-      // 4. Recargamos la interfaz para que vuelva a leer la BD limpia
+      // 4. Recargamos la interfaz
       window.location.reload();
       
     } catch (error) {

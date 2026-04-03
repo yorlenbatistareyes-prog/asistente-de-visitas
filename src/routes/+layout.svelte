@@ -2,6 +2,7 @@
   import TopBar from '$lib/components/layout/TopBar.svelte';
   import BarraDeEstado from '$lib/components/layout/BarraDeEstado.svelte';
   import '../app.css';
+  import { exists, BaseDirectory } from '@tauri-apps/plugin-fs';
   import { invoke } from '@tauri-apps/api/core';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
@@ -43,8 +44,8 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.17": [
-      { texto: "estabilidad recuperada en versión para android.", tipo: "mejora" }
+    "1.0.18": [
+      { texto: "Corregido problemas por el cual no se importaba el archivo de respaldo en android al hacer doble clic.", tipo: "correcion" }
     ]
   };
 
@@ -54,17 +55,21 @@
   }
 
   onMount(async () => {
-    // 1. Lógica para archivos externos
+    // 1. 🕵️ VIGILANTE DEL BUZÓN DE ANDROID
     try {
-      const hayArchivo = await invoke<boolean>('hay_archivo_pendiente');
-      if (hayArchivo) {
-        const archivo = await invoke<string | null>('verificar_archivo_pendiente');
-        if (archivo) {
-          sessionStorage.setItem('archivoPendiente', archivo);
-          goto('/configuracion');
-        }
+      // Revisamos si Android dejó el archivo en la caché
+      const existeBuzon = await exists('importacion_pendiente.avisits', { baseDir: BaseDirectory.AppCache });
+      
+      if (existeBuzon) {
+        console.log("📂 ¡Buzón detectado desde el Layout! Redirigiendo...");
+        // Guardamos la señal para que la página de configuración sepa que debe abrir el modal
+        sessionStorage.setItem('archivoPendiente', 'BUZON_ANDROID');
+        // Saltamos directo a configuración para que el usuario vea el cartel azul
+        goto('/configuracion');
       }
-    } catch (e) { console.error("Error en archivos:", e); }
+    } catch (e) {
+      // Si falla es porque no es Android o la carpeta no existe aún, lo ignoramos
+    }
 
     // 2. Detección de nueva versión
     try {
