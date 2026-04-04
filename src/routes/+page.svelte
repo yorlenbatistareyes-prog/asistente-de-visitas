@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { Plus, MapPin, Calendar, Users, Trash2, ArrowRight, Map, Search } from "lucide-svelte";
-  
+  import { confirm } from '@tauri-apps/plugin-dialog';
+
   import { 
     obtenerTodosLosCircuitos, 
     crearCircuito, 
@@ -92,10 +93,17 @@
   }
 
   async function eliminar(id: number, nombre: string) {
-    if (confirm(`¿Estás seguro de eliminar el circuito "${nombre}" y TODAS sus congregaciones?`)) {
+    // 1. Usamos el confirm nativo de Tauri (fíjate en el await)
+    const elUsuarioEstaSeguro = await confirm(
+      `¿Estás seguro de eliminar el circuito "${nombre}" y TODAS sus congregaciones?`, 
+      { title: 'Eliminar Circuito', kind: 'warning' }
+    );
+
+    // 2. Solo si presionas "Sí/Aceptar", procedemos a borrar y recargar la lista
+    if (elUsuarioEstaSeguro) {
       try {
         await eliminarCircuito(id, nombre);
-        await cargarCircuitos();
+        await cargarCircuitos(); // La tarjeta visual se borrará justo en este momento
       } catch (error) {
         alert("Error al eliminar: " + error);
       }

@@ -5,18 +5,21 @@ pub mod circuitos;
 pub mod congregaciones;
 pub mod personas;
 pub mod historial;
+pub mod drive;
 
 use serde::{Deserialize, Serialize};
 use std::process::Command; // Necesario para abrir Word/Excel
 use tauri::Manager; // <--- NUEVO: Para buscar las carpetas seguras del sistema (AppData)
 
-use std::sync::Mutex; // <-- AÑADIR
+use std::sync::{Mutex, OnceLock}; // <-- AÑADIR
 
-// <-- AÑADIR: Estructura del Estado Global
-pub struct SyncState {
-    pub ruta: Mutex<String>,
-    pub auto_exportar: Mutex<bool>,
-}
+use std::env;
+use chrono::Local;
+
+// --- 2. VARIABLES GLOBALES Y ESTADOS ---
+
+// Esta es nuestra "caja fuerte" global para el archivo pendiente
+static ARCHIVO_PENDIENTE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 
 // --- 1. ESTRUCTURAS (Igual que antes) ---
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -39,6 +42,22 @@ pub struct DocRecord {
 }
 
 // --- 2. COMANDOS ---
+
+#[tauri::command]
+fn verificar_archivo_pendiente() -> Option<String> {
+    let cache = ARCHIVO_PENDIENTE.get_or_init(|| Mutex::new(None));
+    let archivo = cache.lock().unwrap().take();
+    println!("🔍 Verificando archivo pendiente: {:?}", archivo);
+    archivo
+}
+
+#[tauri::command]
+fn hay_archivo_pendiente() -> bool {
+    let cache = ARCHIVO_PENDIENTE.get_or_init(|| Mutex::new(None));
+    let hay = cache.lock().unwrap().is_some();
+    println!("🔍 ¿Hay archivo pendiente?: {}", hay);
+    hay
+}
 
 // Abre archivos saltándose la seguridad estricta de Tauri
 #[tauri::command]
@@ -94,15 +113,76 @@ fn save_document_record(name: String, path: String, doc_type: String, _size: Str
     "OK".to_string()
 }
 
+
+
+#[tauri::command]
+fn generar_nombre_respaldo() -> String {
+    let fecha_hora = Local::now().format("%Y-%m-%d_%I-%M-%p").to_string();
+    
+    // Intentamos obtener el nombre (esto funciona bien en Windows)
+    let mut dispositivo = whoami::devicename().unwrap_or("Unknown".to_string());
+
+    // Si estamos en Android, intentamos sacar la marca y el modelo real
+    #[cfg(target_os = "android")]
+    {
+        if dispositivo == "Unknown" || dispositivo == "Desconocido" {
+            // Le pedimos a Android la marca y el modelo (ej: Samsung_SM-G991B)
+            // Estas variables suelen estar disponibles en el entorno de ejecución de Tauri en Android
+            let marca = std::env::var("RO_PRODUCT_MANUFACTURER").unwrap_or_else(|_| "Movil".to_string());
+            let modelo = std::env::var("RO_PRODUCT_MODEL").unwrap_or_else(|_| "Android".to_string());
+            dispositivo = format!("{}_{}", marca, modelo);
+        }
+    }
+    
+    format!("Respaldo_{}_{}.avisits", fecha_hora, dispositivo)
+}
+
+
+use std::fs;
+use tauri::process::restart; // Importamos la función de reinicio de Tauri
+
+#[tauri::command]
+fn restaurar_bd(app_handle: tauri::AppHandle, ruta_origen: String) -> Result<(), String> {
+    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    
+    // Guardamos la copia con un nombre temporal para que Windows no moleste
+    let restore_path = app_data_dir.join("av_database_restore.db");
+    std::fs::copy(&ruta_origen, &restore_path).map_err(|e| format!("Error al copiar: {}", e))?;
+
+    // Reiniciamos la app inmediatamente
+    tauri::process::restart(&app_handle.env());
+
+    Ok(())
+}
+
+
+// 🌟 NUEVA FUNCIÓN: CREAR RESPALDO PERFECTO 🌟
+#[tauri::command]
+fn crear_respaldo_bd(app_handle: tauri::AppHandle, ruta_destino: String) -> Result<(), String> {
+    // 1. Buscamos la base de datos original en la carpeta interna de la app
+    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let db_path = app_data_dir.join("av_database.db");
+
+    if !db_path.exists() {
+        return Err("No se encontró la base de datos para respaldar".to_string());
+    }
+
+    // 2. COPIA BINARIA: Leemos el archivo completo y lo escribimos en el destino
+    // Esto es mucho más fiable en Android que usar "VACUUM INTO"
+    let contenido = std::fs::read(&db_path)
+        .map_err(|e| format!("Error al leer base de datos: {}", e))?;
+
+    std::fs::write(&ruta_destino, contenido)
+        .map_err(|e| format!("Error al escribir el archivo de respaldo: {}", e))?;
+
+    println!("✅ Respaldo completado con éxito en: {}", ruta_destino);
+    Ok(())
+}
+
 // --- 3. MAIN ---
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-
-    .manage(SyncState { 
-            ruta: Mutex::new(String::new()), 
-            auto_exportar: Mutex::new(false) 
-        })
 
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
@@ -112,53 +192,47 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::default().build())
 
         .setup(|app| { 
-            // CAMBIO AQUÍ: Usamos app_data_dir() para ir a Roaming automáticamente
-            // Antes tenías: app_local_data_dir()
             let app_data_dir = app.path().app_data_dir().expect("Error buscando AppData");
-            
             std::fs::create_dir_all(&app_data_dir).expect("Error creando carpeta segura");
             
-            let db_path = app_data_dir.join("av_database.db").to_string_lossy().to_string();
+            // Creamos la ruta como PathBuf para poder manipular los archivos
+            let db_path_buf = app_data_dir.join("av_database.db");
             
+            // 🌟 EL TRUCO: Cambiazo antes de que SQLite y el plugin despierten
+            let restore_path = app_data_dir.join("av_database_restore.db");
+            if restore_path.exists() {
+                println!("🔄 Restauración detectada. Limpiando archivos viejos...");
+                // Borramos los temporales viejos que causaban el Error 500
+                let _ = std::fs::remove_file(app_data_dir.join("av_database.db-wal"));
+                let _ = std::fs::remove_file(app_data_dir.join("av_database.db-shm"));
+                let _ = std::fs::remove_file(&db_path_buf); // Borramos la BD actual
+                
+                // Renombramos el archivo temporal para que sea la nueva BD oficial
+                let _ = std::fs::rename(&restore_path, &db_path_buf);
+            }
+            // ----------------------------------------------------------
+            
+            // Ahora sí, la convertimos a String y la guardamos globalmente
+            let db_path = db_path_buf.to_string_lossy().to_string();
             database::DB_PATH.set(db_path).expect("Error guardando ruta global");
             
             if let Err(e) = database::inicializar_bd() {
                 eprintln!("Error crítico en BD: {}", e);
             }
 
-            // <-- AÑADIR ESTE BLOQUE: Cargar datos a la memoria de Rust
-            let state = app.state::<SyncState>();
-            if let Ok(Some(r)) = configuracion::cargar_config_rust("rutaSincronizacion".to_string()) {
-                *state.ruta.lock().unwrap() = r;
+            // Guardar ruta en la caja fuerte (doble clic / archivo asociado)
+            for arg in std::env::args().skip(1) {
+                if arg.to_lowercase().ends_with(".avisits") {
+                    let cache = ARCHIVO_PENDIENTE.get_or_init(|| Mutex::new(None));
+                    *cache.lock().unwrap() = Some(arg.clone());
+                    println!("📦 Archivo .avisits detectado y guardado: {}", arg);
+                    break; 
+                }
             }
-            if let Ok(Some(a)) = configuracion::cargar_config_rust("autoExportar".to_string()) {
-                *state.auto_exportar.lock().unwrap() = a == "true";
-            }
-            // -----------------------
             
             Ok(())
         })
         // -------------------------------------------------
-
-        // <-- AÑADIR ESTE BLOQUE: Interceptor de cierre
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                let state = window.state::<SyncState>();
-                let ruta = state.ruta.lock().unwrap().clone();
-                let auto = *state.auto_exportar.lock().unwrap();
-
-                if auto && !ruta.is_empty() {
-                    if let Some(local_db) = database::DB_PATH.get() {
-                        let separador = if ruta.contains('\\') { "\\" } else { "/" };
-                        let barra = if ruta.ends_with(separador) { "" } else { separador };
-                        let ruta_final = format!("{}{}{}", ruta, barra, "av_sync_backup.db");
-
-                        let _ = std::fs::copy(local_db, &ruta_final); // Copia instantánea
-                    }
-                }
-            }
-        })
-        // -----------------------
         
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -188,7 +262,17 @@ pub fn run() {
             historial::eliminar_historial_rust,
             historial::obtener_totales_circuito_recientes_rust, // <-- AÑADIR
             historial::obtener_desglose_ultimas_visitas_rust,   // <-- AÑADIR
+            
+            drive::login_google_drive,
+
+            generar_nombre_respaldo,
+            verificar_archivo_pendiente,
+            hay_archivo_pendiente,
+
+            restaurar_bd,
+            crear_respaldo_bd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

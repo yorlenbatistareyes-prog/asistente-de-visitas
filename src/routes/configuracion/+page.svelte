@@ -1,4 +1,5 @@
 <script lang="ts">
+
   import { 
     FolderSync, RefreshCcw, Trash, FolderX, FolderInput, User, Database, Globe, Save, 
     ArrowLeft, Download, Upload, AlertTriangle, X, HardDriveDownload, ArchiveRestore
@@ -6,8 +7,9 @@
   import { onMount } from 'svelte';
 
   import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
-  import { readFile, writeFile, remove, stat, BaseDirectory } from '@tauri-apps/plugin-fs';
-  
+  import { exists, readFile, writeFile, remove, stat, readDir, BaseDirectory } from '@tauri-apps/plugin-fs';
+  import { invoke } from '@tauri-apps/api/core';
+  import { listen } from '@tauri-apps/api/event';
   // IMPORTAMOS TUS FUNCIONES DESDE db.ts
   import { guardarConfig, cargarConfig, initDB } from '$lib/services/db';
   
@@ -21,11 +23,16 @@
   let mostrarModalReset = false;
   let palabraConfirmacion = "";
 
+  // 🌟 NUEVAS VARIABLES PARA EL MODAL DE RESTAURACIÓN 🌟
+  let mostrarModalRestaurar = false;
+  let rutaArchivoSeleccionado = "";
+  let infoArchivo = { fecha: "Desconocida", dispositivo: "Desconocido" };
+  let dispositivoActual = "Este dispositivo"; // Opcional: Podrías traer este nombre de Rust también
+
   // --- VARIABLES DE ESTADO: SINCRONIZACIÓN ---
   let rutaSincronizacion = ""; 
   let ultimaExportacion = "Desconocido";
   let ultimaImportacion = "Desconocido";
-  let autoExportar = false;
 
   // Función auxiliar para obtener la fecha y hora actual con buen formato
   function obtenerFechaActual() {
@@ -45,6 +52,7 @@
   let tamanoArchivoSync = "0 KB";
 
   // --- FUNCIÓN PARA LEER EL ARCHIVO FÍSICO ---
+  // --- FUNCIÓN ACTUALIZADA PARA LEER EL ÚLTIMO RESPALDO ---
   async function revisarArchivoSync() {
     if (!rutaSincronizacion || rutaSincronizacion.trim() === "") {
       fechaArchivoSync = "No hay carpeta vinculada";
@@ -53,52 +61,134 @@
     }
 
     try {
-      const separador = rutaSincronizacion.includes('\\') ? '\\' : '/';
-      const barra = rutaSincronizacion.endsWith(separador) ? '' : separador;
-      const rutaFinal = `${rutaSincronizacion}${barra}av_sync_backup.db`;
-
-      const metadata = await stat(rutaFinal);
+      // 1. Leemos todos los archivos de la carpeta de la nube
+      const entradas = await readDir(rutaSincronizacion);
       
-      if (metadata.mtime) {
-        const fecha = new Date(metadata.mtime);
-        fechaArchivoSync = fecha.toLocaleString();
+      // 2. Filtramos solo los que son .avisits y los ordenamos (Z-A) para tener el más nuevo
+      const archivos = entradas
+        .filter(e => e.name && e.name.endsWith('.avisits'))
+        .sort((a, b) => (b.name || "").localeCompare(a.name || ""));
+
+      if (archivos.length > 0 && archivos[0].name) {
+        const nombreUltimo = archivos[0].name;
+        const separador = rutaSincronizacion.includes('\\') ? '\\' : '/';
+        const barra = rutaSincronizacion.endsWith(separador) ? '' : separador;
+        const rutaFinal = `${rutaSincronizacion}${barra}${nombreUltimo}`;
+
+        // 3. Obtenemos los metadatos de ese archivo específico
+        const metadata = await stat(rutaFinal);
+        
+        if (metadata.mtime) {
+          const fecha = new Date(metadata.mtime);
+          fechaArchivoSync = fecha.toLocaleString();
+        }
+
+        const kb = (metadata.size / 1024).toFixed(1);
+        tamanoArchivoSync = `${kb} KB`;
+        
+        console.log("Archivo detectado en nube:", nombreUltimo);
+      } else {
+        fechaArchivoSync = "No hay respaldos en la carpeta";
+        tamanoArchivoSync = "0 KB";
       }
 
-      const kb = (metadata.size / 1024).toFixed(1);
-      tamanoArchivoSync = `${kb} KB`;
-
     } catch (error) {
-      fechaArchivoSync = "No hay archivo en la carpeta";
+      console.error("Error al revisar la nube:", error);
+      fechaArchivoSync = "Error al leer la carpeta";
       tamanoArchivoSync = "0 KB";
     }
   }
 
   // --- CARGAR DATOS AL INICIAR ---
-  onMount(async () => {
-    try {
-      nombreUsuario = await cargarConfig('nombreUsuario') || "";
-      cargoUsuario = await cargarConfig('cargoUsuario') || "Superintendente de Circuito";
-      nombreCircuito = await cargarConfig('nombreCircuito') || "";
-      piePagina = await cargarConfig('piePagina') || "Informe generado por Asistente de Visitas";
-      idioma = await cargarConfig('idioma') || "Español";
+  onMount(() => {
+    // 2. 🕒 CARGA DE DATOS (En una función interna asíncrona)
+    const cargarTodo = async () => {
+      try {
+        nombreUsuario = await cargarConfig('nombreUsuario') || "";
+        cargoUsuario = await cargarConfig('cargoUsuario') || "Superintendente de Circuito";
+        nombreCircuito = await cargarConfig('nombreCircuito') || "";
+        piePagina = await cargarConfig('piePagina') || "Informe generado por Asistente de Visitas";
+        idioma = await cargarConfig('idioma') || "Español";
 
-      // Cargar configuraciones de Sincronización
-      rutaSincronizacion = await cargarConfig('rutaSincronizacion') || "";
-      ultimaExportacion = await cargarConfig('ultimaExportacion') || "Desconocido";
-      ultimaImportacion = await cargarConfig('ultimaImportacion') || "Desconocido";
-      const autoExp = await cargarConfig('autoExportar');
-      autoExportar = autoExp === 'true';
+        rutaSincronizacion = await cargarConfig('rutaSincronizacion') || "";
+        ultimaExportacion = await cargarConfig('ultimaExportacion') || "Desconocido";
+        ultimaImportacion = await cargarConfig('ultimaImportacion') || "Desconocido";
 
-      // 🌟 LLAMADA A LA NUEVA FUNCIÓN AQUÍ
-      await revisarArchivoSync();
+        await revisarArchivoSync();
+      } catch (error) {
+        console.error("No se pudo cargar la configuración de SQLite:", error);
+      }
 
-    } catch (error) {
-      console.error("No se pudo cargar la configuración de SQLite:", error);
-    }
+      // 🌟 RECOGER ARCHIVO DE LA CAJA FUERTE DE RUST
+      // Le preguntamos a Rust si la app se abrió con un doble clic
+      // 🌟 REVISAR EL BUZÓN DE ANDROID
+      try {
+        // Buscamos si Android nos dejó el archivo en la caché
+        const existeBuzon = await exists('importacion_pendiente.avisits', { baseDir: BaseDirectory.AppCache });
+        
+        if (existeBuzon) {
+          console.log("📂 ¡Archivo detectado por doble clic en Android!");
+          rutaArchivoSeleccionado = "BUZON_ANDROID"; // Usamos esto como señal secreta
+
+          // Llenamos la información visual de tu tarjeta
+          infoArchivo.fecha = "Archivo externo";
+          infoArchivo.dispositivo = "Toque rápido en Android";
+
+          // Abrimos tu modal
+          setTimeout(() => {
+            mostrarModalRestaurar = true;
+          }, 300);
+        }
+      } catch (e) {
+        console.log("No hay archivos en el buzón o no es Android");
+      }
+
+      // También verificar si vino desde el evento global
+      const archivoDesdeEvento = sessionStorage.getItem('archivoPendiente');
+      if (archivoDesdeEvento) {
+        sessionStorage.removeItem('archivoPendiente'); // consumir
+        console.log("📂 Archivo recibido desde evento:", archivoDesdeEvento);
+        rutaArchivoSeleccionado = archivoDesdeEvento;
+
+        const partesRuta = rutaArchivoSeleccionado.split(/[/\\]/);
+        const nombreSinExtension = partesRuta[partesRuta.length - 1].replace('.avisits', '');
+        const trozos = nombreSinExtension.split('_');
+
+        if (trozos.length >= 3) {
+          infoArchivo.fecha = trozos[1];
+          infoArchivo.dispositivo = trozos.slice(2).join('_');
+        } else {
+          infoArchivo.fecha = "Desconocida";
+          infoArchivo.dispositivo = "Origen desconocido";
+        }
+
+        setTimeout(() => {
+          mostrarModalRestaurar = true;
+        }, 300);
+      }
+    };
+
+    cargarTodo();
   });
 
   function volver() {
     window.history.back();
+  }
+
+  // --- VARIABLES Y LÓGICA DE GOOGLE DRIVE ---
+  let estadoConexionDrive = "";
+
+  async function conectarGoogleDrive() {
+    try {
+      estadoConexionDrive = "Abriendo navegador...";
+      const respuesta = await invoke<string>("login_google_drive");
+      estadoConexionDrive = "✅ " + respuesta;
+      alert(respuesta);
+    } catch (error) {
+      console.error("Falló la conexión a Drive:", error);
+      estadoConexionDrive = "❌ Error: " + error;
+      alert("Error al conectar con Google Drive: " + error);
+    }
   }
 
   // --- LÓGICA DE SINCRONIZACIÓN EN LA NUBE (ESTILO EZRA) ---
@@ -126,91 +216,104 @@
   }
 
   async function exportarSync() {
-    if (!rutaSincronizacion) return;
+    if (!rutaSincronizacion) {
+      alert("Primero debes elegir una carpeta de sincronización.");
+      return;
+    }
+    
     try {
-      // 1. Leemos la base de datos local actual
-      const dbBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppLocalData });
+      // 1. Pedimos a Rust el nombre único (Ej: Respaldo_2026-03-30_14-30_LAPTOP.avisits)
+      const nombreArchivo = await invoke<string>("generar_nombre_respaldo");
       
-      // 2. Escribimos los datos en la carpeta de la nube seleccionada
-      const rutaFinal = obtenerRutaArchivoSync();
-      await writeFile(rutaFinal, dbBytes); // Nota: Sin BaseDirectory porque es una ruta absoluta externa
+      // 2. Leemos la base de datos local actual
+      const dbBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppData });
+      
+      // 3. Armamos la ruta exacta dentro de tu carpeta de Google Drive
+      const separador = rutaSincronizacion.includes('\\') ? '\\' : '/';
+      const barra = rutaSincronizacion.endsWith(separador) ? '' : separador;
+      const rutaFinal = `${rutaSincronizacion}${barra}${nombreArchivo}`;
 
-      // 3. Actualizamos la fecha de exportación local
+      // 4. Pegamos el archivo nuevo ahí (sin borrar los viejos)
+      await writeFile(rutaFinal, dbBytes);
+
+      // 5. Actualizamos la fecha de última exportación
       ultimaExportacion = obtenerFechaActual();
       await guardarConfig('ultimaExportacion', ultimaExportacion);
 
-      // 🌟 ACTUALIZAMOS LA LECTURA REAL DE LA NUBE
       await revisarArchivoSync();
 
-      alert("✅ Datos exportados correctamente a la carpeta de sincronización.");
+      alert("✅ Sincronización exitosa. Archivo guardado en tu nube como:\n" + nombreArchivo);
     } catch (error) {
       console.error("Error exportando a la nube:", error);
-      alert("❌ Error al exportar. Comprueba que la carpeta sigue existiendo o tienes permisos.");
+      alert("❌ Error al sincronizar. Comprueba que la carpeta sigue existiendo o tienes permisos.");
     }
   }
 
   async function importarSync() {
     if (!rutaSincronizacion) return;
     try {
-      // 1. Leemos el archivo desde la carpeta de la nube
-      const rutaFinal = obtenerRutaArchivoSync();
-      const backupBytes = await readFile(rutaFinal);
+      // 1. En lugar de buscar un archivo fijo, dejamos que TÚ elijas cuál restaurar de tu Drive
+      const rutaOrigen = await openDialog({
+        title: 'Seleccionar respaldo desde la Nube',
+        defaultPath: rutaSincronizacion,
+        filters: [{ name: 'Respaldo Asistente', extensions: ['avisits'] }]
+      });
 
-      // 2. Lo guardamos en el directorio local de la app (Sobrescribiendo la DB actual)
-      await writeFile('av_database.db', backupBytes, { baseDir: BaseDirectory.AppLocalData });
+      if (!rutaOrigen) return;
 
-      // 3. Actualizamos la fecha local
+      const backupBytes = await readFile(rutaOrigen as string);
+
+      // 2. Lo guardamos en AppData
+      await writeFile('av_database.db', backupBytes, { baseDir: BaseDirectory.AppData });
+
+      // 3. Limpiamos temporales
+      try { await remove('av_database.db-wal', { baseDir: BaseDirectory.AppData }); } catch (e) {}
+      try { await remove('av_database.db-shm', { baseDir: BaseDirectory.AppData }); } catch (e) {}
+
       ultimaImportacion = obtenerFechaActual();
       await guardarConfig('ultimaImportacion', ultimaImportacion);
-
-      // 🌟 ACTUALIZAMOS LA LECTURA REAL DE LA NUBE
+      
       await revisarArchivoSync();
 
-      alert("✅ Datos sincronizados con éxito. La aplicación se reiniciará para aplicar los cambios.");
+      alert("✅ Datos sincronizados con éxito. Reiniciando...");
       window.location.reload();
     } catch (error) {
-      console.error("Error importando desde la nube:", error);
-      alert("❌ Error al importar. ¿Estás seguro de que hay un archivo de sincronización en esa carpeta?");
+      console.error("Error importando:", error);
+      alert("❌ Error al importar. Revisa la conexión o el archivo.");
     }
   }
 
   async function restablecerCarpeta() {
     if (confirm("¿Seguro que deseas desvincular la carpeta? La app dejará de sincronizarse.")) {
       rutaSincronizacion = "";
-      autoExportar = false;
+      
+      // 1. Guardamos en la base de datos de configuración
       await guardarConfig('rutaSincronizacion', "");
       await guardarConfig('autoExportar', "false");
       
-      // 🌟 LIMPIAMOS LA LECTURA DE LA NUBE EN PANTALLA
-      await revisarArchivoSync();
+      // 2. 🌟 IMPORTANTE: Avisamos a Rust (configuracion.rs) para que limpie su memoria
+      // Esto evita que al cerrar la app intente copiar archivos a una ruta vacía.
+      await invoke("guardar_config_rust", { clave: "rutaSincronizacion", valor: "" });
+      await invoke("guardar_config_rust", { clave: "autoExportar", valor: "false" });
+
+      // 3. Limpiamos la interfaz
+      fechaArchivoSync = "No hay carpeta vinculada";
+      tamanoArchivoSync = "-";
+      
+      alert("✅ Carpeta desvinculada correctamente.");
     }
   }
 
   async function limpiarCarpetaSync() {
-    if (confirm("⚠️ ¿Deseas borrar el archivo de sincronización que está en tu Google Drive/OneDrive?")) {
-      try {
-        const rutaFinal = obtenerRutaArchivoSync();
-        await remove(rutaFinal); // Usamos remove de Tauri
-        
-        ultimaExportacion = "Desconocido";
-        ultimaImportacion = "Desconocido";
-        await guardarConfig('ultimaExportacion', "Desconocido");
-        await guardarConfig('ultimaImportacion', "Desconocido");
-        
-        // 🌟 ACTUALIZAMOS LA PANTALLA PARA QUE VEAS QUE QUEDÓ EN "0 KB"
-        await revisarArchivoSync();
-        
-        alert("✅ Archivo de sincronización eliminado de la nube.");
-      } catch (error) {
-        console.error(error);
-        alert("❌ No se pudo borrar el archivo. Puede que ya no exista o esté bloqueado.");
-      }
+    if (!rutaSincronizacion) return;
+    
+    // En lugar de intentar adivinar qué archivo borrar, abrimos la carpeta
+    // para que el usuario gestione sus respaldos antiguos manualmente.
+    try {
+      await invoke("abrir_archivo_nativo", { ruta: rutaSincronizacion });
+    } catch (error) {
+      alert("No se pudo abrir la carpeta. Revisa si la ruta es correcta.");
     }
-  }
-
-  // Se llama cuando haces clic en el checkbox de AutoExportar
-  async function toggleAutoExportar() {
-    await guardarConfig('autoExportar', autoExportar ? 'true' : 'false');
   }
 
   // --- GUARDAR CONFIGURACIÓN GLOBAL ---
@@ -231,45 +334,116 @@
     }
   }
 
-  // --- LÓGICA DE BACKUPS MANUALES (Discos USB, etc.) ---
+  // --- LÓGICA DE BACKUPS MANUALES (.avisits) ---
   async function exportarCopia() {
     try {
+      // 1. Pedimos a Rust el nombre inteligente
+      const nombreSugerido = await invoke<string>("generar_nombre_respaldo");
+
+      // 2. Abrir ventana para elegir dónde guardar
       const rutaDestino = await saveDialog({
         title: 'Exportar Copia de Seguridad',
-        defaultPath: 'Respaldo_Visitas_AV.db',
-        filters: [{ name: 'Base de Datos SQLite', extensions: ['db'] }]
+        defaultPath: nombreSugerido,
+        filters: [{ name: 'Respaldo Asistente', extensions: ['avisits'] }]
       });
+      
       if (!rutaDestino) return; 
 
-      const dbBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppLocalData });
-      await writeFile(rutaDestino, dbBytes);
-      alert("✅ Copia de seguridad manual exportada con éxito.");
+      // 3. 🌟 LA MAGIA (Estilo Deepseek): Leemos la BD y escribimos directo desde el frontend
+      const dbBytes = await readFile('av_database.db', { baseDir: BaseDirectory.AppData });
+      await writeFile(rutaDestino as string, dbBytes);
+      
+      alert("✅ Copia de seguridad guardada con éxito en:\n\n" + rutaDestino);
     } catch (error) {
-      console.error("Error al exportar:", error);
-      alert("❌ Ocurrió un error al exportar la copia manual.");
+      console.error("Error crítico al exportar:", error);
+      alert("❌ Ocurrió un error al guardar la copia manual: " + error);
     }
   }
 
+// 🌟 LÓGICA DE RESTAURACIÓN (Para copias locales y desde Google Drive) 🌟
   async function restaurarCopia() {
     try {
-      if (!confirm("⚠️ ADVERTENCIA: Esto reemplazará todos tus datos. ¿Deseas continuar?")) return;
-
+      // 1. Abrimos el selector nativo 
+      // (En Android esto abre tus Archivos/Google Drive, en PC el explorador)
       const rutaOrigen = await openDialog({
-        title: 'Restaurar Copia de Seguridad',
-        filters: [{ name: 'Base de Datos SQLite', extensions: ['db'] }],
+        title: 'Seleccionar Copia de Seguridad',
+        filters: [{ name: 'Respaldo Asistente', extensions: ['avisits'] }],
         multiple: false,
         directory: false
       });
-      if (!rutaOrigen) return; 
+      
+      if (!rutaOrigen) return; // Si cancelas, no pasa nada
+      
+      rutaArchivoSeleccionado = rutaOrigen as string;
 
-      const backupBytes = await readFile(rutaOrigen as string);
-      await writeFile('av_database.db', backupBytes, { baseDir: BaseDirectory.AppLocalData });
+      // 2. Extraemos el nombre del archivo de la ruta larga
+      const partesRuta = rutaArchivoSeleccionado.split(/[/\\]/);
+      const nombreArchivo = partesRuta[partesRuta.length - 1]; 
 
-      alert("✅ Datos restaurados correctamente. La aplicación se recargará.");
-      window.location.reload();
+      // 3. Cortamos el nombre para sacar los datos: Respaldo_FECHA_HORA_DISPOSITIVO
+      const nombreSinExtension = nombreArchivo.replace('.avisits', '');
+      const trozos = nombreSinExtension.split('_');
+
+      // Si el archivo tiene el formato NUEVO (con hora y AM/PM)
+      if (trozos.length >= 4) {
+        // Transformamos "08-33-PM" en "08:33 PM"
+        const horaFormateada = trozos[2].replace('-', ':').replace('-', ' ');
+        infoArchivo.fecha = `${trozos[1]} a las ${horaFormateada}`;
+        infoArchivo.dispositivo = trozos.slice(3).join('_');
+      } 
+      // Por si alguna vez cargas un archivo con el formato VIEJO (sin hora)
+      else if (trozos.length === 3) {
+        infoArchivo.fecha = trozos[1];
+        infoArchivo.dispositivo = trozos[2];
+      } 
+      // Formato irreconocible
+      else {
+        infoArchivo.fecha = "Desconocida";
+        infoArchivo.dispositivo = "Origen desconocido";
+      }
+
+      // 4. Levantamos las defensas: Mostramos tu modal de advertencia
+      mostrarModalRestaurar = true;
+
     } catch (error) {
-      console.error("Error al restaurar:", error);
-      alert("❌ Error al restaurar el respaldo manual.");
+      console.error("Error al seleccionar respaldo:", error);
+      alert("❌ Error al intentar leer el archivo.");
+    }
+  }
+
+  // Esta función se ejecuta cuando presionas "Restaurar" en el modal
+  async function confirmarRestauracion() {
+    try {
+      mostrarModalRestaurar = false;
+      
+      let backupBytes;
+      
+      // 1. Verificamos de dónde viene el archivo
+      if (rutaArchivoSeleccionado === "BUZON_ANDROID") {
+        // Viene del doble clic en Android: Leemos del buzón
+        backupBytes = await readFile('importacion_pendiente.avisits', { baseDir: BaseDirectory.AppCache });
+        // ¡SÚPER IMPORTANTE! Lo borramos para que no te vuelva a salir el modal al reiniciar
+        await remove('importacion_pendiente.avisits', { baseDir: BaseDirectory.AppCache });
+      } else {
+        // Viene del botón "Restaurar" manual: Leemos la ruta normal
+        backupBytes = await readFile(rutaArchivoSeleccionado);
+      }
+
+      // 2. Lo guardamos directamente sobrescribiendo nuestra base de datos activa
+      await writeFile('av_database.db', backupBytes, { baseDir: BaseDirectory.AppData });
+
+      // 3. Limpiamos los archivos temporales de SQLite
+      try { await remove('av_database.db-wal', { baseDir: BaseDirectory.AppData }); } catch (e) {}
+      try { await remove('av_database.db-shm', { baseDir: BaseDirectory.AppData }); } catch (e) {}
+
+      alert("✅ Datos restaurados correctamente. La aplicación se recargará para aplicar los cambios.");
+      
+      // 4. Recargamos la interfaz
+      window.location.reload();
+      
+    } catch (error) {
+      console.error("Error al aplicar la restauración:", error);
+      alert("❌ Error crítico al sobrescribir la base de datos: " + error);
     }
   }
 
@@ -359,82 +533,82 @@ function handleModalKeydown(event: KeyboardEvent) {
     </section>
 
     <section class="card-global config-section">
-      <div class="section-icon"><FolderSync size={24} /></div>
-      <div class="section-content">
-        <h3>Carpeta de Sincronización</h3>
-        <p>Elige una carpeta en la nube (Google Drive, OneDrive, etc.) para compartir datos entre tus dispositivos.</p>
+  <div class="section-icon"><FolderSync size={24} /></div>
+  <div class="section-content">
+    <h3>Carpeta de Sincronización</h3>
+    <p>Elige una carpeta en la nube (Google Drive, OneDrive, etc.) para compartir datos entre tus dispositivos.</p>
 
-        <div class="sync-info-box">
-          {#if rutaSincronizacion === ""}
-            <p class="text-muted">Aún no se ha seleccionado una carpeta de sincronización.</p>
-          {:else}
-            <div class="sync-details">
-              <p><strong>Carpeta actual:</strong> <span class="ruta-path">{rutaSincronizacion}</span></p>
-              <p><strong>Última exportación local:</strong> {ultimaExportacion}</p>
-              <p><strong>Última importación local:</strong> {ultimaImportacion}</p>
-            </div>
-          {/if}
+    <div class="sync-info-box">
+      {#if rutaSincronizacion === ""}
+        <p class="text-muted">Aún no se ha seleccionado una carpeta de sincronización.</p>
+      {:else}
+        <div class="sync-details">
+          <p><strong>Carpeta actual:</strong> <span class="ruta-path">{rutaSincronizacion}</span></p>
+          <p><strong>Última exportación local:</strong> {ultimaExportacion}</p>
+          <p><strong>Última importación local:</strong> {ultimaImportacion}</p>
         </div>
+      {/if}
+    </div>
 
-        <div class="sync-status-card">
-          <div class="sync-header">
-            <h4>Estado del archivo de sincronización</h4>
-            <p class="sync-descripcion">
-              Lectura en tiempo real del archivo físico en tu carpeta vinculada. Si la fecha detectada aquí es más reciente que tu memoria local, significa que tienes datos nuevos listos para importar.
-            </p>
-          </div>
-          <div class="sync-body">
-            <div class="sync-dato">
-              <span class="etiqueta">Última modificación detectada:</span>
-              <span class="valor">{fechaArchivoSync}</span>
-            </div>
-            <div class="sync-dato">
-              <span class="etiqueta">Peso del archivo:</span>
-              <span class="valor">{tamanoArchivoSync}</span>
-            </div>
-          </div>
-        </div>
-        <div class="sync-actions-primary">
-          <button class="btn-global btn-sync-primary" on:click={elegirCarpetaSync}>
-            Elegir carpeta sincronizada
-          </button>
-          
-          <button class="btn-global btn-outline" disabled={!rutaSincronizacion} on:click={exportarSync}>
-            Exportar sincronización
-          </button>
-          
-          <button class="btn-global btn-outline" disabled={!rutaSincronizacion} on:click={importarSync}>
-            Importar sincronización
-          </button>
-        </div>
-
-        <div class="sync-auto-option">
-          <label class="checkbox-label" class:disabled={!rutaSincronizacion}>
-            <input 
-              type="checkbox" 
-              checked={autoExportar} 
-              disabled={!rutaSincronizacion} 
-              on:change={async (e) => {
-                 autoExportar = (e.target as HTMLInputElement).checked;
-                 await guardarConfig('autoExportar', autoExportar ? 'true' : 'false');
-              }}/>
-            <span class="checkmark"></span>
-            Exportar cambios automáticamente al cerrar
-          </label>
-        </div>
-
-        <div class="sync-actions-secondary">
-          <button class="btn-global btn-outline-warning" disabled={!rutaSincronizacion} on:click={restablecerCarpeta}>
-            <FolderX size={16} style="margin-right: 5px;" /> Restablecer carpeta
-          </button>
-          
-          <button class="btn-global btn-outline-danger" disabled={!rutaSincronizacion} on:click={limpiarCarpetaSync}>
-            <Trash size={16} style="margin-right: 5px;" /> Limpiar carpeta
-          </button>
-        </div>
-
+    <div class="sync-status-card">
+      <div class="sync-header">
+        <h4>Estado del archivo de sincronización</h4>
+        <p class="sync-descripcion">
+          Lectura en tiempo real del respaldo más reciente en tu carpeta vinculada. Si la fecha aquí es más nueva que tu importación, tienes datos listos para bajar.
+        </p>
       </div>
-    </section>
+      <div class="sync-body">
+        <div class="sync-dato">
+          <span class="etiqueta">Último respaldo en nube:</span>
+          <span class="valor">{fechaArchivoSync}</span>
+        </div>
+        <div class="sync-dato">
+          <span class="etiqueta">Peso del archivo:</span>
+          <span class="valor">{tamanoArchivoSync}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sync-actions-primary">
+      <button class="btn-global btn-sync-primary" on:click={elegirCarpetaSync}>
+        Elegir carpeta sincronizada
+      </button>
+      
+      <button class="btn-global btn-outline" disabled={!rutaSincronizacion} on:click={exportarSync}>
+        Exportar sincronización
+      </button>
+      
+      <button class="btn-global btn-outline" disabled={!rutaSincronizacion} on:click={importarSync}>
+        Importar sincronización
+      </button>
+    </div>
+
+    <hr class="sync-divider" />
+
+    <div class="advanced-sync-grid">
+      <div class="mobile-auth-container">
+        <button class="btn-global btn-sync-drive" on:click={conectarGoogleDrive}>
+          <Globe size={18} style="margin-right: 5px;" /> Google Drive
+        </button>
+        <p class="mobile-notice">⚠️ Solo para Android</p>
+      </div>
+
+      <div class="maintenance-actions">
+        <button class="btn-global btn-outline-warning btn-sm" disabled={!rutaSincronizacion} on:click={restablecerCarpeta}>
+          <FolderX size={16} style="margin-right: 5px;" /> Restablecer carpeta
+        </button>
+        
+        <button class="btn-global btn-outline-danger btn-sm" disabled={!rutaSincronizacion} on:click={limpiarCarpetaSync}>
+          <Trash size={16} style="margin-right: 5px;" /> Limpiar carpeta
+        </button>
+      </div>
+    </div>
+
+    {#if estadoConexionDrive}
+      <p class="drive-status-text">{estadoConexionDrive}</p>
+    {/if}
+    </div>
+</section>
 
     <section class="card-global config-section">
       <div class="section-icon"><Database size={24} /></div>
@@ -486,6 +660,49 @@ function handleModalKeydown(event: KeyboardEvent) {
     </button>
   </footer>
 </div>
+
+{#if mostrarModalRestaurar}
+  <div class="modal-backdrop" role="button" tabindex="0">
+    <div class="modal-content restore-modal">
+      <div class="modal-header">
+        <div class="header-title-restore">
+          <ArchiveRestore size={24} color="#2563eb" />
+          <h3>Restaurar copia de seguridad</h3>
+        </div>
+        <button class="btn-close" on:click={() => mostrarModalRestaurar = false}><X size={20}/></button>
+      </div>
+
+      <p class="modal-warning">
+        Esta acción reemplazará <strong>todas las personas, congregaciones e historial</strong> de este dispositivo por los datos de la copia de seguridad.
+      </p>
+
+      <div class="comparacion-container">
+        <div class="info-card origen">
+          <span class="etiqueta-badge">Copia de seguridad</span>
+          <span class="fecha-texto">{infoArchivo.fecha}</span>
+          <span class="dispositivo-texto">{infoArchivo.dispositivo}</span>
+        </div>
+
+        <div class="flecha-centro">
+          <span>&rarr;</span>
+        </div>
+
+        <div class="info-card destino">
+          <span class="etiqueta-badge">Este equipo</span>
+          <span class="fecha-texto">Datos actuales</span>
+          <span class="dispositivo-texto">Serán reemplazados</span>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-global" on:click={() => mostrarModalRestaurar = false}>Cancelar</button>
+        <button class="btn-global btn-primary" on:click={confirmarRestauracion}>
+          Restaurar
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 {#if mostrarModalReset}
   <div
@@ -874,5 +1091,172 @@ function handleModalKeydown(event: KeyboardEvent) {
   .sync-dato .valor {
     color: var(--text-main);
     font-weight: 800;
+  }
+
+  .btn-sync-drive {
+    background: #4285F4; /* Azul de Google */
+    color: white;
+    border: none;
+    font-weight: 700;
+  }
+  .btn-sync-drive:hover { background: #3367D6; transform: translateY(-1px); }
+
+  /* =============================================
+     ESTILOS DEL MODAL DE RESTAURACIÓN
+     ============================================= */
+  .restore-modal {
+    background: var(--bg-panel); /* Esto le quita lo transparente */
+    width: 90%;
+    max-width: 500px;
+    border-radius: var(--radius-lg);
+    padding: 30px; /* Espaciado para que no se vea apretado */
+    border: 1px solid #2563eb;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    animation: zoomIn 0.2s ease-out;
+  }
+
+  .header-title-restore { display: flex; align-items: center; gap: 10px; }
+  .header-title-restore h3 { margin: 0; font-size: 1.2rem; color: var(--text-main); }
+  
+  .comparacion-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-app);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 15px 0;
+  }
+
+  .info-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    flex: 1;
+  }
+
+  .etiqueta-badge {
+    background: var(--bg-panel);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    border: 1px solid var(--border-color);
+  }
+
+  /* Colores para diferenciar Origen y Destino */
+  .info-card.origen .etiqueta-badge { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+  .info-card.destino .etiqueta-badge { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+
+  .fecha-texto {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin-bottom: 4px;
+  }
+
+  .dispositivo-texto {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .flecha-centro {
+    font-size: 2rem;
+    color: var(--text-muted);
+    padding: 0 15px;
+    opacity: 0.5;
+  }
+
+/* === ESTILOS DEL BLOQUE INFERIOR COMPACTO (Google Drive + Mantenimiento) === */
+  .sync-divider {
+    border: 0;
+    border-top: 1px solid var(--border-color);
+    margin: 25px 0 15px 0;
+  }
+
+  .advanced-sync-grid {
+    display: grid;
+    grid-template-columns: 180px 1fr; /* Fija el ancho del botón azul a 180px */
+    gap: 15px;
+    align-items: flex-start;
+  }
+
+  .mobile-auth-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .btn-sync-drive {
+    background: transparent !important;
+    color: #2563eb !important;
+    border: 1px solid #2563eb !important;
+    padding: 8px 10px !important;
+    font-size: 0.85rem !important;
+    justify-content: center;
+  }
+  
+  .btn-sync-drive:hover {
+    background: rgba(37, 99, 235, 0.05) !important;
+  }
+
+  .mobile-notice {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin: 0;
+  }
+
+  .maintenance-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn-sm {
+    flex: 1; /* Hace que Restablecer y Limpiar midan lo mismo */
+    padding: 8px 10px !important;
+    font-size: 0.85rem !important;
+    justify-content: center;
+  }
+
+  .drive-status-text {
+    font-size: 0.8rem;
+    color: #2563eb;
+    text-align: center;
+    margin-top: 10px;
+    font-weight: 600;
+  }
+
+  /* === RESPONSIVO: Bloque inferior compacto === */
+  @media (max-width: 768px) {
+    .advanced-sync-grid {
+      grid-template-columns: 1fr; /* Pasa de 2 columnas a 1 sola */
+      gap: 15px;
+    }
+
+    .mobile-auth-container {
+      width: 100%;
+    }
+
+    .btn-sync-drive {
+      width: 100%; /* El botón azul ocupará todo el ancho en móvil */
+    }
+
+    .maintenance-actions {
+      flex-direction: column; /* Pone Restablecer y Limpiar uno debajo del otro */
+      width: 100%;
+    }
+
+    .btn-sm {
+      width: 100%; /* Los botones de mantenimiento ocupan todo el ancho */
+      padding: 12px !important; /* Un poco más altos para tocarlos fácil con el dedo */
+    }
   }
 </style>

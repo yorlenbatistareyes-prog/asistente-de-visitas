@@ -2,6 +2,107 @@
   import TopBar from '$lib/components/layout/TopBar.svelte';
   import BarraDeEstado from '$lib/components/layout/BarraDeEstado.svelte';
   import '../app.css';
+  import { exists, BaseDirectory } from '@tauri-apps/plugin-fs';
+  import { invoke } from '@tauri-apps/api/core';
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+
+  // Importamos getVersion y las funciones de DB
+  import { getVersion } from '@tauri-apps/api/app'; 
+  import { cargarConfig, guardarConfig } from '$lib/services/db';
+
+  // Importamos los iconos que usaremos
+  import { 
+    CheckCircle2, Bell, Smartphone, Zap, Info, 
+    Database,    // 👈 Para cambios en la base de datos o SQLite
+    Download,    // 👈 Para importaciones o descargas
+    Save,        // 👈 Para temas de guardado o Backups
+    Palette,     // 👈 Para cambios de colores o diseño (UI)
+    ShieldCheck, // 👈 Para seguridad o permisos de Android
+    Bug          // 👈 Para cuando arregles un error específico
+  } from "lucide-svelte";
+
+  let mostrarNovedades = false; 
+  let versionActual = "";
+  
+  // Ahora es un array de objetos
+  let cambiosRecientes: { texto: string, tipo: string }[] = [];
+
+  // Diccionario para asignar iconos según el "tipo"
+  const iconosMapa: Record<string, any> = {
+    correcion: CheckCircle2,
+    notificacion: Bell,
+    movil: Smartphone,
+    mejora: Zap,
+    info: Info,
+    base_datos: Database, // 👈 Nuevo
+    importar: Download,   // 👈 Nuevo
+    respaldo: Save,       // 👈 Nuevo
+    diseno: Palette,      // 👈 Nuevo
+    seguridad: ShieldCheck, // 👈 Nuevo
+    error: Bug            // 👈 Nuevo
+  };
+
+  const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
+    "1.0.21": [
+      { texto: "Corregido causa por la que no se importaban los archivos CSV para la lista de congregaciones y el registro de personas.", tipo: "correcion" }
+    ]
+  };
+
+  async function cerrarNovedades() {
+    mostrarNovedades = false;
+    await guardarConfig('ultima_version_vista', versionActual);
+  }
+
+  onMount(async () => {
+    // 1. 💻 LÓGICA DE WINDOWS (Recuperada para el doble clic en PC)
+    try {
+      const hayArchivo = await invoke<boolean>('hay_archivo_pendiente');
+      if (hayArchivo) {
+        const archivo = await invoke<string | null>('verificar_archivo_pendiente');
+        if (archivo) {
+          sessionStorage.setItem('archivoPendiente', archivo);
+          goto('/configuracion');
+          return; // Detenemos aquí para que Windows cargue el modal inmediatamente
+        }
+      }
+    } catch (e) {
+      // Ignorar en silencio si estamos en Android
+    }
+
+    // 2. 🕵️ VIGILANTE DEL BUZÓN DE ANDROID
+    try {
+      // Revisamos si Android dejó el archivo en la caché
+      const existeBuzon = await exists('importacion_pendiente.avisits', { baseDir: BaseDirectory.AppCache });
+      
+      if (existeBuzon) {
+        console.log("📂 ¡Buzón detectado desde el Layout! Redirigiendo...");
+        // Guardamos la señal para que la página de configuración sepa que debe abrir el modal
+        sessionStorage.setItem('archivoPendiente', 'BUZON_ANDROID');
+        // Saltamos directo a configuración para que el usuario vea el cartel azul
+        goto('/configuracion');
+        return;
+      }
+    } catch (e) {
+      // Si falla es porque no es Android o la carpeta no existe aún, lo ignoramos
+    }
+
+    // 3. Detección de nueva versión
+    try {
+      versionActual = await getVersion();
+      const ultimaVista = await cargarConfig('ultima_version_vista') || "0.0.0";
+
+      if (versionActual !== ultimaVista) {
+        // Buscamos los cambios. Si no hay, ponemos uno por defecto con tipo "info"
+        cambiosRecientes = historialCambios[versionActual] || [
+          { texto: "Mejoras de estabilidad y corrección de errores.", tipo: "info" }
+        ];
+        mostrarNovedades = true;
+      }
+    } catch (e) { 
+      console.error("Error en versión:", e); 
+    }
+  });
 </script>
 
 <div class="app-container">
@@ -14,6 +115,28 @@
   <BarraDeEstado />
 
 </div>
+
+{#if mostrarNovedades}
+  <div class="modal-backdrop-novedades">
+    <div class="novedades-card">
+      <h2>¡Actualización Instalada! 🎉</h2>
+      <span class="badge-version">Versión {versionActual}</span>
+      
+      <ul class="lista-cambios">
+        {#each cambiosRecientes as cambio}
+          <li>
+            <div class="icono-wrapper">
+              <svelte:component this={iconosMapa[cambio.tipo] || Info} size={18} />
+            </div>
+            <span>{cambio.texto}</span>
+          </li>
+        {/each}
+      </ul>
+      
+      <button class="btn-entendido" on:click={cerrarNovedades}>¡Excelente!</button>
+    </div>
+  </div>
+{/if}
 
 <style>
   /* 1. EL MARCO DE LA APP: No se mueve nunca */
@@ -51,4 +174,53 @@
   @media (max-width: 768px) {
     .main-content { padding: 15px 15px 50px 15px; }
   }
+
+  .modal-backdrop-novedades {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(5px);
+    display: flex; justify-content: center; align-items: center; z-index: 10000;
+  }
+  .novedades-card {
+    background: var(--bg-panel); width: 90%; max-width: 400px; padding: 25px; 
+    border-radius: 20px; border-top: 6px solid #5c0a1f; text-align: center;
+  }
+  .badge-version { background: rgba(92, 10, 31, 0.1); color: #5c0a1f; padding: 2px 10px; border-radius: 20px; font-weight: 800; font-size: 0.8rem; }
+  .lista-cambios { list-style: none; padding: 0; margin: 20px 0; text-align: left; }
+  .lista-cambios li { padding-left: 10px; border-left: 3px solid #10b981; margin-bottom: 8px; font-size: 0.9rem; }
+  .btn-entendido { width: 100%; height: 40px; border-radius: 25px; border: none; background: #5c0a1f; color: white; font-weight: 700; cursor: pointer; }
+
+  .lista-cambios { 
+    list-style: none; 
+    padding: 0; 
+    margin: 20px 0; 
+    text-align: left; 
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .lista-cambios li { 
+    display: flex;
+    align-items: flex-start; /* Para que el icono no baje si el texto es largo */
+    gap: 12px;
+    font-size: 0.95rem; 
+    color: var(--text-main); 
+  }
+
+  .icono-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #5c0a1f; /* Color vino de tu app */
+    background: rgba(92, 10, 31, 0.1);
+    padding: 6px;
+    border-radius: 8px;
+    flex-shrink: 0; /* Evita que el icono se aplaste */
+  }
+
+  .lista-cambios li span {
+    line-height: 1.4;
+    padding-top: 4px;
+  }
+
 </style>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Settings, Home, Monitor, Sun, Moon, RefreshCw } from "lucide-svelte";
+  import { Settings, Home, Monitor, Sun, Moon, RefreshCw, HelpCircle } from "lucide-svelte";
   import { createEventDispatcher, onMount } from 'svelte';
   import { currentTheme, applyTheme, type Theme } from '$lib/stores/themeStore';
   import { goto } from '$app/navigation';
@@ -141,6 +141,10 @@
 
         <button class="icon-btn" on:click={() => goto('/configuracion')}>
            <Settings size={18} />
+        </button>
+
+        <button class="icon-btn" on:click={() => goto('/ayuda')} title="Temas de Ayuda">
+           <HelpCircle size={18} />
         </button>
         
       </div>

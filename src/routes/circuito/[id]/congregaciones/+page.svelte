@@ -6,6 +6,7 @@
   import Papa from 'papaparse'; 
   
   import { save as saveDialog, open as openDialog, confirm as confirmDialog, message as messageDialog } from '@tauri-apps/plugin-dialog';
+  import { readFile } from '@tauri-apps/plugin-fs';
 
   import { fechaPorCongregacion } from '$lib/stores/appStore'; 
   import NuevaCongregacionModal from "$lib/components/modals/NuevaCongregacionModal.svelte";
@@ -150,48 +151,82 @@
     }
   }
 
-  async function importarCSV(e: any) {
+  async function importarCSV() {
     if (!circuitoActual) {
       alert("Error: No se ha cargado el circuito actual.");
       return;
     }
 
-    const file = e.target.files[0];
-    if (!file) return;
+    try {
+      // 1. Detectamos si es Android
+      const esAndroid = navigator.userAgent.toLowerCase().includes('android');
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const datosCSV = results.data as Record<string, string>[];
-        let importadas = 0;
+      // 2. Preparamos el diálogo de Tauri
+      const opcionesDialogo: any = {
+        title: 'Seleccionar archivo CSV',
+        multiple: false,
+        directory: false
+      };
 
-        for (const fila of datosCSV) {
-          if (!fila["Congregación"]) continue;
-
-          try {
-            await guardarCongregacion({
-              circuito: circuitoActual!.nombre, 
-              nombre: fila["Congregación"],
-              enVisita: false,
-              ciudad: fila["Ciudad (Correspondencia)"] || "",
-              provincia: fila["Estado o provincia (Correspondencia)"] || "",
-              pais: fila["País (Correspondencia)"] || "",
-              telefono: fila["Teléfono (Teléfono 1)"] || "",
-              idioma: "Español",
-              esLenguaSenas: false
-            });
-            importadas++;
-          } catch (err) {
-            console.error("Error guardando congregación:", fila["Congregación"], err);
-          }
-        }
-        
-        await cargarDatos(); 
-        alert(`✅ Importación completada: ${importadas} congregaciones añadidas.`);
-        e.target.value = ""; 
+      // 3. Filtro estricto SOLO en Windows
+      if (!esAndroid) {
+        opcionesDialogo.filters = [{ name: 'Documentos CSV', extensions: ['csv'] }];
       }
-    });
+
+      // 4. Abrimos el selector de archivos
+      const seleccion = await openDialog(opcionesDialogo);
+      if (!seleccion) return;
+
+      const rutaOrigen = Array.isArray(seleccion) ? seleccion[0] : seleccion;
+
+      // 🌟 5. LA SOLUCIÓN: Verificamos la extensión SOLO en Windows
+      if (!esAndroid && !rutaOrigen.toLowerCase().endsWith('.csv')) {
+        alert("❌ Formato incorrecto. Por favor selecciona un archivo .csv");
+        return;
+      }
+
+      // 6. Leemos el archivo usando Tauri
+      const csvBytes = await readFile(rutaOrigen as string);
+      const textoCSV = new TextDecoder().decode(csvBytes);
+
+      // 7. Usamos PapaParse
+      Papa.parse(textoCSV, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+          const datosCSV = results.data as Record<string, string>[];
+          let importadas = 0;
+
+          for (const fila of datosCSV) {
+            if (!fila["Congregación"]) continue;
+
+            try {
+              await guardarCongregacion({
+                circuito: circuitoActual!.nombre, 
+                nombre: fila["Congregación"],
+                enVisita: false,
+                ciudad: fila["Ciudad (Correspondencia)"] || "",
+                provincia: fila["Estado o provincia (Correspondencia)"] || "",
+                pais: fila["País (Correspondencia)"] || "",
+                telefono: fila["Teléfono (Teléfono 1)"] || "",
+                idioma: "Español",
+                esLenguaSenas: false
+              });
+              importadas++;
+            } catch (err) {
+              console.error("Error guardando congregación:", fila["Congregación"], err);
+            }
+          }
+          
+          await cargarDatos(); 
+          alert(`✅ Importación completada: ${importadas} congregaciones añadidas.`);
+        }
+      });
+
+    } catch (error) {
+      console.error("Error al importar CSV:", error);
+      alert("❌ Error al leer el archivo.");
+    }
   }
 
   async function borrarTodo() {
@@ -230,10 +265,9 @@
     
     <div class="toolbar-botones" style="display: flex; gap: 10px;">
 
-      <label class="btn-importar">
-         <Upload size={18} /> <span>Importar CSV</span>
-         <input type="file" accept=".csv" on:change={importarCSV} hidden />
-      </label>
+      <button class="btn-importar" on:click={importarCSV}>
+        <Upload size={18} /> <span>Importar CSV</span>
+      </button>
 
       <button class="btn-global btn-primary" on:click={abrirModal}>
         <Plus size={18} /> Añadir Congregación

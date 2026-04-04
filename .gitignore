@@ -14,9 +14,14 @@ vite.config.ts.timestamp-*
 src-tauri/target
 src-tauri/gen
 
-# Archivos de seguridad del Asistente
+# Ignorar tokens de Google Drive
+drive_token.json
+src-tauri/drive_token.json
+src-tauri/credentials.json
+
+av_database.db
 firma-yorlen.keystore
 
-src-tauri/av_database.db
-credentials.json
-drive_token.json
+# Firma de Android (Privado)
+keystore.properties
+
