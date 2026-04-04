@@ -44,8 +44,8 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.18": [
-      { texto: "Corregido problemas por el cual no se importaba el archivo de respaldo en android al hacer doble clic.", tipo: "correcion" }
+    "1.0.19": [
+      { texto: "Corregido problemas por el cual no se importaba el archivo de respaldo en Windows al hacer doble clic.", tipo: "correcion" }
     ]
   };
 
@@ -55,7 +55,22 @@
   }
 
   onMount(async () => {
-    // 1. 🕵️ VIGILANTE DEL BUZÓN DE ANDROID
+    // 1. 💻 LÓGICA DE WINDOWS (Recuperada para el doble clic en PC)
+    try {
+      const hayArchivo = await invoke<boolean>('hay_archivo_pendiente');
+      if (hayArchivo) {
+        const archivo = await invoke<string | null>('verificar_archivo_pendiente');
+        if (archivo) {
+          sessionStorage.setItem('archivoPendiente', archivo);
+          goto('/configuracion');
+          return; // Detenemos aquí para que Windows cargue el modal inmediatamente
+        }
+      }
+    } catch (e) {
+      // Ignorar en silencio si estamos en Android
+    }
+
+    // 2. 🕵️ VIGILANTE DEL BUZÓN DE ANDROID
     try {
       // Revisamos si Android dejó el archivo en la caché
       const existeBuzon = await exists('importacion_pendiente.avisits', { baseDir: BaseDirectory.AppCache });
@@ -66,12 +81,13 @@
         sessionStorage.setItem('archivoPendiente', 'BUZON_ANDROID');
         // Saltamos directo a configuración para que el usuario vea el cartel azul
         goto('/configuracion');
+        return;
       }
     } catch (e) {
       // Si falla es porque no es Android o la carpeta no existe aún, lo ignoramos
     }
 
-    // 2. Detección de nueva versión
+    // 3. Detección de nueva versión
     try {
       versionActual = await getVersion();
       const ultimaVista = await cargarConfig('ultima_version_vista') || "0.0.0";

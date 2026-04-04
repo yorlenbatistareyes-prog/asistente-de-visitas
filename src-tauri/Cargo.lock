@@ -108,7 +108,7 @@ dependencies = [
 
 [[package]]
 name = "asistente-de-visitas"
-version = "1.0.18"
+version = "1.0.19"
 dependencies = [
  "chrono",
  "flate2",
