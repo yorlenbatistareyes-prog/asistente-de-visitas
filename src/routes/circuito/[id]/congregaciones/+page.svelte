@@ -152,82 +152,82 @@
   }
 
   async function importarCSV() {
-  if (!circuitoActual) {
-    alert("Error: No se ha cargado el circuito actual.");
-    return;
-  }
-
-  try {
-    // 1. Detectamos si es Android
-    const esAndroid = navigator.userAgent.toLowerCase().includes('android');
-
-    // 2. Preparamos el diálogo de Tauri
-    const opcionesDialogo: any = {
-      title: 'Seleccionar archivo CSV',
-      multiple: false,
-      directory: false
-    };
-
-    // 3. Filtro estricto SOLO en Windows
-    if (!esAndroid) {
-      opcionesDialogo.filters = [{ name: 'Documentos CSV', extensions: ['csv'] }];
-    }
-
-    // 4. Abrimos el selector de archivos
-    const seleccion = await openDialog(opcionesDialogo);
-    if (!seleccion) return;
-
-    const rutaOrigen = Array.isArray(seleccion) ? seleccion[0] : seleccion;
-
-    // 5. Verificamos la extensión por seguridad
-    if (!rutaOrigen.toLowerCase().endsWith('.csv')) {
-      alert("❌ Formato incorrecto. Por favor selecciona un archivo .csv");
+    if (!circuitoActual) {
+      alert("Error: No se ha cargado el circuito actual.");
       return;
     }
 
-    // 6. Leemos el archivo usando Tauri (saltamos las restricciones de Android)
-    const csvBytes = await readFile(rutaOrigen as string);
-    const textoCSV = new TextDecoder().decode(csvBytes);
+    try {
+      // 1. Detectamos si es Android
+      const esAndroid = navigator.userAgent.toLowerCase().includes('android');
 
-    // 7. Usamos PapaParse pasando el texto crudo en lugar del objeto File
-    Papa.parse(textoCSV, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const datosCSV = results.data as Record<string, string>[];
-        let importadas = 0;
+      // 2. Preparamos el diálogo de Tauri
+      const opcionesDialogo: any = {
+        title: 'Seleccionar archivo CSV',
+        multiple: false,
+        directory: false
+      };
 
-        for (const fila of datosCSV) {
-          if (!fila["Congregación"]) continue;
-
-          try {
-            await guardarCongregacion({
-              circuito: circuitoActual!.nombre, 
-              nombre: fila["Congregación"],
-              enVisita: false,
-              ciudad: fila["Ciudad (Correspondencia)"] || "",
-              provincia: fila["Estado o provincia (Correspondencia)"] || "",
-              pais: fila["País (Correspondencia)"] || "",
-              telefono: fila["Teléfono (Teléfono 1)"] || "",
-              idioma: "Español",
-              esLenguaSenas: false
-            });
-            importadas++;
-          } catch (err) {
-            console.error("Error guardando congregación:", fila["Congregación"], err);
-          }
-        }
-        
-        await cargarDatos(); 
-        alert(`✅ Importación completada: ${importadas} congregaciones añadidas.`);
+      // 3. Filtro estricto SOLO en Windows
+      if (!esAndroid) {
+        opcionesDialogo.filters = [{ name: 'Documentos CSV', extensions: ['csv'] }];
       }
-    });
 
-  } catch (error) {
-    console.error("Error al importar CSV:", error);
-    alert("❌ Error al leer el archivo.");
+      // 4. Abrimos el selector de archivos
+      const seleccion = await openDialog(opcionesDialogo);
+      if (!seleccion) return;
+
+      const rutaOrigen = Array.isArray(seleccion) ? seleccion[0] : seleccion;
+
+      // 🌟 5. LA SOLUCIÓN: Verificamos la extensión SOLO en Windows
+      if (!esAndroid && !rutaOrigen.toLowerCase().endsWith('.csv')) {
+        alert("❌ Formato incorrecto. Por favor selecciona un archivo .csv");
+        return;
+      }
+
+      // 6. Leemos el archivo usando Tauri
+      const csvBytes = await readFile(rutaOrigen as string);
+      const textoCSV = new TextDecoder().decode(csvBytes);
+
+      // 7. Usamos PapaParse
+      Papa.parse(textoCSV, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+          const datosCSV = results.data as Record<string, string>[];
+          let importadas = 0;
+
+          for (const fila of datosCSV) {
+            if (!fila["Congregación"]) continue;
+
+            try {
+              await guardarCongregacion({
+                circuito: circuitoActual!.nombre, 
+                nombre: fila["Congregación"],
+                enVisita: false,
+                ciudad: fila["Ciudad (Correspondencia)"] || "",
+                provincia: fila["Estado o provincia (Correspondencia)"] || "",
+                pais: fila["País (Correspondencia)"] || "",
+                telefono: fila["Teléfono (Teléfono 1)"] || "",
+                idioma: "Español",
+                esLenguaSenas: false
+              });
+              importadas++;
+            } catch (err) {
+              console.error("Error guardando congregación:", fila["Congregación"], err);
+            }
+          }
+          
+          await cargarDatos(); 
+          alert(`✅ Importación completada: ${importadas} congregaciones añadidas.`);
+        }
+      });
+
+    } catch (error) {
+      console.error("Error al importar CSV:", error);
+      alert("❌ Error al leer el archivo.");
+    }
   }
-}
 
   async function borrarTodo() {
     if (lista.length === 0) {

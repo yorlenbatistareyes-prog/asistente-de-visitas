@@ -82,34 +82,35 @@
       // 1. Detectamos si es Android
       const esAndroid = navigator.userAgent.toLowerCase().includes('android');
 
-      // 2. Preparamos el diálogo de Tauri sin filtros para Android
+      // 2. Preparamos el diálogo de Tauri
       const opcionesDialogo: any = {
         title: 'Seleccionar archivo CSV',
         multiple: false,
         directory: false
       };
 
+      // 3. Filtro estricto SOLO en Windows
       if (!esAndroid) {
         opcionesDialogo.filters = [{ name: 'Documentos CSV', extensions: ['csv'] }];
       }
 
-      // 3. Abrimos el selector de archivos nativo
+      // 4. Abrimos el selector de archivos
       const seleccion = await openDialog(opcionesDialogo);
       if (!seleccion) return;
 
       const rutaOrigen = Array.isArray(seleccion) ? seleccion[0] : seleccion;
 
-      // 4. Verificación de seguridad
-      if (!rutaOrigen.toLowerCase().endsWith('.csv')) {
+      // 🌟 5. EL AJUSTE: Verificación de seguridad solo obligatoria para Windows
+      if (!esAndroid && !rutaOrigen.toLowerCase().endsWith('.csv')) {
         alert("❌ Formato incorrecto. Por favor selecciona un archivo .csv");
         return;
       }
 
-      // 5. Leemos el archivo saltando las restricciones de Android
+      // 6. Leemos el archivo usando Tauri
       const csvBytes = await readFile(rutaOrigen as string);
       const textoCSV = new TextDecoder().decode(csvBytes);
 
-      // 6. Procesamos los datos con PapaParse
+      // 7. Procesamos los datos con PapaParse
       Papa.parse(textoCSV, {
         header: true,
         skipEmptyLines: true,

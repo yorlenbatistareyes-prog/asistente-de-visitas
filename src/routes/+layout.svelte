@@ -44,8 +44,8 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.19": [
-      { texto: "Corregido problemas por el cual no se importaba el archivo de respaldo en Windows al hacer doble clic.", tipo: "correcion" }
+    "1.0.21": [
+      { texto: "Corregido causa por la que no se importaban los archivos CSV para la lista de congregaciones y el registro de personas.", tipo: "correcion" }
     ]
   };
 
