@@ -644,6 +644,34 @@
     line-height: 1.2; 
   }
 
+  /* 👇 AGREGA ESTE BLOQUE NUEVO AQUÍ 👇 */
+  
+  .nota-body {
+    flex: 1; /* Ocupa el espacio restante de la tarjeta */
+    overflow: hidden; /* Oculta lo que se salga de la caja */
+    margin-top: 10px;
+  }
+
+  .preview-text {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    /* Magia para cortar el texto a 3 líneas con puntos suspensivos */
+    display: -webkit-box;
+    -webkit-line-clamp: 3; 
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .empty-text {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  /* 👆 FIN DEL BLOQUE NUEVO 👆 */
+
   /* 4. MODAL Y FORMULARIO */
   .modal-backdrop {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
