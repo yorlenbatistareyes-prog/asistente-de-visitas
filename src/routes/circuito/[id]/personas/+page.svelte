@@ -970,13 +970,15 @@
     }
     
     .search-pill, .filter-select { 
-      width: 100%; 
-      box-sizing: border-box; 
-      height: 52px; /* 👈 Aumentamos la altura para que no se vean finitas */
+      width: 100% !important; 
+      box-sizing: border-box !important; 
+      height: 52px !important; 
+      min-height: 52px !important; /* Evita que se aplasten */
+      border-radius: 30px !important;
     }
 
     .search-input, .texto-filtro {
-      font-size: 1rem; /* 👈 Letra un poco más grande para llenar el espacio */
+      font-size: 1rem !important; 
     }
 
     /* Botones agrupados abajo */
