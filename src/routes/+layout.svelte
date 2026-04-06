@@ -44,8 +44,9 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.21": [
-      { texto: "Corregido causa por la que no se importaban los archivos CSV para la lista de congregaciones y el registro de personas.", tipo: "correcion" }
+    "1.0.22": [
+      { texto: "Corrección visual en los módulos en el análisis de congregación.", tipo: "correcion" },
+      { texto: "Se han añadido etiquetas para el registro de personas al añadir manualmente a personas.", tipo: "Zap" }
     ]
   };
 

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores'; 
-  import { Search, Upload, Plus, Trash2, Phone, Mail, User, MapPin, Edit, Users } from "lucide-svelte";
+  import { page } from '$app/stores';
+  import { slide } from 'svelte/transition'; 
+  import { Search, Upload, Plus, Trash2, Phone, Mail, User, MapPin, Edit, Users, ChevronDown, ChevronUp } from "lucide-svelte";
   import Papa from 'papaparse';
   import { save as saveDialog, open as openDialog, confirm as confirmDialog, message as messageDialog } from '@tauri-apps/plugin-dialog';
   import { readFile } from '@tauri-apps/plugin-fs';
@@ -31,6 +32,45 @@
 
   let nuevaP: Persona;
 
+  // --- LÓGICA DE PRIVILEGIOS POR CATEGORÍAS ---
+  const categoriasPrivilegios = [
+    {
+      nombre: 'Designaciones',
+      opciones: ['PUBLICADOR', 'BETEL', 'VOLUNTARIO A DISTANCIA', 'LDC, SIERVO CONSTRUCCIÓN', 'LDC, VOLUNTARIO CONSTRUCCIÓN', 'PRECURSOR ESPECIAL', 'PRECURSOR ESPECIAL TEMPORAL', 'PRECURSOR REGULAR']
+    },
+    {
+      nombre: 'Hermanos Nombrados',
+      opciones: ['ANCIANO', 'SIERVO MINISTERIAL']
+    },
+    {
+      nombre: 'Privilegios',
+      opciones: ['COORDINADOR', 'SECRETARIO', 'SUPERINTENDENTE DE SERVICIO', 'SUPERINTENDENTE DE GRUPO', 'AUXILIAR DE GRUPO', 'CEH', 'GVP', 'SA', 'SAA']
+    },
+    {
+      nombre: 'Solicitudes Vigentes',
+      opciones: ['A-19', 'A-2']
+    }
+  ];
+
+  let mostrarMenuPrivilegios = false;
+  let categoriasExpandidas: Record<string, boolean> = {};
+
+  function toggleCategoriaPrivilegio(nombre: string) {
+    categoriasExpandidas[nombre] = !categoriasExpandidas[nombre];
+  }
+
+  function togglePrivilegio(priv: string) {
+    let actuales = nuevaP.privilegio ? nuevaP.privilegio.split(',').map(p => p.trim()).filter(Boolean) : [];
+    
+    if (actuales.includes(priv)) {
+      actuales = actuales.filter(p => p !== priv);
+    } else {
+      actuales.push(priv);
+    }
+    
+    nuevaP.privilegio = actuales.join(', ');
+  }
+
   $: if (circuitoId) {
     resetForm();
     cargar();
@@ -46,7 +86,7 @@
     }
   }
 
-  // --- FILTRADO Y AGRUPACIÓN POR CONGREGACIÓN ---
+ // --- FILTRADO Y AGRUPACIÓN POR CONGREGACIÓN ---
   
   // 1. Primero filtramos según la búsqueda
   $: filtradas = personas.filter(p => 
@@ -54,9 +94,12 @@
     (p.congregacion || "").toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  // 2. Luego agrupamos las filtradas
+  // 2. Luego agrupamos las filtradas (CON NORMALIZACIÓN)
   $: personasAgrupadas = filtradas.reduce((grupos, persona) => {
-    const nombreCongregacion = persona.congregacion || 'Sin Congregación Asignada';
+    // Quitamos espacios extra y forzamos mayúsculas para evitar duplicados
+    const nombreOriginal = persona.congregacion || '';
+    const nombreCongregacion = nombreOriginal.trim().toUpperCase() || 'SIN CONGREGACIÓN ASIGNADA';
+    
     if (!grupos[nombreCongregacion]) {
       grupos[nombreCongregacion] = [];
     }
@@ -64,12 +107,26 @@
     return grupos;
   }, {} as Record<string, Persona[]>);
 
-  // 3. Obtenemos las llaves (nombres de congregaciones) ordenadas alfabéticamente
+  // 3. Obtenemos las llaves ordenadas alfabéticamente
   $: congregacionesOrdenadas = Object.keys(personasAgrupadas).sort((a, b) => {
-    if (a === 'Sin Congregación Asignada') return 1;
-    if (b === 'Sin Congregación Asignada') return -1;
+    if (a === 'SIN CONGREGACIÓN ASIGNADA') return 1;
+    if (b === 'SIN CONGREGACIÓN ASIGNADA') return -1;
     return a.localeCompare(b);
   });
+
+  // --- LÓGICA DEL ACORDEÓN ---
+  let expandidas: Record<string, boolean> = {};
+
+  function toggleExpandir(nombre: string) {
+    expandidas[nombre] = !expandidas[nombre];
+  }
+
+  // Truco UX: Si estás buscando a alguien, abrimos todos los paneles automáticamente
+  $: if (busqueda.trim() !== '') {
+    const todas: Record<string, boolean> = {};
+    congregacionesOrdenadas.forEach(c => todas[c] = true);
+    expandidas = todas;
+  }
 
 
   async function importarCSV() {
@@ -251,55 +308,63 @@
     {#each congregacionesOrdenadas as nombreCongregacion}
       <div class="grupo-congregacion card-global">
         
-        <div class="header-congregacion">
+        <div 
+          class="header-congregacion" 
+          role="button" 
+          tabindex="0" 
+          on:click={() => toggleExpandir(nombreCongregacion)} 
+          on:keydown={(e) => { if (e.key === 'Enter') toggleExpandir(nombreCongregacion); }}
+        >
           <div class="titulo-cong">
             <Users size={20} color="var(--primary)" />
             <h2>{nombreCongregacion}</h2>
           </div>
-          <span class="badge-conteo">{personasAgrupadas[nombreCongregacion].length} personas</span>
+          
+          <div class="header-acciones">
+            <span class="badge-conteo">{personasAgrupadas[nombreCongregacion].length} personas</span>
+            {#if expandidas[nombreCongregacion]}
+              <ChevronUp size={20} color="var(--text-muted)" />
+            {:else}
+              <ChevronDown size={20} color="var(--text-muted)" />
+            {/if}
+          </div>
         </div>
 
-        <div class="tabla-personas">
-          {#each personasAgrupadas[nombreCongregacion] as p}
-            <div class="persona-row">
-              <div class="p-info" role="button" tabindex="0" on:click={() => abrirEdicion(p)}
-                on:keydown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {e.preventDefault();
-                    abrirEdicion(p);
-                  }
-                }}>
-                <span class="p-nombre">{p.apellidos}, {p.nombre}</span>
-                <span class="p-meta">{p.privilegio || 'Publicador'}</span>
+        {#if expandidas[nombreCongregacion]}
+          <div class="tabla-personas" transition:slide={{ duration: 250 }}>
+            {#each personasAgrupadas[nombreCongregacion] as p}
+              <div class="persona-row">
+                <div class="p-info" role="button" tabindex="0" on:click={() => abrirEdicion(p)}
+                  on:keydown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {e.preventDefault();
+                      abrirEdicion(p);
+                    }
+                  }}>
+                  <span class="p-nombre">{p.apellidos}, {p.nombre}</span>
+                  <span class="p-meta">{p.privilegio || 'Publicador'}</span>
+                </div>
+                
+                <div class="p-contacto">
+                  {#if p.telefono_celular}<span title="Celular"><Phone size={14}/> {p.telefono_celular}</span>{/if}
+                  {#if p.email}<span title="Email"><Mail size={14}/> {p.email}</span>{/if}
+                </div>
+                
+                <div class="p-acciones">
+                   <button class="btn-icon-edit" title="Editar" on:click|preventDefault|stopPropagation={() => abrirEdicion(p)}>
+                      <Edit size={16} />
+                   </button>
+                   <button class="btn-icon-delete" title="Eliminar" on:click|preventDefault|stopPropagation={() => borrar(p.id, p.nombre)}>
+                      <Trash2 size={16} />
+                   </button>
+                </div>
               </div>
-              
-              <div class="p-contacto">
-                {#if p.telefono_celular}<span title="Celular"><Phone size={14}/> {p.telefono_celular}</span>{/if}
-                {#if p.email}<span title="Email"><Mail size={14}/> {p.email}</span>{/if}
-              </div>
-              
-              <div class="p-acciones">
-                 <button 
-                    class="btn-icon-edit" 
-                    title="Editar" 
-                    on:click|preventDefault|stopPropagation={() => abrirEdicion(p)}
-                 >
-                    <Edit size={16} />
-                 </button>
-  
-                 <button 
-                    class="btn-icon-delete" 
-                    title="Eliminar" 
-                    on:click|preventDefault|stopPropagation={() => borrar(p.id, p.nombre)}
-                 >
-                    <Trash2 size={16} />
-                 </button>
-              </div>
-            </div>
-          {/each}
-        </div>
+            {/each}
+          </div>
+        {/if}
 
       </div>
     {:else}
+
       <div class="vacio card-global">
         <User size={48} color="var(--border-color)" style="margin-bottom: 15px;" />
         <p>No hay personas registradas o que coincidan con la búsqueda.</p>
@@ -330,15 +395,82 @@
           </div>
           <div class="form-group">
             <label for="congregacion_input">Congregación</label>
-            <input id="congregacion_input" type="text" class="input-global" bind:value={nuevaP.congregacion} />
+            <input id="congregacion_input" type="text" class="input-global" bind:value={nuevaP.congregacion} list="lista-congs" autocomplete="off" />
+            
+            <datalist id="lista-congs">
+              {#each congregacionesOrdenadas as cong}
+                {#if cong !== 'SIN CONGREGACIÓN ASIGNADA'}
+                  <option value={cong}></option>
+                {/if}
+              {/each}
+            </datalist>
           </div>
         </div>
 
         <div class="col">
-          <div class="form-group">
-            <label for="privilegio_input">Privilegio</label>
-            <input id="privilegio_input" type="text" class="input-global" bind:value={nuevaP.privilegio} placeholder="Ej: Anciano" />
+          <div class="form-group relativo">
+            <label for="privilegio_input">Privilegios</label>
+            
+            <div class="input-con-desplegable">
+              <input 
+                id="privilegio_input" 
+                type="text" 
+                class="input-global" 
+                bind:value={nuevaP.privilegio} 
+                placeholder="Ej: ANCIANO, PRECURSOR..." 
+              />
+              <button 
+                type="button" 
+                class="btn-abrir-menu" 
+                on:click={() => mostrarMenuPrivilegios = !mostrarMenuPrivilegios}
+              >
+                <ChevronDown size={18} />
+              </button>
+            </div>
+
+            {#if mostrarMenuPrivilegios}
+              <div class="menu-flotante-checkboxes">
+                {#each categoriasPrivilegios as cat}
+                  <div class="categoria-privilegio">
+                    <div 
+                      class="categoria-header" 
+                      role="button" 
+                      tabindex="0"
+                      on:click={() => toggleCategoriaPrivilegio(cat.nombre)}
+                      on:keydown={(e) => { if (e.key === 'Enter') toggleCategoriaPrivilegio(cat.nombre); }}
+                    >
+                      <span class="cat-titulo">{cat.nombre}</span>
+                      {#if categoriasExpandidas[cat.nombre]}
+                        <ChevronUp size={16} />
+                      {:else}
+                        <ChevronDown size={16} />
+                      {/if}
+                    </div>
+                    
+                    {#if categoriasExpandidas[cat.nombre]}
+                      <div class="categoria-opciones" transition:slide={{ duration: 200 }}>
+                        {#each cat.opciones as priv}
+                          <label class="opcion-checkbox">
+                            <input 
+                              type="checkbox" 
+                              checked={(nuevaP.privilegio || '').split(',').map(p => p.trim()).includes(priv)}
+                              on:change={() => togglePrivilegio(priv)}
+                            />
+                            <span class="check-texto">{priv}</span>
+                          </label>
+                        {/each}
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+                
+                <button type="button" class="btn-cerrar-menu" on:click={() => mostrarMenuPrivilegios = false}>
+                  Cerrar lista
+                </button>
+              </div>
+            {/if}
           </div>
+
           <div class="form-group">
             <label for="telefono_celular_input">Teléfono Celular</label>
             <input id="telefono_celular_input" type="text" class="input-global" bind:value={nuevaP.telefono_celular} />
@@ -446,6 +578,18 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    cursor: pointer; /* Indicar que es clickeable */
+    transition: background 0.2s;
+  }
+
+  .header-congregacion:hover {
+    background: rgba(100, 116, 139, 0.1);
+  }
+
+  .header-acciones {
+    display: flex;
+    align-items: center;
+    gap: 15px;
   }
 
   .titulo-cong { display: flex; align-items: center; gap: 10px; }
@@ -709,4 +853,143 @@
     }
   }
 
+/* --- CHIPS DE PRIVILEGIOS --- */
+  .chips-rapidos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .chip-toggle {
+    background: var(--bg-app);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+  }
+
+/* --- MENÚ DESPLEGABLE MÚLTIPLE --- */
+  .relativo { position: relative; }
+
+  .input-con-desplegable {
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+
+  /* El botón de la flechita superpuesto al input */
+  .btn-abrir-menu {
+    position: absolute;
+    right: 5px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 5px;
+    border-radius: 50%;
+    display: flex;
+    transition: background 0.2s;
+  }
+  
+  .btn-abrir-menu:hover { background: rgba(0,0,0,0.05); color: var(--text-main); }
+
+  /* El menú que flota por encima de todo */
+  .menu-flotante-checkboxes {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+    margin-top: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 5px;
+  }
+
+  .opcion-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background 0.2s;
+  }
+
+  .opcion-checkbox:hover { background: rgba(100, 116, 139, 0.05); }
+
+  .opcion-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #5c0a1f; /* Color vino para la casilla marcada */
+    cursor: pointer;
+  }
+
+  .opcion-checkbox .check-texto {
+    font-size: 0.85rem;
+    color: var(--text-main);
+    font-weight: 600;
+  }
+
+  .btn-cerrar-menu {
+    margin-top: 5px;
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    padding: 8px;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    color: var(--text-main);
+    cursor: pointer;
+    text-align: center;
+  }
+  
+  .btn-cerrar-menu:hover { background: #e2e8f0; }
+
+  /* Estilos para las categorías del menú */
+  .categoria-privilegio {
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .categoria-privilegio:last-of-type {
+    border-bottom: none;
+  }
+
+  .categoria-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    cursor: pointer;
+    background: rgba(100, 116, 139, 0.05); /* Un fondito gris muy suave */
+    transition: background 0.2s;
+  }
+
+  .categoria-header:hover {
+    background: rgba(100, 116, 139, 0.1);
+  }
+
+  .cat-titulo {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .categoria-opciones {
+    padding: 4px 0;
+    background: var(--bg-panel);
+  }
 </style>
