@@ -44,9 +44,9 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.22": [
-      { texto: "Corrección visual en los módulos en el análisis de congregación.", tipo: "correcion" },
-      { texto: "Se han añadido etiquetas para el registro de personas al añadir manualmente a personas.", tipo: "Zap" }
+    "1.0.26": [
+      { texto: "Se añadió la opción de editar para hacer cualquier cambio desde el historial guardado. Permitirá que si después de guardar el archivo, te das cuenta que necesitas ajustar algún dato guardado, puedes modificarlo", tipo: "Zap," }
+      
     ]
   };
 

@@ -646,6 +646,9 @@
     padding: 0; 
     cursor: pointer;
     box-sizing: border-box;
+    /* 👇 ESTA ES LA MAGIA QUE SOLUCIONA EL CRUCE DE CAPAS 👇 */
+    position: relative !important;
+    z-index: 9999 !important; 
   }
 
   .btn-abrir-filtro-main {
@@ -889,8 +892,9 @@
   .menu-flotante-checkboxes {
     position: absolute; top: 100%; left: 0; width: 100%;
     background: var(--bg-panel); border: 1px solid var(--border-color);
-    border-radius: var(--radius-md); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    z-index: 100; margin-top: 5px; max-height: 200px; overflow-y: auto;
+    border-radius: var(--radius-md); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); /* Sombra más fuerte */
+    z-index: 99999 !important; /* Capa extrema */
+    margin-top: 5px; max-height: 200px; overflow-y: auto;
     display: flex; flex-direction: column; padding: 5px;
   }
 

@@ -200,9 +200,21 @@
 
 <div class="revision-container">
   
-  <div class="revision-header">
+ <div class="revision-header">
     <div class="header-info">
-      <h3>Conteo Rápido: {nombreCongregacion}</h3>
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <h3>Conteo Rápido: {nombreCongregacion}</h3>
+        
+        {#if guardando}
+          <span class="indicador-guardado guardando">
+            <Save size={14} class="spin" /> Guardando...
+          </span>
+        {:else if exito}
+          <span class="indicador-guardado exito">
+            <CheckCircle2 size={14} /> Guardado
+          </span>
+        {/if}
+      </div>
       <p>Usa los botones para contar rápidamente mientras revisas los archivos físicos.</p>
     </div>
     <div class="fecha-seccion">
@@ -241,9 +253,11 @@
         </div>
 
         <div class="counter-controls">
-          <button class="btn-restar" on:click={() => { if(contadores[tarjeta.id] > 0) { contadores[tarjeta.id]--; contadores = contadores; } }}>-</button>
-          <input type="number" min="0" bind:value={contadores[tarjeta.id]} on:input={() => contadores = contadores} class="counter-input" />
-          <button class="btn-sumar" on:click={() => { contadores[tarjeta.id]++; contadores = contadores; }}>+</button>
+          <button class="btn-restar" on:click={() => { if(contadores[tarjeta.id] > 0) { contadores[tarjeta.id]--; contadores = contadores; guardarRevision(); } }}>-</button>
+          
+          <input type="number" min="0" bind:value={contadores[tarjeta.id]} on:change={() => { contadores = contadores; guardarRevision(); }} class="counter-input" />
+          
+          <button class="btn-sumar" on:click={() => { contadores[tarjeta.id]++; contadores = contadores; guardarRevision(); }}>+</button>
         </div>
 
         {#if tarjeta.id === 'territoriosSinTrabajar1Ano' && contadores.totalTerritorios > 0}
@@ -278,6 +292,29 @@
   .revision-container { animation: fadeIn 0.3s ease; }
   .revision-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px; margin-bottom: 25px; }
   .header-info h3 { margin: 0 0 5px 0; font-size: 1.4rem; color: var(--text-main); }
+  
+  /* --- ESTILOS DEL INDICADOR DE GUARDADO --- */
+  .indicador-guardado { 
+    display: flex; 
+    align-items: center; 
+    gap: 5px; 
+    font-size: 0.75rem; 
+    font-weight: 800; 
+    padding: 4px 10px; 
+    border-radius: 20px; 
+    animation: fadeIn 0.2s ease-out; 
+  }
+  
+  .indicador-guardado.guardando { 
+    background: var(--bg-app); 
+    color: var(--text-muted); 
+  }
+  
+  .indicador-guardado.exito { 
+    background: rgba(16, 185, 129, 0.1); 
+    color: #10b981; /* Verde esmeralda */
+  }
+  
   .header-info p { margin: 0; color: var(--text-muted); font-size: 0.95rem; }
   .fecha-seccion { display: flex; align-items: center; gap: 10px; background: var(--bg-panel); padding: 10px 15px; border-radius: var(--radius-md); border: var(--border-thin); font-weight: 600; font-size: 0.9rem; }
   .input-fecha { border: none; background: transparent; color: var(--text-main); font-family: inherit; font-size: 0.95rem; outline: none; cursor: pointer; }
