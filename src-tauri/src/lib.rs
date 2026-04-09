@@ -1,11 +1,11 @@
 // 1. DECLARAMOS LOS MÓDULOS DE NUESTRA ARQUITECTURA LIMPIA
-pub mod database;
-pub mod configuracion; 
-pub mod circuitos;     
+pub mod circuitos;
+pub mod configuracion;
 pub mod congregaciones;
-pub mod personas;
-pub mod historial;
+pub mod database;
 pub mod drive;
+pub mod historial;
+pub mod personas;
 
 use serde::{Deserialize, Serialize};
 use std::process::Command; // Necesario para abrir Word/Excel
@@ -13,8 +13,8 @@ use tauri::Manager; // <--- NUEVO: Para buscar las carpetas seguras del sistema 
 
 use std::sync::{Mutex, OnceLock}; // <-- AÑADIR
 
-use std::env;
 use chrono::Local;
+use std::env;
 
 // --- 2. VARIABLES GLOBALES Y ESTADOS ---
 
@@ -108,17 +108,21 @@ fn add_personal_task(title: String, date: String, _priority: String) -> String {
 }
 
 #[tauri::command]
-fn save_document_record(name: String, path: String, doc_type: String, _size: String, _date: String) -> String {
+fn save_document_record(
+    name: String,
+    path: String,
+    doc_type: String,
+    _size: String,
+    _date: String,
+) -> String {
     println!("DOC: {} (Tipo: {}) guardado en: {}", name, doc_type, path);
     "OK".to_string()
 }
 
-
-
 #[tauri::command]
 fn generar_nombre_respaldo() -> String {
     let fecha_hora = Local::now().format("%Y-%m-%d_%I-%M-%p").to_string();
-    
+
     // Intentamos obtener el nombre (esto funciona bien en Windows)
     let mut dispositivo = whoami::devicename().unwrap_or("Unknown".to_string());
 
@@ -128,23 +132,27 @@ fn generar_nombre_respaldo() -> String {
         if dispositivo == "Unknown" || dispositivo == "Desconocido" {
             // Le pedimos a Android la marca y el modelo (ej: Samsung_SM-G991B)
             // Estas variables suelen estar disponibles en el entorno de ejecución de Tauri en Android
-            let marca = std::env::var("RO_PRODUCT_MANUFACTURER").unwrap_or_else(|_| "Movil".to_string());
-            let modelo = std::env::var("RO_PRODUCT_MODEL").unwrap_or_else(|_| "Android".to_string());
+            let marca =
+                std::env::var("RO_PRODUCT_MANUFACTURER").unwrap_or_else(|_| "Movil".to_string());
+            let modelo =
+                std::env::var("RO_PRODUCT_MODEL").unwrap_or_else(|_| "Android".to_string());
             dispositivo = format!("{}_{}", marca, modelo);
         }
     }
-    
+
     format!("Respaldo_{}_{}.avisits", fecha_hora, dispositivo)
 }
-
 
 use std::fs;
 use tauri::process::restart; // Importamos la función de reinicio de Tauri
 
 #[tauri::command]
 fn restaurar_bd(app_handle: tauri::AppHandle, ruta_origen: String) -> Result<(), String> {
-    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+
     // Guardamos la copia con un nombre temporal para que Windows no moleste
     let restore_path = app_data_dir.join("av_database_restore.db");
     std::fs::copy(&ruta_origen, &restore_path).map_err(|e| format!("Error al copiar: {}", e))?;
@@ -155,12 +163,14 @@ fn restaurar_bd(app_handle: tauri::AppHandle, ruta_origen: String) -> Result<(),
     Ok(())
 }
 
-
 // 🌟 NUEVA FUNCIÓN: CREAR RESPALDO PERFECTO 🌟
 #[tauri::command]
 fn crear_respaldo_bd(app_handle: tauri::AppHandle, ruta_destino: String) -> Result<(), String> {
     // 1. Buscamos la base de datos original en la carpeta interna de la app
-    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
     let db_path = app_data_dir.join("av_database.db");
 
     if !db_path.exists() {
@@ -169,8 +179,8 @@ fn crear_respaldo_bd(app_handle: tauri::AppHandle, ruta_destino: String) -> Resu
 
     // 2. COPIA BINARIA: Leemos el archivo completo y lo escribimos en el destino
     // Esto es mucho más fiable en Android que usar "VACUUM INTO"
-    let contenido = std::fs::read(&db_path)
-        .map_err(|e| format!("Error al leer base de datos: {}", e))?;
+    let contenido =
+        std::fs::read(&db_path).map_err(|e| format!("Error al leer base de datos: {}", e))?;
 
     std::fs::write(&ruta_destino, contenido)
         .map_err(|e| format!("Error al escribir el archivo de respaldo: {}", e))?;
@@ -183,21 +193,31 @@ fn crear_respaldo_bd(app_handle: tauri::AppHandle, ruta_destino: String) -> Resu
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-
+       
+        .plugin(tauri_plugin_stronghold::Builder::new(|password| {
+    use argon2::Argon2;
+    let argon2 = Argon2::default();
+    let mut key = [0u8; 32];
+    let salt = b"sal_secreta_asistente";
+    argon2.hash_password_into(password.as_bytes(), salt, &mut key)
+        .expect("Error al hashear");
+    key.to_vec()
+}).build())
+       
+    
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-
-        .setup(|app| { 
+        .setup(|app| {
             let app_data_dir = app.path().app_data_dir().expect("Error buscando AppData");
             std::fs::create_dir_all(&app_data_dir).expect("Error creando carpeta segura");
-            
+
             // Creamos la ruta como PathBuf para poder manipular los archivos
             let db_path_buf = app_data_dir.join("av_database.db");
-            
+
             // 🌟 EL TRUCO: Cambiazo antes de que SQLite y el plugin despierten
             let restore_path = app_data_dir.join("av_database_restore.db");
             if restore_path.exists() {
@@ -206,16 +226,18 @@ pub fn run() {
                 let _ = std::fs::remove_file(app_data_dir.join("av_database.db-wal"));
                 let _ = std::fs::remove_file(app_data_dir.join("av_database.db-shm"));
                 let _ = std::fs::remove_file(&db_path_buf); // Borramos la BD actual
-                
+
                 // Renombramos el archivo temporal para que sea la nueva BD oficial
                 let _ = std::fs::rename(&restore_path, &db_path_buf);
             }
             // ----------------------------------------------------------
-            
+
             // Ahora sí, la convertimos a String y la guardamos globalmente
             let db_path = db_path_buf.to_string_lossy().to_string();
-            database::DB_PATH.set(db_path).expect("Error guardando ruta global");
-            
+            database::DB_PATH
+                .set(db_path)
+                .expect("Error guardando ruta global");
+
             if let Err(e) = database::inicializar_bd() {
                 eprintln!("Error crítico en BD: {}", e);
             }
@@ -226,21 +248,19 @@ pub fn run() {
                     let cache = ARCHIVO_PENDIENTE.get_or_init(|| Mutex::new(None));
                     *cache.lock().unwrap() = Some(arg.clone());
                     println!("📦 Archivo .avisits detectado y guardado: {}", arg);
-                    break; 
+                    break;
                 }
             }
-            
+
             Ok(())
         })
         // -------------------------------------------------
-        
         .invoke_handler(tauri::generate_handler![
             greet,
             get_personal_agenda,
             add_personal_task,
             save_document_record,
             abrir_archivo_nativo,
-            
             // --- REGISTRAMOS LOS COMANDOS DESDE SUS NUEVOS ARCHIVOS ---
             configuracion::guardar_config_rust,
             configuracion::cargar_config_rust,
@@ -262,17 +282,13 @@ pub fn run() {
             historial::eliminar_historial_rust,
             historial::obtener_totales_circuito_recientes_rust, // <-- AÑADIR
             historial::obtener_desglose_ultimas_visitas_rust,   // <-- AÑADIR
-            
             drive::login_google_drive,
-
             generar_nombre_respaldo,
             verificar_archivo_pendiente,
             hay_archivo_pendiente,
-
             restaurar_bd,
             crear_respaldo_bd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

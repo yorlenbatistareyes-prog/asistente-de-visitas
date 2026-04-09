@@ -7,7 +7,9 @@ pub static DB_PATH: OnceLock<String> = OnceLock::new();
 // Hacemos esta función "pub" para que los demás archivos (.rs) puedan usarla
 pub fn establecer_conexion() -> Result<Connection> {
     // Leemos la ruta de la bóveda
-    let path = DB_PATH.get().expect("La ruta de la base de datos no ha sido configurada"); 
+    let path = DB_PATH
+        .get()
+        .expect("La ruta de la base de datos no ha sido configurada");
     Connection::open(path)
 }
 
@@ -70,4 +72,3 @@ pub fn inicializar_bd() -> Result<()> {
 
     Ok(())
 }
-

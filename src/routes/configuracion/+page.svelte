@@ -13,6 +13,9 @@
   // IMPORTAMOS TUS FUNCIONES DESDE db.ts
   import { guardarConfig, cargarConfig, initDB } from '$lib/services/db';
   
+  // IMPORTAMOS TUS FUNCIONES DESDE db.ts
+  import Sincronizacion from '$lib/components/Sincronizacion.svelte';
+
   // --- VARIABLES DE ESTADO GLOBALES ---
   let nombreUsuario = "";
   let cargoUsuario = "Superintendente de Circuito";
@@ -605,10 +608,12 @@ function handleModalKeydown(event: KeyboardEvent) {
     </div>
 
     {#if estadoConexionDrive}
-      <p class="drive-status-text">{estadoConexionDrive}</p>
-    {/if}
-    </div>
-</section>
+          <p class="drive-status-text">{estadoConexionDrive}</p>
+        {/if}
+      </div>
+    </section>
+
+    <Sincronizacion />
 
     <section class="card-global config-section">
       <div class="section-icon"><Database size={24} /></div>
