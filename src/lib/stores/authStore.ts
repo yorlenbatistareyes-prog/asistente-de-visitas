@@ -21,7 +21,11 @@ export interface DatosSesion {
     token: string;
 }
 
+// --- 2. MEMORIA CACHÉ (NUEVO: Para navegación instantánea) ---
+let isInitialized = false; 
 let cachedVaultPath: string | null = null;
+let cachedVault: any = null;
+let cachedStore: any = null;
 
 async function getVaultPath(): Promise<string> {
     if (cachedVaultPath) return cachedVaultPath;
@@ -38,6 +42,11 @@ async function getVaultPath(): Promise<string> {
 }
 
 async function obtenerBovedaYStore() {
+    // NUEVO: ¡La magia de la velocidad! Si ya está en memoria, la usamos al instante sin congelar Tauri
+    if (cachedVault && cachedStore) {
+        return { vault: cachedVault, store: cachedStore };
+    }
+
     const path = await getVaultPath();
     const vault = await Stronghold.load(path, VAULT_PASSWORD);
     
@@ -48,9 +57,13 @@ async function obtenerBovedaYStore() {
         client = await vault.createClient(CLIENT_NAME);
     }
     
+    // NUEVO: Guardamos en memoria para la próxima vez
+    cachedVault = vault;
+    cachedStore = client.getStore();
+
     return {
-        store: client.getStore(),
-        vault: vault
+        store: cachedStore,
+        vault: cachedVault
     };
 }
 
@@ -61,6 +74,12 @@ async function obtenerBovedaYStore() {
  * (Llamar a esta función en el onMount del .svelte)
  */
 export async function arrancarAplicacion() {
+    // NUEVO: Si ya leímos la bóveda antes, apagamos el spinner de inmediato y abortamos la carga pesada
+    if (isInitialized) {
+        sesionApp.update(s => ({ ...s, verificando: false }));
+        return;
+    }
+
     try {
         const { store } = await obtenerBovedaYStore();
         const dataBytes = await store.get('auth_data');
@@ -77,6 +96,7 @@ export async function arrancarAplicacion() {
                 isLoggedIn: true, 
                 verificando: false 
             });
+            isInitialized = true; // NUEVO: Marcamos como inicializado con éxito
             return;
         }
         console.log("⚠️ No hay datos en la bóveda.");
@@ -84,8 +104,9 @@ export async function arrancarAplicacion() {
         console.error("❌ Error arrancando aplicación:", error);
     }
     
-    // Si no hay datos, apaga el spinner y muestra el Paso 1
+    // Si no hay datos o hubo error, apaga el spinner y muestra el Paso 1
     sesionApp.update(s => ({ ...s, verificando: false }));
+    isInitialized = true; // NUEVO: Marcamos como inicializado (aunque vacío) para no volver a cargar
 }
 
 /**
@@ -108,6 +129,7 @@ export async function guardarSesion(correo: string, token: string) {
             isLoggedIn: true, 
             verificando: false 
         });
+        isInitialized = true; // NUEVO: Confirmamos que ya hay sesión activa
     } catch (error) {
         console.error("❌ Error guardando en la bóveda:", error);
     }
@@ -148,6 +170,12 @@ export async function cerrarSesionSegura() {
             isLoggedIn: false, 
             verificando: false 
         });
+
+        // NUEVO: Limpiamos la memoria para obligar a pedir clave la próxima vez
+        cachedVault = null;
+        cachedStore = null;
+        isInitialized = false;
+
     } catch (error) {
         console.error("❌ Error eliminando la sesión:", error);
     }
