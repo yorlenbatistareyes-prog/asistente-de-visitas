@@ -12,6 +12,15 @@
     type Circuito 
   } from '$lib/services/db';
 
+  // --- NUEVAS IMPORTACIONES PARA EL RADAR DE INICIO ---
+  import { get } from 'svelte/store';
+  import { sesionApp } from '$lib/stores/authStore';
+  import { estadoSincronizacion } from '$lib/stores/autoSyncStore';
+  import { chequearEstadoNube, descargarRespaldo, subirRespaldo } from '$lib/services/syncService';
+  import { cargarConfig, guardarConfig } from '$lib/services/db';
+  import { prepararDatosParaSubir, restaurarDatosDeDescarga } from '$lib/services/dbSyncHelper';
+  import { ServerCrash, DownloadCloud, UploadCloud } from 'lucide-svelte';
+
   interface CircuitoVisual extends Circuito {
     numCongregaciones?: number;
   }
@@ -74,7 +83,110 @@
     }
   }
 
-  onMount(cargarCircuitos);
+  // --- VARIABLES DEL RADAR DE CONFLICTO ---
+  let mostrandoModalConflicto = false;
+  let infoNube = { dispositivo: "", fecha: "" };
+  let procesandoConflicto = false;
+
+  // --- EL RADAR (Sustituye a tu onMount anterior) ---
+  onMount(async () => {
+    await cargarCircuitos(); // Carga tu pantalla normal rápido
+    await chequearNubeAlArrancar(); // Radar silencioso de fondo
+  });
+
+  async function chequearNubeAlArrancar() {
+    const sesion = get(sesionApp);
+    if (!sesion.isLoggedIn || !sesion.token) return; 
+
+    try {
+      const estadoNube = await chequearEstadoNube(sesion.token);
+      if (!estadoNube || !estadoNube.last_synced_at) return;
+
+      let localUltimaSync = await cargarConfig('last_synced_at');
+      if (!localUltimaSync) localUltimaSync = "1970-01-01T00:00:00.000Z";
+
+      const fechaLocal = new Date(localUltimaSync).getTime();
+      const fechaNube = new Date(estadoNube.last_synced_at).getTime();
+
+      if (fechaNube > fechaLocal) {
+        infoNube = {
+          dispositivo: estadoNube.last_device || "Dispositivo desconocido",
+          fecha: new Date(estadoNube.last_synced_at).toLocaleString()
+        };
+        
+        // 🌟 Le avisamos a la barra superior que hay un conflicto (Se pondrá ROJA)
+        estadoSincronizacion.set({ estado: 'conflicto', mensaje: 'Hay datos nuevos en la nube', nubeDispositivo: infoNube.dispositivo, nubeFecha: infoNube.fecha });
+        mostrandoModalConflicto = true; 
+      } else {
+        // 🌟 Si no hay conflicto, le decimos a la barra que todo está perfecto (Se pondrá VERDE por 3 segs)
+        estadoSincronizacion.set({ estado: 'al_dia', mensaje: 'Nube al día', nubeDispositivo: '', nubeFecha: '' });
+        setTimeout(() => estadoSincronizacion.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '' }), 3000);
+      }
+    } catch (e) {
+      console.error("Radar silencioso falló:", e);
+    }
+  }
+
+  // --- FUNCIONES PARA RESOLVER EL CONFLICTO ---
+  async function resolverDescargando() {
+    procesandoConflicto = true;
+    mostrandoModalConflicto = false; // Cerramos el modal para que el usuario vea la barra superior
+    
+    // 🌟 La barra se pone AZUL girando
+    estadoSincronizacion.set({ estado: 'sincronizando', mensaje: 'Descargando datos...', nubeDispositivo: '', nubeFecha: '' });
+
+    try {
+      const sesion = get(sesionApp);
+      const datosNube = await descargarRespaldo(sesion.token);
+      
+      const datosParseados = typeof datosNube.backup.backup_data === 'string' 
+        ? JSON.parse(datosNube.backup.backup_data) 
+        : datosNube.backup.backup_data;
+
+      await restaurarDatosDeDescarga(datosParseados);
+      await guardarConfig('last_synced_at', datosNube.backup.last_synced_at); 
+      
+      // 🌟 La barra se pone VERDE
+      estadoSincronizacion.set({ estado: 'al_dia', mensaje: '¡Datos actualizados!', nubeDispositivo: '', nubeFecha: '' });
+      
+      // Damos 1.5 segundos para que el usuario vea el mensaje de éxito antes de recargar la página
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+
+    } catch (e) {
+      alert("❌ Error al descargar: " + e);
+      estadoSincronizacion.set({ estado: 'error', mensaje: 'Fallo al descargar', nubeDispositivo: '', nubeFecha: '' });
+      procesandoConflicto = false;
+    }
+  }
+
+  async function resolverForzandoSubida() {
+    procesandoConflicto = true;
+    mostrandoModalConflicto = false; // Cerramos el modal
+    
+    // 🌟 La barra se pone AZUL girando
+    estadoSincronizacion.set({ estado: 'sincronizando', mensaje: 'Forzando subida...', nubeDispositivo: '', nubeFecha: '' });
+
+    try {
+      const sesion = get(sesionApp);
+      const jsonDatos = await prepararDatosParaSubir();
+      const fechaActual = new Date().toISOString();
+      
+      await subirRespaldo(sesion.token, jsonDatos, fechaActual);
+      await guardarConfig('last_synced_at', fechaActual);
+      
+      // 🌟 La barra se pone VERDE
+      estadoSincronizacion.set({ estado: 'al_dia', mensaje: '¡Nube sobrescrita!', nubeDispositivo: '', nubeFecha: '' });
+      setTimeout(() => estadoSincronizacion.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '' }), 3000);
+
+    } catch (e) {
+      alert("❌ Error al forzar subida: " + e);
+      estadoSincronizacion.set({ estado: 'error', mensaje: 'Fallo al subir', nubeDispositivo: '', nubeFecha: '' });
+    } finally {
+      procesandoConflicto = false;
+    }
+  }
 
   async function guardarNuevoCircuito() {
     if (!nuevoNombre.trim()) return;
@@ -260,6 +372,40 @@
       <div class="modal-actions">
         <button class="btn-global" on:click={() => (mostrandoModal = false)}>Cancelar</button>
         <button class="btn-global btn-primary" on:click={guardarNuevoCircuito}>Guardar</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if mostrandoModalConflicto}
+  <div class="modal-backdrop">
+    <div class="card-global modal-content conflicto-modal">
+      <div class="modal-header-alerta">
+        <ServerCrash size={28} color="#ef4444" />
+        <h2>¡Nuevos datos detectados!</h2>
+      </div>
+      
+      <p class="alerta-texto">
+        Se ha detectado una versión más reciente de tus datos en la nube. Si continúas usando la app sin actualizar, podrías sobrescribir el trabajo de otro dispositivo.
+      </p>
+      
+      <div class="info-nube-box">
+        <p><strong>Subido por:</strong> {infoNube.dispositivo}</p>
+        <p><strong>Fecha de subida:</strong> {infoNube.fecha}</p>
+      </div>
+
+      <p class="alerta-pregunta">¿Qué deseas hacer?</p>
+
+      <div class="modal-actions-column">
+        <button class="btn-global btn-descargar-nube" on:click={resolverDescargando} disabled={procesandoConflicto}>
+          <DownloadCloud size={20} />
+          <span>Descargar y sobrescribir esta app (Recomendado)</span>
+        </button>
+        
+        <button class="btn-global btn-forzar-subida" on:click={resolverForzandoSubida} disabled={procesandoConflicto}>
+          <UploadCloud size={20} />
+          <span>Ignorar la nube y forzar la subida de mis datos locales</span>
+        </button>
       </div>
     </div>
   </div>
@@ -630,4 +776,37 @@
       min-height: 52px !important;
     }
   }
+
+  /* --- ESTILOS DEL MODAL DE CONFLICTO --- */
+  .conflicto-modal { border-top: 5px solid #ef4444; }
+  .modal-header-alerta { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
+  .modal-header-alerta h2 { margin: 0; color: #ef4444; font-size: 1.4rem; font-weight: 800; }
+  .alerta-texto { color: var(--text-main); font-size: 0.95rem; margin-bottom: 15px; line-height: 1.5; }
+  
+  .info-nube-box { 
+    background: rgba(239, 68, 68, 0.05); 
+    border: 1px dashed rgba(239, 68, 68, 0.4); 
+    border-radius: 8px; 
+    padding: 15px; 
+    margin-bottom: 20px; 
+  }
+  .info-nube-box p { margin: 5px 0; color: var(--text-main); font-size: 0.9rem; }
+  .alerta-pregunta { font-weight: 700; color: var(--text-main); margin-bottom: 15px; }
+  
+  .modal-actions-column { display: flex; flex-direction: column; gap: 10px; }
+  
+  .btn-descargar-nube { 
+    background: #3b82f6; color: white; border: none; 
+    display: flex; justify-content: flex-start; gap: 15px; 
+    padding: 16px; font-weight: 700; text-align: left;
+  }
+  .btn-descargar-nube:hover:not(:disabled) { background: #2563eb; transform: translateY(-1px); }
+  
+  .btn-forzar-subida { 
+    background: transparent; color: #ef4444; border: 1px solid #ef4444; 
+    display: flex; justify-content: flex-start; gap: 15px; 
+    padding: 16px; font-weight: 700; text-align: left;
+  }
+  .btn-forzar-subida:hover:not(:disabled) { background: rgba(239, 68, 68, 0.1); }
+
 </style>

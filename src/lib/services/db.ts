@@ -1,5 +1,9 @@
+// src/lib/services/db.ts
 import Database from '@tauri-apps/plugin-sql';
-import { invoke } from '@tauri-apps/api/core'; // <--- NUEVO: El mensajero de Rust
+import { invoke } from '@tauri-apps/api/core';
+
+// 👇 NUEVO: Importamos el cerebro de sincronización automática
+import { dispararSincronizacionLocal } from '$lib/stores/autoSyncStore';
 
 let dbInstance: Database | null = null;
 
@@ -59,7 +63,7 @@ export async function initDB(): Promise<Database> {
   try {
     dbInstance = await Database.load('sqlite:av_database.db');
     
-    // TABLA CIRCUITOS (Actualizada con fechas)
+    // TABLA CIRCUITOS
     await dbInstance.execute(`
       CREATE TABLE IF NOT EXISTS circuitos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,13 +75,10 @@ export async function initDB(): Promise<Database> {
       );
     `);
 
-    // Truco de migración: Si la tabla vieja ya existe, le añadimos las columnas nuevas sin borrar datos
     try {
       await dbInstance.execute(`ALTER TABLE circuitos ADD COLUMN fechaInicio TEXT;`);
       await dbInstance.execute(`ALTER TABLE circuitos ADD COLUMN fechaFin TEXT;`);
-    } catch (e) {
-      // Si da error es porque las columnas ya existen, lo ignoramos en silencio
-    }
+    } catch (e) {}
 
     // TABLA CONGREGACIONES
     await dbInstance.execute(`
@@ -100,7 +101,7 @@ export async function initDB(): Promise<Database> {
       );
     `);
 
-    // TABLA PERSONAS (Compatible con CSV de JW)
+    // TABLA PERSONAS
     await dbInstance.execute(`
       CREATE TABLE IF NOT EXISTS personas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,19 +145,13 @@ export async function initDB(): Promise<Database> {
   }
 }
 
-// --- 2. GESTIÓN DE CIRCUITOS (MIGRADA A RUST PURO) ---
+// --- 2. GESTIÓN DE CIRCUITOS ---
 
 export async function crearCircuito(nombre: string, etiquetas: string = "", fechaInicio: string = "", fechaFin: string = "") {
   const fechaCreacion = new Date().toISOString().split('T')[0]; 
   try {
-    // Nota: Tauri convierte automáticamente camelCase (fechaCreacion) a snake_case (fecha_creacion) para Rust
-    await invoke('crear_circuito_rust', { 
-      nombre, 
-      etiquetas, 
-      fechaCreacion, 
-      fechaInicio, 
-      fechaFin 
-    });
+    await invoke('crear_circuito_rust', { nombre, etiquetas, fechaCreacion, fechaInicio, fechaFin });
+    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
   } catch (error) {
     console.error("Error creando circuito en Rust:", error);
     throw error;
@@ -184,13 +179,14 @@ export async function obtenerCircuitoPorId(id: number): Promise<Circuito | null>
 export async function eliminarCircuito(id: number, nombre: string) {
   try {
     await invoke('eliminar_circuito_rust', { id, nombre });
+    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
   } catch (error) {
     console.error("Error eliminando circuito en Rust:", error);
     throw error;
   }
 }
 
-// --- 3. GESTIÓN DE CONGREGACIONES (MIGRADA A RUST PURO) ---
+// --- 3. GESTIÓN DE CONGREGACIONES ---
 
 export async function obtenerCongregaciones(circuito: string): Promise<Congregacion[]> {
   try {
@@ -203,8 +199,8 @@ export async function obtenerCongregaciones(circuito: string): Promise<Congregac
 
 export async function guardarCongregacion(cong: Congregacion) {
   try {
-    // Le pasamos el objeto completo a Rust para que él decida si inserta o actualiza
     await invoke('guardar_congregacion_rust', { cong });
+    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
   } catch (error) {
     console.error("Error guardando congregación en Rust:", error);
     throw error;
@@ -214,17 +210,18 @@ export async function guardarCongregacion(cong: Congregacion) {
 export async function eliminarCongregacion(id: number) {
   try {
     await invoke('eliminar_congregacion_rust', { id });
+    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
   } catch (error) {
     console.error("Error eliminando congregación en Rust:", error);
     throw error;
   }
 }
 
-// --- 4. GESTIÓN DE CONFIGURACIÓN GLOBAL (AHORA EN RUST PURO) ---
-
+// --- 4. GESTIÓN DE CONFIGURACIÓN GLOBAL ---
 export async function guardarConfig(clave: string, valor: string) {
   try {
     await invoke('guardar_config_rust', { clave, valor });
+    // ⛔ AQUÍ NO PONEMOS EL DISPARADOR PARA EVITAR BUCLES INFINITOS
   } catch (error) {
     console.error("Error guardando config en Rust:", error);
     throw error;
@@ -240,7 +237,7 @@ export async function cargarConfig(clave: string): Promise<string | null> {
   }
 }
 
-// --- 5. GESTIÓN DE PERSONAS (MIGRADA A RUST PURO) ---
+// --- 5. GESTIÓN DE PERSONAS ---
 
 export async function obtenerPersonasPorCircuito(circuitoId: number): Promise<Persona[]> {
   try {
@@ -254,6 +251,7 @@ export async function obtenerPersonasPorCircuito(circuitoId: number): Promise<Pe
 export async function guardarPersona(p: Persona) {
   try {
     await invoke('guardar_persona_rust', { p });
+    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
   } catch (error) {
     console.error("Error guardando persona en Rust:", error);
     throw error;
@@ -263,13 +261,14 @@ export async function guardarPersona(p: Persona) {
 export async function eliminarPersona(id: number) {
   try {
     await invoke('eliminar_persona_rust', { id });
+    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
   } catch (error) {
     console.error("Error eliminando persona en Rust:", error);
     throw error;
   }
 }
 
-// --- 6. GESTIÓN DE HISTORIAL / ANÁLISIS DE CONGREGACIÓN (RUST PURO) ---
+// --- 6. GESTIÓN DE HISTORIAL ---
 
 export async function obtenerHistorialPorCongregacion(congregacion_id: number): Promise<VisitaHistorial[]> {
   try {
@@ -283,6 +282,7 @@ export async function obtenerHistorialPorCongregacion(congregacion_id: number): 
 export async function guardarHistorial(visita: VisitaHistorial) {
   try {
     await invoke('guardar_historial_rust', { visita });
+    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
   } catch (error) {
     console.error("Error guardando historial en Rust:", error);
     throw error;
@@ -292,6 +292,7 @@ export async function guardarHistorial(visita: VisitaHistorial) {
 export async function eliminarHistorial(id: number) {
   try {
     await invoke('eliminar_historial_rust', { id });
+    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
   } catch (error) {
     console.error("Error eliminando historial en Rust:", error);
     throw error;
@@ -299,13 +300,13 @@ export async function eliminarHistorial(id: number) {
 }
 
 export async function eliminarTodasLasPersonas(circuitoId: number) {
-  // Usamos el mismo string de conexión que usas arriba en initDB()
   const db = await Database.load('sqlite:av_database.db');
   await db.execute('DELETE FROM personas WHERE circuito_id = $1', [circuitoId]);
+  dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
 }
 
 export async function eliminarTodasLasCongregaciones(circuito: string) {
-  // Asegúrate de que el string sea exactamente el mismo que usas en initDB
   const db = await Database.load('sqlite:av_database.db');
   await db.execute('DELETE FROM congregaciones WHERE circuito = $1', [circuito]);
+  dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
-  // Importamos los nuevos iconos necesarios (BarChart2 y FileText)
-  import { ArrowLeft, HelpCircle, ChevronDown, ChevronUp, Database, Map, Users, Settings, BarChart2, FileText } from 'lucide-svelte';
+  // Importamos el icono RefreshCw para la nueva sección de sincronización
+  import { ArrowLeft, HelpCircle, ChevronDown, ChevronUp, Database, Map, Users, Settings, BarChart2, FileText, RefreshCw } from 'lucide-svelte';
 
   function volver() {
     window.history.back();
@@ -14,37 +14,93 @@
     seccionAbierta = seccionAbierta === id ? null : id;
   }
 
-  // Aquí está toda tu nueva lógica de ayuda detallada
+  // --- PREGUNTAS Y RESPUESTAS (Fáciles de editar) ---
   const faqs = [
     {
       id: "inicio_circuitos",
       icono: Map,
       pregunta: "1. Inicio y Gestión de Circuitos",
-      respuesta: "En la pantalla de inicio puedes <strong>Añadir un circuito</strong>. Un circuito es tu espacio de trabajo principal. Al entrar a un circuito, accederás a la gestión completa de sus congregaciones, estadísticas y personas. Si eliminas un circuito, también se borrará su historial."
+      respuesta: `
+        <p>En la pantalla de inicio puedes <strong>Añadir un circuito</strong>. Un circuito es tu espacio de trabajo principal.</p>
+        <p>Al entrar a un circuito, accederás a la gestión completa de sus congregaciones, estadísticas y personas.</p>
+        <p>Si eliminas un circuito, también se borrará su historial.</p>
+      `
     },
     {
       id: "congregaciones_estadisticas",
       icono: BarChart2,
       pregunta: "2. Congregaciones y Estadísticas",
-      respuesta: "Dentro del circuito, puedes añadir congregaciones manualmente o <strong>importar una lista mediante un archivo CSV</strong> (descargado de jw.org). <br><br>En la parte superior verás un <strong>Panel Estadístico</strong> que consolida los datos tomando como base la <em>última visita</em> realizada a cada congregación. Este panel te permite usar un botón para seleccionar qué datos específicos deseas ver, y muestra una lista desglosada de las congregaciones que han aportado registros."
+      respuesta: `
+        <p>Dentro del circuito, puedes añadir congregaciones manualmente o <strong>importar una lista mediante un archivo CSV</strong> (descargado de jw.org).</p>
+        <p>En la parte superior verás un <strong>Panel Estadístico</strong> que consolida los datos tomando como base la <em>última visita</em> realizada a cada congregación.</p>
+        <p>Este panel te permite usar un botón para seleccionar qué datos específicos deseas ver, y muestra una lista desglosada de las congregaciones que han aportado registros.</p>
+      `
     },
     {
       id: "visita_analisis",
       icono: FileText,
       pregunta: "3. Análisis y Revisión de Archivos",
-      respuesta: "Al entrar a una congregación, encontrarás dos paneles principales:<br><br>• <strong>Análisis de Congregación:</strong> Te permite tomar notas detalladas de los aspectos de la visita. Al guardar, esta información pasa al Historial, desde donde puedes exportarla como un documento PDF para futuras consultas.<br>• <strong>Revisión de Archivos:</strong> Un contador rápido para auditar las tarjetas de los publicadores (S-21), registros de territorios, etc. Al finalizar y guardar, los datos pasan al Historial (desde donde también puedes generar un PDF) y alimentan automáticamente las estadísticas generales del circuito."
+      respuesta: `
+        <p>Al entrar a una congregación, encontrarás dos paneles principales:</p>
+        <p>• <strong>Análisis de Congregación:</strong> Te permite tomar notas detalladas de los aspectos de la visita. Al guardar, esta información pasa al Historial, desde donde puedes exportarla como un documento PDF para futuras consultas.</p>
+        <p>• <strong>Revisión de Archivos:</strong> Un contador rápido para auditar las tarjetas de los publicadores (S-21), registros de territorios, etc. Al finalizar y guardar, los datos pasan al Historial (desde donde también puedes generar un PDF) y alimentan automáticamente las estadísticas generales del circuito.</p>
+      `
     },
     {
       id: "registro_personas",
       icono: Users,
       pregunta: "4. Registro de Personas (Ancianos)",
-      respuesta: "Dentro del circuito, cuentas con un panel llamado <strong>Registro de personas</strong>. Aquí puedes importar rápidamente una lista de ancianos utilizando un archivo CSV descargado de jw.org. También tienes la opción de añadir nombres de forma manual según lo necesites."
+      respuesta: `
+        <p>Dentro del circuito, cuentas con un panel llamado <strong>Registro de personas</strong>.</p>
+        <p>Aquí puedes importar rápidamente una lista de ancianos utilizando un archivo CSV descargado de jw.org. También tienes la opción de añadir nombres de forma manual según lo necesites.</p>
+      `
     },
     {
       id: "configuracion_perfil",
       icono: Settings,
-      pregunta: "5. Configuración, Sincronización y Topbar",
-      respuesta: "En la barra superior (Topbar) encontrarás botones rápidos para cambiar el tema visual (claro/oscuro), acceder a esta ayuda y entrar a Configuración. En la Configuración puedes gestionar:<br><br>• <strong>Perfil:</strong> Ajustar tu nombre y el texto de pie de página que aparecerá impreso en tus documentos PDF.<br>• <strong>Base de datos y respaldos:</strong> Crear copias de seguridad manuales de toda tu información y restaurarlas cuando lo necesites.<br>• <strong>Carpeta de sincronización:</strong> Configurar una ruta en la nube para mantener tu aplicación sincronizada con otros de tus dispositivos."
+      pregunta: "5. Configuración y Perfil",
+      respuesta: `
+        <p>En la barra superior (Topbar) encontrarás botones rápidos para cambiar el tema visual (claro/oscuro), acceder a esta ayuda y entrar a Configuración. En la Configuración puedes gestionar:</p>
+        <p>• <strong>Perfil:</strong> Ajustar tu nombre y el texto de pie de página que aparecerá impreso en tus documentos PDF.</p>
+        <p>• <strong>Base de datos y respaldos locales:</strong> Crear copias de seguridad manuales de toda tu información en tu equipo y restaurarlas cuando lo necesites.</p>
+      `
+    },
+    {
+      id: "sincronizacion_nube",
+      icono: RefreshCw,
+      pregunta: "6. Sincronización en la Nube y Conflictos",
+      respuesta: `
+        <p>Tu aplicación cuenta con un sistema de sincronización automática e inteligente para mantener tus datos seguros en todos tus dispositivos.</p>
+
+        <p><strong>¿Cómo configurar la sincronización por primera vez?</strong><br>
+        Ve al panel de <em>Configuración</em> y busca la sección "Sincronización Cloud Segura". Sigue estos 3 pasos:</p>
+        <p><strong>1.</strong> Ingresa tu correo electrónico y presiona "Solicitar Código de Acceso".<br>
+        <strong>2.</strong> Revisa tu correo (busca también en la carpeta de Spam/No deseado) y anota el código de seguridad de 6 dígitos.<br>
+        <strong>3.</strong> Escribe el código en la aplicación para verificar tu identidad. ¡Listo! Ya estás conectado y la app guardará todo automáticamente.</p>
+
+        <br>
+
+        <p><strong>¿Cómo funciona el guardado automático?</strong><br>
+        Una vez conectado, cada vez que agregas o modificas algo, la app espera 5 segundos y lo sube de forma invisible a la nube. En la barra superior verás un indicador visual:</p>
+
+        <p>
+          • 🟡 <strong>Esperando...</strong> Detectó un cambio y el cronómetro inició.<br>
+          • 🔵 <strong>Sincronizando...</strong> Se está comunicando con la nube.<br>
+          • 🟢 <strong>Al día:</strong> Tu información está segura y respaldada en el servidor.<br>
+          • 🔴 <strong>Conflicto:</strong> Alguien más (o tú en otro dispositivo) actualizó la nube.
+        </p>
+
+        <br>
+
+        <p><strong>Tutorial: ¿Qué hago si sale la alerta roja de Conflicto?</strong><br>
+        Si al abrir la app te aparece un cartel diciendo <em>'¡Nuevos datos detectados!'</em>, significa que la nube tiene datos más recientes. Tendrás dos opciones:</p>
+
+        <p><strong>1. Botón Azul (Descargar y sobrescribir):</strong> Úsalo el 99% de las veces. Esto descargará los datos nuevos de la nube a tu dispositivo actual para que estés al día.</p>
+
+        <p><strong>2. Botón Rojo (Ignorar y forzar subida local):</strong> Úsalo <strong>SOLO</strong> en emergencias. Por ejemplo, si trabajaste toda la mañana sin internet y sabes que esos datos en tu equipo son más importantes que los que están en la nube. Al presionarlo, aplastarás la nube y tu versión será la oficial.</p>
+
+        <p><strong>💡 Regla de Oro (Trabajo sin internet):</strong> Si trabajas sin internet en la calle con tu teléfono, al llegar a casa asegúrate de que el teléfono se conecte al Wi-Fi primero y su barra superior diga 'Al día' (puedes forzar la subida guardando cualquier cambio pequeño). Luego abre la computadora, te saltará la alerta roja, presionas el Botón Azul, ¡y listo! Todo tu trabajo estará unificado.</p>
+      `
     }
   ];
 </script>

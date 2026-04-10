@@ -19,6 +19,20 @@ function obtenerCabeceras(tokenUsuario?: string) {
 }
 
 /**
+ * Función auxiliar para obtener un nombre de dispositivo básico.
+ */
+export function obtenerNombreDispositivo(): string {
+  if (typeof navigator !== 'undefined') {
+    const ua = navigator.userAgent;
+    if (ua.includes("Android")) return "Android";
+    if (ua.includes("Windows")) return "PC Windows";
+    if (ua.includes("Mac OS")) return "MacBook / iMac";
+    if (ua.includes("Linux")) return "Linux";
+  }
+  return "Dispositivo Desconocido";
+}
+
+/**
  * 1. SOLICITAR CÓDIGO OTP
  * Se envía el correo electrónico al servidor para recibir un código de 6 dígitos.
  */
@@ -59,18 +73,45 @@ export async function verificarCodigoOtp(email: string, code: string) {
 }
 
 /**
- * 3. SUBIR RESPALDO (UPLOAD)
- * Sube los datos usando el Token de autorización del usuario.
+ * 3. CHEQUEAR ESTADO EN LA NUBE (NUEVO)
+ * Consulta ligera: Revisa cuándo fue el último respaldo y quién lo hizo sin descargar la BD.
  */
-export async function subirRespaldo(token: string, backupData: any) {
+export async function chequearEstadoNube(token: string) {
   try {
+    const response = await fetch(`${BASE_URL}/api/backups/${APP_ID}/check`, {
+      method: 'GET',
+      headers: obtenerCabeceras(token)
+    });
+
+    if (response.status === 404) return null; // No hay respaldos previos
+    if (!response.ok) throw new Error('Error al chequear el estado en la nube.');
+    
+    const data = await response.json();
+    // Esto debe devolver el objeto con last_synced_at y last_device
+    return data.backup; 
+  } catch (error) {
+    console.error("Error en chequearEstadoNube:", error);
+    throw error;
+  }
+}
+
+/**
+ * 4. SUBIR RESPALDO (UPLOAD)
+ * Sube los datos enviando dinámicamente el dispositivo y la fecha exacta.
+ */
+export async function subirRespaldo(token: string, backupData: any, fechaSync?: string) {
+  try {
+    const dispositivo = obtenerNombreDispositivo();
+    // Si no le pasamos una fecha exacta, genera la de este mismo milisegundo
+    const fecha = fechaSync || new Date().toISOString(); 
+
     const response = await fetch(`${BASE_URL}/api/backups/${APP_ID}`, {
       method: 'POST',
       headers: obtenerCabeceras(token),
       body: JSON.stringify({ 
         backup_data: backupData,
-        last_device: 'PC-Windows',
-        last_synced_at: new Date().toISOString()
+        last_device: dispositivo,
+        last_synced_at: fecha
       })
     });
 
@@ -83,8 +124,8 @@ export async function subirRespaldo(token: string, backupData: any) {
 }
 
 /**
- * 4. DESCARGAR RESPALDO (DOWNLOAD)
- * Extrae el último respaldo usando el método GET y el Token del usuario.
+ * 5. DESCARGAR RESPALDO (DOWNLOAD)
+ * Extrae el último respaldo completo usando el método GET.
  */
 export async function descargarRespaldo(token: string) {
   try {

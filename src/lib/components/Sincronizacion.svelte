@@ -168,11 +168,6 @@
 </script>
 
 <div class="sync-container">
-  <div class="sync-header">
-    <Server size={24} color="var(--primary)" />
-    <h3>Sincronización Cloud Segura</h3>
-    <p>Respalda tu información en el servidor sin usar contraseñas.</p>
-  </div>
 
   <div class="sync-form">
     {#if $sesionApp.verificando}
@@ -273,10 +268,7 @@
 
 <style>
   .mt-2 { margin-top: 10px; }
-  .sync-container { background: var(--bg-panel); border: var(--border-thin); border-radius: var(--radius-lg); padding: 25px; max-width: 500px; margin: 0 auto; box-shadow: var(--shadow-sm); }
-  .sync-header { text-align: center; margin-bottom: 25px; }
-  .sync-header h3 { margin: 10px 0 5px; color: var(--text-main); }
-  .sync-header p { margin: 0; font-size: 0.9rem; color: var(--text-muted); }
+  .sync-container { width: 100%; }
   .sync-form { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; }
   .input-group { display: flex; flex-direction: column; gap: 10px; }
   .input-group label { font-size: 0.85rem; font-weight: 600; color: var(--text-main); }
@@ -296,7 +288,7 @@
   .status-box.exito { background: rgba(16, 185, 129, 0.1); color: #059669; border: 1px solid rgba(16, 185, 129, 0.2); }
   .status-box.error { background: rgba(225, 29, 72, 0.1); color: #e11d48; border: 1px solid rgba(225, 29, 72, 0.2); }
   .sync-actions { display: flex; gap: 15px; }
-  .btn-sync { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  .btn-sync { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; transition: all 0.2s; }
   .btn-sync:disabled { opacity: 0.6; cursor: not-allowed; }
   .btn-upload { background: var(--primary); color: white; }
   .btn-upload:hover:not(:disabled) { filter: brightness(1.1); }

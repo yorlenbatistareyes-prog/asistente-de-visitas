@@ -44,8 +44,8 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.26": [
-      { texto: "Se añadió la opción de editar para hacer cualquier cambio desde el historial guardado. Permitirá que si después de guardar el archivo, te das cuenta que necesitas ajustar algún dato guardado, puedes modificarlo", tipo: "Zap," }
+    "1.0.27": [
+      { texto: "Se añadió la función de sincronización. Para saber cómo funciona, vaya a la sección de ayuda.", tipo: "Zap," }
       
     ]
   };
