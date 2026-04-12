@@ -1,6 +1,6 @@
 [package]
 name = "asistente-de-visitas"
-version = "1.0.27"
+version = "1.0.30"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -43,5 +43,4 @@ tokio = { version = "1", features = ["full"] }
 
 chrono = "0.4"
 whoami = "2.1"
-tauri-plugin-stronghold = "2"
 argon2 = "0.5.3"

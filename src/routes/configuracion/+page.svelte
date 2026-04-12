@@ -1,7 +1,7 @@
 <script lang="ts">
 
   import { 
-     FolderInput, User, Database, Globe, Save, ArrowLeft,  AlertTriangle, X, ArchiveRestore
+     CloudSync, FolderInput, User, Database, Globe, Save, ArrowLeft,  AlertTriangle, X, ArchiveRestore
   } from 'lucide-svelte';
   import { onMount } from 'svelte';
 
@@ -325,8 +325,11 @@ function handleModalKeydown(event: KeyboardEvent) {
 
     <section class="card-global config-section">
       <div class="section-icon">
-        <Globe size={24} />
+        <div class="section-icon">
+          <CloudSync size={28} />
+        </div>
       </div>
+
       <div class="section-content">
         <h3>Sincronización Cloud Segura</h3>
         <p>Respalda tu información en el servidor de forma automática e inteligente, sin usar contraseñas.</p>
@@ -600,16 +603,21 @@ function handleModalKeydown(event: KeyboardEvent) {
 
   /* ESTILOS DEL MODAL DE RESET */
   .modal-backdrop {
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    position: fixed; inset: 0;
     background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px);
-    display: flex; justify-content: center; align-items: center; z-index: 9999;
+    display: flex; justify-content: center; align-items: center; z-index: 9999; padding: 20px;
   }
 
   .danger-modal {
-    background: var(--bg-panel); width: 90%; max-width: 450px;
+    box-sizing: border-box;
+    background: var(--bg-panel); width: 88%; max-width: 450px;
     border-radius: var(--radius-lg); padding: 30px; border: 1px solid #ef4444;
     box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
     display: flex; flex-direction: column; gap: 15px; animation: zoomIn 0.2s ease-out;
+    /* 🌟 REGLAS PARA CENTRADO PERFECTO EN MÓVILES */
+    max-height: 90vh; /* Nunca será más alto que la pantalla */
+    overflow-y: auto; /* Agrega scroll interno si la pantalla es muy bajita */
+    margin: auto; /* Refuerzo para el centrado vertical y horizontal */
   }
 
   .modal-header { display: flex; justify-content: space-between; align-items: center; }
@@ -707,9 +715,10 @@ function handleModalKeydown(event: KeyboardEvent) {
 
   /* Ajustes para el Modal de Reset en móvil */
   @media (max-width: 480px) {
-    .danger-modal {
-      padding: 20px;
-      gap: 20px;
+    .danger-modal, .restore-modal {
+      width: 90%; /* Ancho perfecto con sus márgenes a los lados */
+      padding: 20px; /* Relleno cómodo */
+      gap: 15px;
     }
 
     .modal-footer {
@@ -720,6 +729,18 @@ function handleModalKeydown(event: KeyboardEvent) {
     .modal-footer .btn-global {
       width: 100%;
       height: 48px;
+    }
+  
+    /* 🌟 APILAMOS LAS TARJETAS PARA QUE NO SE APLASTEN */
+    .comparacion-container {
+      flex-direction: column;
+      padding: 15px;
+      gap: 5px;
+    }
+
+    .flecha-centro {
+      transform: rotate(90deg); /* Voltea la flechita hacia abajo */
+      padding: 5px 0;
     }
   }
 
@@ -830,17 +851,22 @@ function handleModalKeydown(event: KeyboardEvent) {
      ESTILOS DEL MODAL DE RESTAURACIÓN
      ============================================= */
   .restore-modal {
+    box-sizing: border-box;
     background: var(--bg-panel); /* Esto le quita lo transparente */
-    width: 90%;
+    width: 88%;
     max-width: 500px;
     border-radius: var(--radius-lg);
-    padding: 30px; /* Espaciado para que no se vea apretado */
+    padding: 25px; /* Espaciado para que no se vea apretado */
     border: 1px solid #2563eb;
     box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
     display: flex;
     flex-direction: column;
     gap: 15px;
     animation: zoomIn 0.2s ease-out;
+    /* 🌟 AGREGA ESTO PARA ASEGURAR EL CENTRADO VERTICAL: */
+    max-height: 90vh; /* Nunca será más alto que la pantalla */
+    overflow-y: auto; /* Si el celular es muy bajito, crea un mini-scroll interior */
+    margin: auto; /* Refuerzo para el centrado absoluto */
   }
 
   .header-title-restore { display: flex; align-items: center; gap: 10px; }

@@ -44,8 +44,8 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.27": [
-      { texto: "Se añadió la función de sincronización. Para saber cómo funciona, vaya a la sección de ayuda.", tipo: "Zap," }
+    "1.0.30": [
+      { texto: "Se mejoró visualmente las funciones y modales de sincronización.", tipo: "Zap," }
       
     ]
   };

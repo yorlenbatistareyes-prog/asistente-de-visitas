@@ -36,7 +36,7 @@
       "allow": [
         "**"
       ]
-    },
-    "stronghold:default"
+    }
+    
   ]
 }

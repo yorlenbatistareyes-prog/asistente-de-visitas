@@ -157,13 +157,29 @@
 
   // --- CERRAR SESIÓN ---
   async function cerrarSesion() {
-    await cerrarSesionSegura(); // Esto borra la bóveda y resetea $sesionApp
-    inputEmail = '';
-    codigoOtp = '';
-    otpArray = ['', '', '', '', '', ''];
-    pasoLogin = 1;
-    estado = 'inactivo';
-    mensaje = '';
+    try {
+      estado = 'cargando';
+      mensaje = 'Cerrando sesión...';
+      
+      // Intentamos borrar la bóveda
+      await cerrarSesionSegura(); 
+    } catch (error) {
+      console.error("Error al borrar la bóveda:", error);
+    } finally {
+      // 🌟 ESTO OBLIGA A LA PANTALLA A VOLVER AL PASO 1 PASE LO QUE PASE
+      inputEmail = '';
+      codigoOtp = '';
+      otpArray = ['', '', '', '', '', ''];
+      pasoLogin = 1;
+      
+      // Forzamos manualmente el estado reactivo por si la Store falló
+      $sesionApp.isLoggedIn = false; 
+      $sesionApp.correo = '';
+      $sesionApp.token = '';
+      
+      estado = 'inactivo';
+      mensaje = '';
+    }
   }
 </script>
 
@@ -298,9 +314,38 @@
   @keyframes spin { 100% { transform: rotate(360deg); } }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
   @media (max-width: 480px) { .sync-actions { flex-direction: column; } .botones-paso2 { flex-direction: column-reverse; } }
-  .otp-container { display: flex; justify-content: center; gap: 10px; margin: 10px 0; }
-  .otp-input { width: 45px; height: 50px; text-align: center; font-size: 1.5rem; font-weight: bold; border: 2px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-app); color: var(--text-main); transition: all 0.2s ease; }
+ .otp-container { 
+    display: flex; 
+    justify-content: center; 
+    gap: 8px; 
+    margin: 15px 0; 
+    width: 100%; 
+    box-sizing: border-box;
+  }
+  .otp-input { 
+    width: 100%; 
+    max-width: 45px; /* Nunca serán más grandes que 45px */
+    height: 52px; 
+    text-align: center; 
+    font-size: 1.5rem; 
+    font-weight: bold; 
+    border: 2px solid var(--border-color); 
+    border-radius: var(--radius-sm); 
+    background: var(--bg-app); 
+    color: var(--text-main); 
+    transition: all 0.2s ease;
+    padding: 0; /* Vital para que no sume ancho extra */
+  }
   .otp-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.2); }
   .otp-input:disabled { opacity: 0.6; cursor: not-allowed; background: var(--bg-panel); }
-  @media (max-width: 480px) { .otp-container { gap: 6px; } .otp-input { width: 40px; height: 45px; font-size: 1.25rem; } }
+  
+  @media (max-width: 480px) { 
+    .otp-container { gap: 5px; } 
+    .otp-input { 
+      max-width: 40px; 
+      height: 48px; 
+      font-size: 1.25rem; 
+      border-width: 1px;
+    } 
+  }
 </style>
