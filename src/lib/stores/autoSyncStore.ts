@@ -50,7 +50,7 @@ export function dispararSincronizacionLocal() {
  * Función interna: Ocurre cuando el cronómetro llega a 0.
  */
 async function procesarSubidaAutomatica(token: string) {
-    estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Sincronizando con la nube...' }));
+    estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Sincronizando...' }));
 
     try {
         // --- PREVENCIÓN DE CONFLICTOS ---
@@ -92,8 +92,8 @@ async function procesarSubidaAutomatica(token: string) {
         // F. MUY IMPORTANTE: Actualizamos nuestra marca de tiempo local
         await guardarConfig('last_synced_at', fechaActual);
 
-        // G. Éxito
-        estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Nube actualizada!' }));
+       // G. Éxito
+        estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: 'Sincronizado con éxito' }));
 
         // Después de 3 segundos, ocultamos el mensaje para no molestar
         setTimeout(() => {
@@ -129,7 +129,7 @@ export function resetearEstadoSincronizacion() {
 export async function registrarSubidaManualExitosa() {
     const fechaActual = new Date().toISOString();
     await guardarConfig('last_synced_at', fechaActual);
-    estadoSincronizacion.set({ estado: 'al_dia', mensaje: '¡Nube actualizada!', nubeDispositivo: '', nubeFecha: '' });
+    estadoSincronizacion.set({ estado: 'al_dia', mensaje: 'Sincronizado con éxito', nubeDispositivo: '', nubeFecha: '' });
     
     // Lo ocultamos a los 3 segundos igual que el automático
     setTimeout(() => {

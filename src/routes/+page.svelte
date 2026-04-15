@@ -94,7 +94,10 @@
     await chequearNubeAlArrancar(); // Radar silencioso de fondo
   });
 
-  async function chequearNubeAlArrancar() {
+ async function chequearNubeAlArrancar() {
+    // 🛑 1. EL POST-IT: Si ya revisamos en esta sesión, apagamos el radar inmediatamente para ahorrar recursos
+    if (sessionStorage.getItem('radar_completado')) return;
+
     const sesion = get(sesionApp);
     if (!sesion.isLoggedIn || !sesion.token) return; 
 
@@ -117,16 +120,17 @@
         // 🌟 Le avisamos a la barra superior que hay un conflicto (Se pondrá ROJA)
         estadoSincronizacion.set({ estado: 'conflicto', mensaje: 'Hay datos nuevos en la nube', nubeDispositivo: infoNube.dispositivo, nubeFecha: infoNube.fecha });
         mostrandoModalConflicto = true; 
-      } else {
-        // 🌟 Si no hay conflicto, le decimos a la barra que todo está perfecto (Se pondrá VERDE por 3 segs)
-        estadoSincronizacion.set({ estado: 'al_dia', mensaje: 'Nube al día', nubeDispositivo: '', nubeFecha: '' });
-        setTimeout(() => estadoSincronizacion.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '' }), 3000);
-      }
+      } 
+      
+      // ✅ 2. PONER EL POST-IT: Todo salió bien o ya avisamos del conflicto. 
+      // Anotamos que ya revisamos por hoy. ¡Silencio total!
+      sessionStorage.setItem('radar_completado', 'true');
+
     } catch (e) {
       console.error("Radar silencioso falló:", e);
     }
   }
-
+  
   // --- FUNCIONES PARA RESOLVER EL CONFLICTO ---
   async function resolverDescargando() {
     procesandoConflicto = true;

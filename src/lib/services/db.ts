@@ -221,7 +221,12 @@ export async function eliminarCongregacion(id: number) {
 export async function guardarConfig(clave: string, valor: string) {
   try {
     await invoke('guardar_config_rust', { clave, valor });
-    // ⛔ AQUÍ NO PONEMOS EL DISPARADOR PARA EVITAR BUCLES INFINITOS
+    
+    // 🧠 LA INTELIGENCIA: Dispara la sincronización SOLO si no es el reloj interno
+    if (clave !== 'last_synced_at') {
+      dispararSincronizacionLocal();
+    }
+    
   } catch (error) {
     console.error("Error guardando config en Rust:", error);
     throw error;

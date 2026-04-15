@@ -55,7 +55,7 @@
           >
             {#if $estadoSincronizacion.estado === 'esperando'}
               <Clock size={16} class="pulse-icon" />
-              <span class="badge-text">Esperando...</span>
+              <span class="badge-text">{$estadoSincronizacion.mensaje}</span>
             
             {:else if $estadoSincronizacion.estado === 'sincronizando'}
               <Loader2 size={16} class="spin-icon" />
@@ -63,15 +63,15 @@
             
             {:else if $estadoSincronizacion.estado === 'al_dia'}
               <CheckCircle size={16} />
-              <span class="badge-text">Al día</span>
+              <span class="badge-text">{$estadoSincronizacion.mensaje}</span>
             
             {:else if $estadoSincronizacion.estado === 'conflicto'}
               <AlertTriangle size={16} />
-              <span class="badge-text">Conflicto</span>
+              <span class="badge-text">{$estadoSincronizacion.mensaje}</span>
             
             {:else if $estadoSincronizacion.estado === 'error'}
               <CloudOff size={16} />
-              <span class="badge-text">Error</span>
+              <span class="badge-text">{$estadoSincronizacion.mensaje}</span>
             {/if}
           </div>
         {/if}
