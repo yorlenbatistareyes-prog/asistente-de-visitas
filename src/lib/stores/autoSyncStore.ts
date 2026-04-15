@@ -122,3 +122,17 @@ async function procesarSubidaAutomatica(token: string) {
 export function resetearEstadoSincronizacion() {
     estadoSincronizacion.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '' });
 }
+
+/**
+ * Función extra: Llamar cuando se haga una subida MANUAL exitosa para evitar falsos conflictos.
+ */
+export async function registrarSubidaManualExitosa() {
+    const fechaActual = new Date().toISOString();
+    await guardarConfig('last_synced_at', fechaActual);
+    estadoSincronizacion.set({ estado: 'al_dia', mensaje: '¡Nube actualizada!', nubeDispositivo: '', nubeFecha: '' });
+    
+    // Lo ocultamos a los 3 segundos igual que el automático
+    setTimeout(() => {
+        estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
+    }, 3000);
+}

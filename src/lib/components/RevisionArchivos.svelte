@@ -3,7 +3,8 @@
   import { onMount, createEventDispatcher } from 'svelte';
   import { cargarConfig, guardarConfig, initDB } from '$lib/services/db';
   import { notificarCambioHistorial } from '$lib/stores/appStore';
-    import type ArrowUp_0_1 from 'lucide-svelte/icons/arrow-up-0-1';
+  import type ArrowUp_0_1 from 'lucide-svelte/icons/arrow-up-0-1';
+  import { dispararSincronizacionLocal } from '$lib/stores/autoSyncStore';
 
   export let nombreCongregacion = '';
   const dispatch = createEventDispatcher();
@@ -127,6 +128,7 @@
     try {
       const clave = `revision_${nombreCongregacion}`;
       await guardarConfig(clave, JSON.stringify({ contadores, fechaRevision }));
+      dispararSincronizacionLocal();
       exito = true;
       setTimeout(() => exito = false, 2500); 
     } catch (error) { console.error("Error al guardar:", error); } 

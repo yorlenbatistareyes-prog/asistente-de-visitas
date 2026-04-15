@@ -10,6 +10,8 @@
   import type { TDocumentDefinitions } from 'pdfmake/interfaces';
   import { initDB } from '$lib/services/db';
 
+  import { dispararSincronizacionLocal } from '$lib/stores/autoSyncStore';
+
   export let nombreCongregacion: string;
   export let visitaResaltada: number | null = null; 
 
@@ -88,6 +90,7 @@
     try {
       const db = await initDB();
       await db.execute('DELETE FROM historial_visitas WHERE id = $1', [idVisita]);
+      dispararSincronizacionLocal();
       await cargarHistorial(); // Refrescamos la lista
     } catch(e) { 
       alert("Error al eliminar el registro."); 
@@ -184,6 +187,8 @@
       }
 
       await db.execute('UPDATE historial_visitas SET contenido = $1 WHERE id = $2', [nuevoContenido, visita.id]);
+      
+      dispararSincronizacionLocal();
       
       historial[index].contenido = nuevoContenido;
       editando[index] = false;

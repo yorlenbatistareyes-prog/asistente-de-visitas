@@ -11,6 +11,10 @@
   import { createPdf } from '$lib/utils/pdfConfig';
   
   import { fechaPorCongregacion, resumenUltimoAnalisis } from '$lib/stores/appStore';
+  
+  // 👇 NUEVO: Importamos el cerebro de sincronización
+import { dispararSincronizacionLocal } from '$lib/stores/autoSyncStore';
+  
   const dispatch = createEventDispatcher();
   
   export let nombreCongregacion: string;
@@ -214,6 +218,9 @@
       const valorJSON = JSON.stringify(registro);
       await guardarConfig(claveBorrador, valorJSON);
       
+      // ⏰ NUEVO: Lo ponemos aquí para que detecte la Fecha y el Checklist también
+      dispararSincronizacionLocal(); 
+      
       if (idModificado) await new Promise(r => setTimeout(r, 400));
       
       if (idModificado) {
@@ -234,7 +241,7 @@
     if (moduloActivo) {
       const idActual = moduloActivo.id;
       moduloActivo = null; 
-      await guardarCambios(idActual); 
+      await guardarCambios(idActual); // Este ya trae el gatillo incluido por dentro
     }
   }
 
@@ -269,6 +276,7 @@
       
       await guardarConfig(`borrador_${nombreCongregacion}`, "{}");
       registro = { ...valoresPorDefecto };
+      dispararSincronizacionLocal();
       dispatch('limpiarFormulario');
       alert("✅ Informe finalizado y guardado en historial.");
     } catch (e) { alert("❌ Error al finalizar."); }

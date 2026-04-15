@@ -13,6 +13,8 @@ export async function prepararDatosParaSubir() {
     const congregaciones = await db.select('SELECT * FROM congregaciones');
     const personas = await db.select('SELECT * FROM personas');
     const historial = await db.select('SELECT * FROM historial_visitas');
+// 👇 NUEVO: Rescatamos SOLO los borradores de la configuración
+    const borradores = await db.select("SELECT * FROM configuracion WHERE clave LIKE 'borrador_%'");
 
     // 2. Armamos el paquete JSON completo
     const paqueteRespaldo = {
@@ -22,7 +24,8 @@ export async function prepararDatosParaSubir() {
         circuitos: circuitos || [],
         congregaciones: congregaciones || [],
         personas: personas || [],
-        historial_visitas: historial || []
+        historial_visitas: historial || [],
+        borradores: borradores || [] // <-- Lo metemos en la maleta
       }
     };
 
@@ -45,73 +48,40 @@ export async function restaurarDatosDeDescarga(jsonData: any) {
       throw new Error("El archivo de respaldo está corrupto o vacío.");
     }
 
-    const { circuitos, congregaciones, personas, historial_visitas } = jsonData.tablas;
+    // Extraemos las tablas, incluyendo los borradores
+    const { circuitos, congregaciones, personas, historial_visitas, borradores } = jsonData.tablas;
 
     // 2. BORRADO EN ORDEN INVERSO (ZONA CRÍTICA)
-    // Para evitar errores de llaves foráneas (ON DELETE CASCADE), 
-    // primero se borran los "hijos" y luego los "padres".
     await db.execute('DELETE FROM historial_visitas');
     await db.execute('DELETE FROM personas');
     await db.execute('DELETE FROM congregaciones');
     await db.execute('DELETE FROM circuitos');
+    await db.execute("DELETE FROM configuracion WHERE clave LIKE 'borrador_%'"); // <-- Limpiamos borradores viejos
 
-    // 3. Insertamos los Circuitos (Padres nivel 1)
-    if (circuitos && circuitos.length > 0) {
-      for (const cir of circuitos) {
+    /// 3. FUNCIÓN: Inserta cualquier tabla dinámicamente con todas sus columnas
+    const insertarDinamico = async (nombreTabla: string, datos: any[]) => {
+      if (!datos || datos.length === 0) return;
+      
+      for (const fila of datos) {
+        // Envolvemos las columnas en comillas por seguridad
+        const columnas = Object.keys(fila).map(k => `"${k}"`).join(', ');
+        // Creamos los comodines ($1, $2, $3...)
+        const comodines = Object.keys(fila).map((_, i) => `$${i + 1}`).join(', ');
+        const valores = Object.values(fila);
+
         await db.execute(
-          'INSERT INTO circuitos (id, nombre, etiquetas, fechaCreacion, fechaInicio, fechaFin) VALUES ($1, $2, $3, $4, $5, $6)',
-          [cir.id, cir.nombre, cir.etiquetas, cir.fechaCreacion, cir.fechaInicio, cir.fechaFin]
+          `INSERT INTO ${nombreTabla} (${columnas}) VALUES (${comodines})`, 
+          valores
         );
       }
-    }
+    };
 
-    // 4. Insertamos las Congregaciones (Hijos de circuito, padres de historial)
-    if (congregaciones && congregaciones.length > 0) {
-      for (const cong of congregaciones) {
-        await db.execute(
-          `INSERT INTO congregaciones 
-          (id, circuito, nombre, enVisita, ciudad, provincia, pais, idioma, esLenguaSenas, telefono, horaSemana, horaFinSemana, diaSemana, diaFinSemana) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`, 
-          [
-            cong.id, cong.circuito, cong.nombre, cong.enVisita, 
-            cong.ciudad, cong.provincia, cong.pais, cong.idioma, 
-            cong.esLenguaSenas, cong.telefono, cong.horaSemana, 
-            cong.horaFinSemana, cong.diaSemana, cong.diaFinSemana
-          ]
-        );
-      }
-    }
-
-    // 5. Insertamos las Personas (Hijos de circuito)
-    if (personas && personas.length > 0) {
-      for (const per of personas) {
-        await db.execute(
-          `INSERT INTO personas 
-          (id, circuito_id, nombre, segundo_nombre, apellidos, privilegio, congregacion, direccion, telefono_celular, telefono_fijo, email) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-          [
-            per.id, per.circuito_id, per.nombre, per.segundo_nombre, per.apellidos, 
-            per.privilegio, per.congregacion, per.direccion, per.telefono_celular, 
-            per.telefono_fijo, per.email
-          ]
-        );
-      }
-    }
-
-    // 6. Insertamos el Historial de Visitas (Hijos de congregaciones)
-    if (historial_visitas && historial_visitas.length > 0) {
-      for (const visita of historial_visitas) {
-        await db.execute(
-          `INSERT INTO historial_visitas 
-          (id, congregacion_id, fecha, tipo, completado, contenido) 
-          VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            visita.id, visita.congregacion_id, visita.fecha, 
-            visita.tipo, visita.completado, visita.contenido
-          ]
-        );
-      }
-    }
+    // 4. Restauramos todas las tablas y borradores en 5 simples líneas
+    await insertarDinamico('circuitos', circuitos);
+    await insertarDinamico('congregaciones', congregaciones);
+    await insertarDinamico('personas', personas);
+    await insertarDinamico('historial_visitas', historial_visitas);
+    if (borradores) await insertarDinamico('configuracion', borradores); // <-- Inyectamos los borradores
 
     return true; 
 

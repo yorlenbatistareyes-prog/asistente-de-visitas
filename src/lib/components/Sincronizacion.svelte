@@ -6,6 +6,8 @@
   import { solicitarCodigoOtp, verificarCodigoOtp, subirRespaldo, descargarRespaldo } from '$lib/services/syncService';
   import { notificarCambioHistorial } from '$lib/stores/appStore';
 
+  import { registrarSubidaManualExitosa } from '$lib/stores/autoSyncStore';
+
   // Importamos la STORE REACTIVA y sus funciones
   import { sesionApp, arrancarAplicacion, guardarSesion, cerrarSesionSegura } from '$lib/stores/authStore';
 
@@ -118,6 +120,10 @@
       const jsonListo = await prepararDatosParaSubir();
       // Usamos la llave guardada globalmente
       await subirRespaldo($sesionApp.token, jsonListo);
+
+      // 👇 LA CURA: Le avisamos al cerebro que actualice su reloj local
+      await registrarSubidaManualExitosa();
+
       estado = 'exito';
       mensaje = '¡Respaldo subido correctamente!';
       setTimeout(() => estado = 'inactivo', 5000);
