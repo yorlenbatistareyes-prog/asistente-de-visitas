@@ -44,7 +44,7 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.32": [
+    "1.0.34": [
       { texto: "Se mejoró la función de sincronización.", tipo: "Bug," }
       
     ]
