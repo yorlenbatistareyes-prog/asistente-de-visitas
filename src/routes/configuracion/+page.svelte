@@ -1,7 +1,7 @@
 <script lang="ts">
 
   import { 
-     CloudSync, FolderInput, User, Database, Globe, Save, ArrowLeft,  AlertTriangle, X, ArchiveRestore
+     CloudSync, FolderInput, User, Database, Globe, Save, ArrowLeft,  AlertTriangle, X, ArchiveRestore, DownloadCloud
   } from 'lucide-svelte';
   import { onMount } from 'svelte';
 
@@ -14,6 +14,8 @@
   
   // IMPORTAMOS TUS FUNCIONES DESDE db.ts
   import Sincronizacion from '$lib/components/Sincronizacion.svelte';
+
+  import { verificarActualizacion, irA_Descarga } from '$lib/services/updater';
 
   // --- VARIABLES DE ESTADO GLOBALES ---
   let nombreUsuario = "";
@@ -102,6 +104,20 @@
 
     cargarTodo();
   });
+
+// --- LÓGICA DE ACTUALIZACIONES ---
+  let buscandoUpdate = false;
+  let updateInfo: any = null;
+
+  async function buscarActualizaciones() {
+    buscandoUpdate = true;
+    updateInfo = await verificarActualizacion();
+    buscandoUpdate = false;
+    
+    if (!updateInfo.hayNueva) {
+      alert("¡Estás al día! Tienes la última versión instalada.");
+    }
+  }
 
   function volver() {
     window.history.back();
@@ -388,6 +404,34 @@ function handleModalKeydown(event: KeyboardEvent) {
     </button>
   </footer>
 </div>
+
+<section class="card-global config-section">
+      <div class="section-icon"><DownloadCloud size={24} /></div>
+      <div class="section-content">
+        <h3>Actualizaciones de la App</h3>
+        <p>Busca e instala la última versión de Asistente de Visitas.</p>
+        
+        <button class="btn-global btn-outline" on:click={buscarActualizaciones} disabled={buscandoUpdate}>
+          {#if buscandoUpdate}
+            Buscando en el servidor...
+          {:else}
+            <DownloadCloud size={16} /> Buscar Actualizaciones
+          {/if}
+        </button>
+
+        {#if updateInfo?.hayNueva}
+          <div class="alerta-update">
+            <div class="alerta-texto">
+              <h4>¡Nueva versión v{updateInfo.version} disponible!</h4>
+              <p>Hay una actualización lista para instalar.</p>
+            </div>
+            <button class="btn-global btn-primary" on:click={irA_Descarga}>
+              Actualizar Ahora
+            </button>
+          </div>
+        {/if}
+      </div>
+    </section>
 
 {#if mostrarModalRestaurar}
   <div class="modal-backdrop" role="button" tabindex="0">
@@ -1008,6 +1052,46 @@ function handleModalKeydown(event: KeyboardEvent) {
     .btn-sm {
       width: 100%; /* Los botones de mantenimiento ocupan todo el ancho */
       padding: 12px !important; /* Un poco más altos para tocarlos fácil con el dedo */
+    }
+  }
+
+  /* --- ESTILOS DEL AVISO DE ACTUALIZACIÓN --- */
+  .alerta-update {
+    margin-top: 20px;
+    padding: 15px 20px;
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .alerta-texto h4 {
+    margin: 0 0 5px 0;
+    color: #16a34a;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .alerta-texto p {
+    margin: 0;
+    color: var(--text-main);
+    font-size: 0.85rem;
+  }
+
+  :global(.dark) .alerta-texto h4 { color: #4ade80; }
+
+  @media (max-width: 600px) {
+    .alerta-update {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .alerta-update button {
+      width: 100%;
+      justify-content: center;
     }
   }
 </style>
