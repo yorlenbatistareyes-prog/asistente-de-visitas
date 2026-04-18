@@ -51,9 +51,8 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.34": [
-      { texto: "Se mejoró la función de sincronización.", tipo: "Bug," }
-      
+    "1.0.35": [
+      { texto: "Sistema de actualización de la aplicación añadido. Puede ver el panel de actualización en la sección de configuración.", tipo: "Zap" }
     ]
   };
 
