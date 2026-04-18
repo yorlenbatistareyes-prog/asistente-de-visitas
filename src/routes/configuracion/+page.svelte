@@ -405,33 +405,35 @@ function handleModalKeydown(event: KeyboardEvent) {
   </footer>
 </div>
 
-<section class="card-global config-section">
-      <div class="section-icon"><DownloadCloud size={24} /></div>
-      <div class="section-content">
-        <h3>Actualizaciones de la App</h3>
-        <p>Busca e instala la última versión de Asistente de Visitas.</p>
-        
-        <button class="btn-global btn-outline" on:click={buscarActualizaciones} disabled={buscandoUpdate}>
-          {#if buscandoUpdate}
-            Buscando en el servidor...
-          {:else}
-            <DownloadCloud size={16} /> Buscar Actualizaciones
-          {/if}
-        </button>
-
-        {#if updateInfo?.hayNueva}
-          <div class="alerta-update">
-            <div class="alerta-texto">
-              <h4>¡Nueva versión v{updateInfo.version} disponible!</h4>
-              <p>Hay una actualización lista para instalar.</p>
-            </div>
-            <button class="btn-global btn-primary" on:click={irA_Descarga}>
-              Actualizar Ahora
-            </button>
-          </div>
+<div class="contenedor-independiente-update">
+  <section class="card-global config-section panel-actualizador">
+    <div class="section-icon"><DownloadCloud size={24} /></div>
+    <div class="section-content">
+      <h3 class="titulo-actualizador">Actualizaciones de la aplicación</h3>
+      <p class="subtitulo-actualizador">Busque e instale la última versión de Asistente de Visitas.</p>
+      
+      <button class="btn-verificar-update" on:click={buscarActualizaciones} disabled={buscandoUpdate}>
+        {#if buscandoUpdate}
+          Buscando...
+        {:else}
+          <DownloadCloud size={16} /> Verifique las actualizaciones
         {/if}
-      </div>
-    </section>
+      </button>
+
+      {#if updateInfo?.hayNueva}
+        <div class="alerta-update">
+          <div class="alerta-texto">
+            <h4>¡Nueva versión v{updateInfo.version} disponible!</h4>
+            <p>Hay una actualización lista para instalar.</p>
+          </div>
+          <button class="btn-global btn-primary" on:click={irA_Descarga}>
+            Actualizar Ahora
+          </button>
+        </div>
+      {/if}
+    </div>
+  </section>
+</div>
 
 {#if mostrarModalRestaurar}
   <div class="modal-backdrop" role="button" tabindex="0">
@@ -1092,6 +1094,90 @@ function handleModalKeydown(event: KeyboardEvent) {
     .alerta-update button {
       width: 100%;
       justify-content: center;
+    }
+  }
+
+  /* === CONTENEDOR INDEPENDIENTE (CENTRADO Y RESPONSIVO) === */
+  .contenedor-independiente-update {
+    width: 100%;
+    max-width: 900px;
+    margin: 20px auto 40px auto; /* Centrado absoluto */
+    padding: 0 15px;
+    box-sizing: border-box;
+  }
+
+  .panel-actualizador {
+    background: var(--bg-panel);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    gap: 25px;
+    padding: 30px;
+    width: 100%;
+    box-sizing: border-box;
+    align-items: flex-start;
+  }
+
+  .titulo-actualizador {
+    font-size: 1.3rem !important;
+    color: var(--text-main) !important;
+    font-weight: 700 !important;
+    margin-bottom: 5px !important;
+  }
+
+  .subtitulo-actualizador {
+    color: var(--text-muted) !important;
+    font-size: 0.9rem !important;
+    margin-bottom: 20px !important;
+  }
+
+  /* BOTÓN VERDE */
+  .btn-verificar-update {
+    background-color: #00a651;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-verificar-update:hover:not(:disabled) {
+    background-color: #008f45;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 166, 81, 0.3);
+  }
+
+  .btn-verificar-update:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* === MODO MÓVIL (RESPONSIVO) === */
+  @media (max-width: 768px) {
+    .panel-actualizador {
+      flex-direction: column;
+      padding: 20px;
+      gap: 15px;
+      text-align: center;
+    }
+
+    .panel-actualizador :global(.section-icon) {
+      margin: 0 auto;
+    }
+
+    .btn-verificar-update {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .alerta-update {
+      flex-direction: column;
+      gap: 15px;
     }
   }
 </style>
