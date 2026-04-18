@@ -11,6 +11,8 @@
   import { getVersion } from '@tauri-apps/api/app'; 
   import { cargarConfig, guardarConfig } from '$lib/services/db';
 
+  import { verificarActualizacion, irA_Descarga } from '$lib/services/updater';
+
   // Importamos los iconos que usaremos
   import { 
     CheckCircle2, Bell, Smartphone, Zap, Info, 
@@ -19,10 +21,15 @@
     Save,        // 👈 Para temas de guardado o Backups
     Palette,     // 👈 Para cambios de colores o diseño (UI)
     ShieldCheck, // 👈 Para seguridad o permisos de Android
-    Bug          // 👈 Para cuando arregles un error específico
+    Bug,          // 👈 Para cuando arregles un error específico
+
+    DownloadCloud, X
   } from "lucide-svelte";
 
   let mostrarNovedades = false; 
+  // Variables para la actualización automática
+  let avisoUpdateVisible = false;
+  let updateInfo: any = null;
   let versionActual = "";
   
   // Ahora es un array de objetos
@@ -103,6 +110,19 @@
     } catch (e) { 
       console.error("Error en versión:", e); 
     }
+
+    // 4. 🚀 VIGILANTE SILENCIOSO DE ACTUALIZACIONES
+    setTimeout(async () => {
+      try {
+        const info = await verificarActualizacion();
+        if (info && info.hayNueva) {
+          updateInfo = info;
+          avisoUpdateVisible = true;
+        }
+      } catch (e) {
+        // Si falla (por ejemplo, no hay internet), lo ignoramos en completo silencio
+      }
+    }, 3000); // 3000ms = Espera 3 segundos para no poner lenta la carga inicial de la app
   });
 </script>
 
@@ -135,6 +155,25 @@
       </ul>
       
       <button class="btn-entendido" on:click={cerrarNovedades}>¡Excelente!</button>
+    </div>
+  </div>
+{/if}
+
+{#if avisoUpdateVisible}
+  <div class="banner-flotante-update">
+    <div class="banner-contenido">
+      <div class="icono-banner">
+        <DownloadCloud size={20} color="#10b981" />
+      </div>
+      <span>¡Hay una nueva versión <strong>v{updateInfo.version}</strong> disponible!</span>
+    </div>
+    <div class="banner-botones">
+      <button class="btn-actualizar-ahora" on:click={irA_Descarga}>
+        Instalar
+      </button>
+      <button class="btn-cerrar-banner" on:click={() => avisoUpdateVisible = false}>
+        <X size={18} />
+      </button>
     </div>
   </div>
 {/if}
@@ -224,4 +263,98 @@
     padding-top: 4px;
   }
 
+/* === BANNER FLOTANTE DE ACTUALIZACIÓN === */
+  .banner-flotante-update {
+    position: fixed;
+    bottom: 60px; /* Un poco arriba para que no lo tape la barra de estado */
+    right: 20px;
+    background: var(--bg-panel);
+    border-left: 4px solid #10b981;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    border-radius: 12px;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    z-index: 9999;
+    animation: deslizarArriba 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  }
+
+  .banner-contenido {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-main);
+    font-size: 0.95rem;
+  }
+
+  .icono-banner {
+    background: rgba(16, 185, 129, 0.1);
+    padding: 8px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .banner-botones {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .btn-actualizar-ahora {
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .btn-actualizar-ahora:hover {
+    background: #059669;
+  }
+
+  .btn-cerrar-banner {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn-cerrar-banner:hover {
+    color: var(--text-main);
+  }
+
+  @keyframes deslizarArriba {
+    from { transform: translateY(100px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  /* Para que en celulares se vea bien (ancho completo) */
+  @media (max-width: 600px) {
+    .banner-flotante-update {
+      bottom: 80px; /* Más arriba por la barra de navegación en móviles */
+      left: 15px;
+      right: 15px;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 15px;
+    }
+    .banner-botones {
+      width: 100%;
+      justify-content: space-between;
+    }
+    .btn-actualizar-ahora {
+      flex: 1;
+    }
+  }
 </style>
