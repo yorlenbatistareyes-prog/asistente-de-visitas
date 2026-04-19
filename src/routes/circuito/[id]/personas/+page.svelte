@@ -35,18 +35,19 @@
   let mostrarMenuFiltros = false;
   let categoriasFiltroExpandidas: Record<string, boolean> = {};
 
+  // --- VARIABLES PARA EL FILTRO AVANZADO (AHORA COINCIDE CON LAS ABREVIATURAS) ---
   const categoriasFiltro = [
     {
       nombre: 'Designaciones',
-      opciones: ['PUBLICADOR', 'BETEL', 'VOLUNTARIO A DISTANCIA', 'LDC - SIERVO CONSTRUCCIÓN', 'LDC - VOLUNTARIO CONSTRUCCIÓN', 'PRECURSOR ESPECIAL', 'PRECURSOR ESPECIAL TEMPORAL', 'PRECURSOR REGULAR']
+      opciones: ['PUBLICADOR', 'BETEL', 'VOLUNTARIO A DISTANCIA', 'LDC - SIERVO CONSTRUCCIÓN', 'LDC - VOLUNTARIO CONSTRUCCIÓN', 'PE', 'PET', 'PR']
     },
     {
       nombre: 'Hermanos Nombrados',
-      opciones: ['ANCIANO', 'SIERVO MINISTERIAL']
+      opciones: ['ANCIANO', 'SM']
     },
     {
       nombre: 'Privilegios',
-      opciones: ['COORDINADOR', 'SECRETARIO', 'SUPERINTENDENTE DE SERVICIO', 'SUPERINTENDENTE DE GRUPO', 'AUXILIAR DE GRUPO', 'CEH', 'GVP', 'SA', 'SAA']
+      opciones: ['CCA', 'SEC', 'SS', 'SG', 'GA', 'CEH', 'GVP', 'SA', 'SAA']
     },
     {
       nombre: 'Solicitudes Vigentes',
@@ -68,19 +69,19 @@
 
   let nuevaP: Persona;
 
-  // --- LÓGICA DE PRIVILEGIOS POR CATEGORÍAS ---
+  // --- LÓGICA DE PRIVILEGIOS POR CATEGORÍAS (CORREGIDA) ---
   const categoriasPrivilegios = [
     {
       nombre: 'Designaciones',
-      opciones: ['PUBLICADOR', 'BETEL', 'VOLUNTARIO A DISTANCIA', 'LDC, SIERVO CONSTRUCCIÓN', 'LDC, VOLUNTARIO CONSTRUCCIÓN', 'PRECURSOR ESPECIAL', 'PRECURSOR ESPECIAL TEMPORAL', 'PRECURSOR REGULAR']
+      opciones: ['PUBLICADOR', 'BETEL', 'VOLUNTARIO A DISTANCIA', 'LDC - SIERVO CONSTRUCCIÓN', 'LDC - VOLUNTARIO CONSTRUCCIÓN', 'PE', 'PET', 'PR']
     },
     {
       nombre: 'Hermanos Nombrados',
-      opciones: ['ANCIANO', 'SIERVO MINISTERIAL']
+      opciones: ['ANCIANO', 'SM']
     },
     {
       nombre: 'Privilegios',
-      opciones: ['COORDINADOR', 'SECRETARIO', 'SUPERINTENDENTE DE SERVICIO', 'SUPERINTENDENTE DE GRUPO', 'AUXILIAR DE GRUPO', 'CEH', 'GVP', 'SA', 'SAA']
+      opciones: ['CCA', 'SEC', 'SS', 'SG', 'GA', 'CEH', 'GVP', 'SA', 'SAA']
     },
     {
       nombre: 'Solicitudes Vigentes',
@@ -164,8 +165,8 @@
     expandidas[nombre] = !expandidas[nombre];
   }
 
-  // Truco UX: Si estás buscando a alguien, abrimos todos los paneles automáticamente
-  $: if (busqueda.trim() !== '') {
+  // Truco UX: Si estás buscando a alguien O usas un filtro, abrimos todos los paneles
+  $: if (busqueda.trim() !== '' || filtrosSeleccionados.length > 0) {
     const todas: Record<string, boolean> = {};
     congregacionesOrdenadas.forEach(c => todas[c] = true);
     expandidas = todas;

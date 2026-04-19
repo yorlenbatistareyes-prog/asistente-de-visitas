@@ -70,5 +70,22 @@ pub fn inicializar_bd() -> Result<()> {
         [],
     )?;
 
+    // --- MIGRACIÓN AUTOMÁTICA DE ABREVIATURAS PARA LOS FILTROS ---
+    let migraciones = [
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'PRECURSOR ESPECIAL TEMPORAL', 'PET')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'PRECURSOR ESPECIAL', 'PE')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'PRECURSOR REGULAR', 'PR')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'SIERVO MINISTERIAL', 'SM')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'COORDINADOR', 'CCA')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'SECRETARIO', 'SEC')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'SUPERINTENDENTE DE SERVICIO', 'SS')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'SUPERINTENDENTE DE GRUPO', 'SG')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'AUXILIAR DE GRUPO', 'GA')",
+    ];
+
+    for query in migraciones.iter() {
+        let _ = conn.execute(query, []);
+    }
+    
     Ok(())
 }

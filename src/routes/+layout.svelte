@@ -51,8 +51,9 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.35": [
-      { texto: "Sistema de actualización de la aplicación añadido. Puede ver el panel de actualización en la sección de configuración.", tipo: "Zap" }
+    "1.0.36": [
+      { texto: "Sistema de actualización de la aplicación añadido. Puede ver el panel de actualización en la sección de configuración.", tipo: "Zap" },
+      { texto: "Corregido error por el que no se sincronizaban los cambios en el registro de personas", tipo: "Bug" }
     ]
   };
 
