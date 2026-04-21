@@ -37,7 +37,22 @@
       "allow": [
         "**"
       ]
+    },
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://updates.ejvapps.online/**"
+        }
+      ]
+    },
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://updates.ejvapps.online/**"
+        }
+      ]
     }
-    
   ]
 }

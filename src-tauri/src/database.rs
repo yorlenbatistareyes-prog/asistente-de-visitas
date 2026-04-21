@@ -86,6 +86,6 @@ pub fn inicializar_bd() -> Result<()> {
     for query in migraciones.iter() {
         let _ = conn.execute(query, []);
     }
-    
+
     Ok(())
 }

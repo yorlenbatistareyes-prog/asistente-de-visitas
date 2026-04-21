@@ -1,28 +1,16 @@
+import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
-import { open } from '@tauri-apps/plugin-shell';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 export async function verificarActualizacion() {
   const APP_ID = "avisits"; 
-  const URL_API = `https://updates.ejvapps.online/api/check/${APP_ID}`;
 
   try {
-    // Usamos el fetch estándar de la web. 
-    // ¡Ahora el muro CORS estará abierto gracias a tu amigo!
-    const response = await fetch(URL_API, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      cache: 'no-store'
-    });
-
-    if (!response.ok) {
-      console.error('El servidor respondió con error:', response.status);
-      return { hayNueva: false, error: true };
-    }
+    // 1. Le pedimos a Rust que vaya al servidor a buscar el texto
+    const jsonString = await invoke<string>('verificar_actualizacion_rust');
     
-    const datos = await response.json();
+    // 2. Convertimos el texto que nos trajo Rust en un objeto de JavaScript
+    const datos = JSON.parse(jsonString);
     const versionActual = await getVersion();
 
     const esAndroid = /android/i.test(navigator.userAgent);
@@ -40,6 +28,7 @@ export async function verificarActualizacion() {
     }
 
   } catch (error) {
+    // Si Rust falla, ahora sí nos dirá EXACTAMENTE por qué.
     alert(`❌ ERROR DE CONEXIÓN:\n${error}`);
     console.error("Fallo de red:", error);
     return { hayNueva: false, error: true };
@@ -64,15 +53,9 @@ function compararVersiones(vNueva: string, vActual: string): boolean {
 
 export async function irA_Descarga() {
   const url = "https://updates.ejvapps.online/app/avisits";
-  
-  // 1. Primero verificamos que el botón sí está respondiendo
-  console.log("Intentando abrir el navegador...");
-  
   try {
-    await open(url);
-    console.log("Navegador abierto con éxito");
+    await openUrl(url);
   } catch (error) {
-    // 2. Si Tauri lo bloquea, le obligamos a que nos tire el error en la cara
-    alert(`❌ Tauri bloqueó el navegador.\nMotivo exacto: ${error}`);
+    alert(`❌ Tauri bloqueó el navegador.\nMotivo: ${error}`);
   }
 }
