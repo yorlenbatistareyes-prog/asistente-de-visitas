@@ -151,10 +151,28 @@
       } catch (e) {}
     }, 3000); 
 
-    // 5. 📡 EL RADAR DE LA NUBE (Arranca 1.5s después de abrir la app)
-    setTimeout(() => {
-      comprobarNubeAlAbrir();
-    }, 1500);
+    // 5. 📡 EL RADAR DE LA NUBE
+    let ultimaComprobacion = 0;
+
+    async function ejecutarComprobacion() {
+      const ahora = Date.now();
+      // Si han pasado menos de 30 segundos, no comprobamos para no saturar al servidor
+      if (ahora - ultimaComprobacion < 30000) return;
+      
+      ultimaComprobacion = ahora;
+      await comprobarNubeAlAbrir();
+    }
+
+    // Arranca 1.5s después de abrir la app
+    setTimeout(ejecutarComprobacion, 1500);
+
+    // Y también vigila cada vez que la app vuelve a pantalla
+    window.addEventListener('focus', ejecutarComprobacion);
+    window.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        ejecutarComprobacion();
+      }
+    });
   });
 </script>
 

@@ -118,11 +118,14 @@
     mensaje = 'Subiendo a la nube de EJVApps...';
     try {
       const jsonListo = await prepararDatosParaSubir();
-      // Usamos la llave guardada globalmente
-      await subirRespaldo($sesionApp.token, jsonListo);
+      // Generamos la fecha exacta con milisegundos una sola vez
+      const fechaExacta = new Date().toISOString();
+      
+      // Usamos la llave guardada globalmente y la misma fecha
+      await subirRespaldo($sesionApp.token, jsonListo, fechaExacta);
 
-      // 👇 LA CURA: Le avisamos al cerebro que actualice su reloj local
-      await registrarSubidaManualExitosa();
+      // 👇 LA CURA: Le avisamos al cerebro que actualice su reloj local con la misma fecha
+      await registrarSubidaManualExitosa(fechaExacta);
 
       estado = 'exito';
       mensaje = '¡Respaldo subido correctamente!';

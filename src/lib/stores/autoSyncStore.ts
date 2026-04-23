@@ -19,6 +19,7 @@ export const estadoSincronizacion = writable({
 
 // Esta variable es nuestro "cronómetro". Al dejarla afuera, vive en la memoria global.
 let temporizadorSync: ReturnType<typeof setTimeout> | null = null;
+let hayCambiosPendientesDuranteSubida = false;
 
 /**
  * Función principal: Ocurre cuando el store detecta un cambio en la base de datos.
@@ -36,7 +37,10 @@ export async function dispararSincronizacionLocal() {
     }
 
     // 🛡️ CANDADO: Si ya estamos subiendo datos, esperamos a que termine
-    if (get(estadoSincronizacion).estado === 'sincronizando') return;
+    if (get(estadoSincronizacion).estado === 'sincronizando') {
+        hayCambiosPendientesDuranteSubida = true;
+        return;
+    }
 
     // EL DEBOUNCE: Reiniciamos el reloj
     if (temporizadorSync) {
@@ -46,15 +50,15 @@ export async function dispararSincronizacionLocal() {
     // Avisamos a la UI que estamos esperando
     estadoSincronizacion.set({
         estado: 'esperando',
-        mensaje: 'Esperando para sincronizar...',
+        mensaje: 'Esperando para subir cambios...',
         nubeDispositivo: '',
         nubeFecha: ''
     });
 
-    // ⚡ TURBO: 1.5 segundos para que sea ultra rápido
+    // ⚡ TURBO: 5 segundos de espera (agrupando múltiples cambios)
     temporizadorSync = setTimeout(async () => {
         await procesarSubidaAutomatica(sesion.token);
-    }, 1500);
+    }, 5000);
 }
 
 /**
@@ -62,6 +66,7 @@ export async function dispararSincronizacionLocal() {
  */
 async function procesarSubidaAutomatica(token: string) {
     estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Sincronizando...' }));
+    hayCambiosPendientesDuranteSubida = false;
 
     try {
         // --- PREVENCIÓN DE CONFLICTOS ---
@@ -105,7 +110,9 @@ async function procesarSubidaAutomatica(token: string) {
         estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: 'Sincronizado con éxito' }));
 
         setTimeout(() => {
-            estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
+            if (get(estadoSincronizacion).estado === 'al_dia') {
+                estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
+            }
         }, 3000);
 
     } catch (error) {
@@ -117,8 +124,15 @@ async function procesarSubidaAutomatica(token: string) {
         }));
         
         setTimeout(() => {
-            estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
+            if (get(estadoSincronizacion).estado === 'error') {
+                estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
+            }
         }, 4000);
+    } finally {
+        if (hayCambiosPendientesDuranteSubida) {
+            hayCambiosPendientesDuranteSubida = false;
+            dispararSincronizacionLocal();
+        }
     }
 }
 
@@ -126,14 +140,16 @@ export function resetearEstadoSincronizacion() {
     estadoSincronizacion.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '' });
 }
 
-export async function registrarSubidaManualExitosa() {
-    const fechaActual = new Date().toISOString();
+export async function registrarSubidaManualExitosa(fechaExacta?: string) {
+    const fechaActual = fechaExacta || new Date().toISOString();
     await guardarConfig('last_synced_at', fechaActual);
     
     estadoSincronizacion.set({ estado: 'al_dia', mensaje: 'Sincronizado con éxito', nubeDispositivo: '', nubeFecha: '' });
     
     setTimeout(() => {
-        estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
+        if (get(estadoSincronizacion).estado === 'al_dia') {
+            estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
+        }
     }, 3000);
 }
 
