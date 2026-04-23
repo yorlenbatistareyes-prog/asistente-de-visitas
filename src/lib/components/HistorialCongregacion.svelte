@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Calendar, ChevronDown, ChevronUp, Trash2, FileText, Clock, Archive, ClipboardEdit, TrendingUp, TrendingDown, Minus } from 'lucide-svelte';
-  
+  import { Save, X, Calendar, ChevronDown, ChevronUp, Trash2, FileText, Clock, Archive, ClipboardEdit, TrendingUp, TrendingDown, Minus } from 'lucide-svelte';
+  import { notificarCambioHistorial } from '$lib/stores/appStore';
   import { save, confirm as confirmDialog } from '@tauri-apps/plugin-dialog';
 
   import { writeFile } from '@tauri-apps/plugin-fs';
@@ -10,6 +10,8 @@
   import type { TDocumentDefinitions } from 'pdfmake/interfaces';
   import { initDB } from '$lib/services/db';
 
+  import { dispararSincronizacionLocal } from '$lib/stores/autoSyncStore';
+
   export let nombreCongregacion: string;
   export let visitaResaltada: number | null = null; 
 
@@ -17,6 +19,10 @@
   let cargando = true;
   let congregacionId: number | null = null;
   let expandidos: Record<number, boolean> = {};
+
+  // --- NUEVAS VARIABLES PARA MODO EDICIÓN ---
+  let editando: Record<number, boolean> = {};
+  let datosEdicion: Record<number, any> = {};
 
   const tarjetasRevision = [
     { id: 'total', titulo: 'Total de publicadores', color: 'blue' },
@@ -84,6 +90,7 @@
     try {
       const db = await initDB();
       await db.execute('DELETE FROM historial_visitas WHERE id = $1', [idVisita]);
+      dispararSincronizacionLocal();
       await cargarHistorial(); // Refrescamos la lista
     } catch(e) { 
       alert("Error al eliminar el registro."); 
@@ -120,6 +127,81 @@
     } catch (e) { return {}; }
   }
 
+  // --- LÓGICA DE EDICIÓN ---
+  function iniciarEdicion(index: number, visita: any) {
+    editando[index] = true;
+    if (visita.tipo === 'Revisión de Archivos') {
+      const snapshot = procesarDatos(visita.contenido);
+      let rawData: Record<string, number> = {};
+      tarjetasRevision.forEach(t => {
+        rawData[t.id] = snapshot[t.id] ? snapshot[t.id].valor : 0;
+      });
+      datosEdicion[index] = rawData;
+    } else {
+      datosEdicion[index] = visita.contenido; 
+    }
+  }
+
+  function cancelarEdicion(index: number) {
+    editando[index] = false;
+    delete datosEdicion[index];
+  }
+
+  async function guardarEdicion(index: number, visita: any) {
+    try {
+      const db = await initDB();
+      let nuevoContenido = '';
+
+      if (visita.tipo === 'Revisión de Archivos') {
+        const snapshotAntiguo = JSON.parse(visita.contenido);
+        let snapshotNuevo: any = {};
+        
+        const tPubs = Number(datosEdicion[index].total) || 0;
+        const tTerr = Number(datosEdicion[index].totalTerritorios) || 0;
+
+        tarjetasRevision.forEach(t => {
+          const valor = Number(datosEdicion[index][t.id]) || 0;
+          let pct = '0.0%';
+          const esTerritorio = t.id.includes('territorio');
+          
+          if (esTerritorio && t.id !== 'totalTerritorios' && tTerr > 0) {
+            pct = ((valor / tTerr) * 100).toFixed(1) + '%';
+          } else if (!esTerritorio && t.id !== 'total' && tPubs > 0) {
+            pct = ((valor / tPubs) * 100).toFixed(1) + '%';
+          }
+
+          const tendenciaAnterior = (typeof snapshotAntiguo[t.id] === 'object' && snapshotAntiguo[t.id] !== null && snapshotAntiguo[t.id].tendencia) 
+            ? snapshotAntiguo[t.id].tendencia 
+            : null;
+
+          snapshotNuevo[t.id] = {
+            valor: valor,
+            porcentaje: pct,
+            tendencia: tendenciaAnterior 
+          };
+        });
+
+        nuevoContenido = JSON.stringify(snapshotNuevo);
+      } else {
+        nuevoContenido = datosEdicion[index];
+      }
+
+      await db.execute('UPDATE historial_visitas SET contenido = $1 WHERE id = $2', [nuevoContenido, visita.id]);
+      
+      dispararSincronizacionLocal();
+      
+      historial[index].contenido = nuevoContenido;
+      editando[index] = false;
+      delete datosEdicion[index];
+
+      notificarCambioHistorial();
+      
+    } catch (error) {
+      console.error("Error al guardar edición:", error);
+      alert("Error al guardar los cambios.");
+    }
+  }
+  
   // --- MOTOR DE PDF ACTUALIZADO CON COLUMNAS ---
   async function exportarPDF(visita: any) {
     const contenidoPdf: any[] = [];
@@ -272,48 +354,70 @@
                       <div class="tarjeta-header">
                         <h4>{tarjeta.titulo}</h4>
                         
-                        <div class="header-badges">
-                          {#if tarjeta.id !== 'total'}
-                            <div class="badge-porcentaje {datos.valor > 0 ? 'theme-' + tarjeta.color : 'vacio'}">
-                              {datos.porcentaje}
-                            </div>
-                          {/if}
+                        {#if !editando[i]}
+                          <div class="header-badges">
+                            {#if tarjeta.id !== 'total'}
+                              <div class="badge-porcentaje {datos.valor > 0 ? 'theme-' + tarjeta.color : 'vacio'}">
+                                {datos.porcentaje}
+                              </div>
+                            {/if}
 
-                          {#if datos.tendencia}
-                            <div class="badge-tendencia color-{datos.tendencia.color}" title="Comparado al momento de archivar">
-                              {#if datos.tendencia.icono === 'up'} <TrendingUp size={12} strokeWidth={3} />
-                              {:else if datos.tendencia.icono === 'down'} <TrendingDown size={12} strokeWidth={3} />
-                              {:else} <Minus size={12} strokeWidth={3} /> {/if}
-                              <span>{datos.tendencia.texto}</span>
-                            </div>
-                          {/if}
+                            {#if datos.tendencia}
+                              <div class="badge-tendencia color-{datos.tendencia.color}" title="Comparado al momento de archivar">
+                                {#if datos.tendencia.icono === 'up'} <TrendingUp size={12} strokeWidth={3} />
+                                {:else if datos.tendencia.icono === 'down'} <TrendingDown size={12} strokeWidth={3} />
+                                {:else} <Minus size={12} strokeWidth={3} /> {/if}
+                                <span>{datos.tendencia.texto}</span>
+                              </div>
+                            {/if}
+                          </div>
+                        {/if}
+                      </div>
+
+                      {#if editando[i]}
+                        <input type="number" class="input-edicion" bind:value={datosEdicion[i][tarjeta.id]} min="0" />
+                      {:else}
+                        <div class="counter-value">
+                          {datos.valor}
                         </div>
-                      </div>
-
-                      <div class="counter-value">
-                        {datos.valor}
-                      </div>
+                      {/if}
                     </div>
                   {/each}
                 </div>
 
               {:else}
-                <div class="contenido-texto">
-                  {#each visita.contenido.split('\n\n') as parrafo}
-                     <p style="margin-bottom: 10px;">
-                       {@html parrafo.replace(/^([^:]+):/, '<strong style="color: #1e293b; font-weight: 800;">$1:</strong>')}
-                     </p>
-                  {/each}
-                </div>
+                {#if editando[i]}
+                  <textarea class="textarea-edicion" bind:value={datosEdicion[i]} rows="12"></textarea>
+                {:else}
+                  <div class="contenido-texto">
+                    {#each visita.contenido.split('\n\n') as parrafo}
+                       <p style="margin-bottom: 10px;">
+                         {@html parrafo.replace(/^([^:]+):/, '<strong style="color: #1e293b; font-weight: 800;">$1:</strong>')}
+                       </p>
+                    {/each}
+                  </div>
+                {/if}
               {/if}
               
               <div class="card-footer">
-                <button class="btn-accion btn-outline" on:click={() => exportarPDF(visita)}>
-                  <FileText size={16} /> Exportar PDF
-                </button>
-                <button class="btn-accion btn-danger" on:click={() => eliminarVisita(visita.id)}>
-                  <Trash2 size={16} /> Eliminar
-                </button>
+                {#if editando[i]}
+                  <button class="btn-accion btn-outline" on:click={() => cancelarEdicion(i)}>
+                    <X size={16} /> Cancelar
+                  </button>
+                  <button class="btn-accion btn-exito" on:click={() => guardarEdicion(i, visita)}>
+                    <Save size={16} /> Guardar Cambios
+                  </button>
+                {:else}
+                  <button class="btn-accion btn-outline" on:click={() => iniciarEdicion(i, visita)}>
+                    <ClipboardEdit size={16} /> Editar
+                  </button>
+                  <button class="btn-accion btn-outline" on:click={() => exportarPDF(visita)}>
+                    <FileText size={16} /> Exportar PDF
+                  </button>
+                  <button class="btn-accion btn-danger" on:click={() => eliminarVisita(visita.id)}>
+                    <Trash2 size={16} /> Eliminar
+                  </button>
+                {/if}
               </div>
             </div>
           {/if}
@@ -441,4 +545,41 @@
       width: 100%;
     }
   }
+
+  /* --- ESTILOS DE EDICIÓN --- */
+  .textarea-edicion {
+    width: 100%;
+    font-family: inherit;
+    font-size: 0.95rem;
+    line-height: 1.8;
+    color: var(--text-main);
+    background: var(--bg-app);
+    padding: 20px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--primary);
+    resize: vertical;
+    margin-bottom: 25px;
+    outline: none;
+    box-sizing: border-box;
+  }
+  .textarea-edicion:focus { border-color: var(--primary); }
+  
+  .input-edicion {
+    width: 80px;
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-main);
+    background: transparent;
+    border: 1px dashed var(--primary);
+    border-radius: var(--radius-sm);
+    padding: 5px;
+    margin-top: 5px;
+    outline: none;
+  }
+  .input-edicion:focus { border-style: solid; background: var(--bg-app); }
+
+  .btn-exito { background: #10b981; color: white; }
+  .btn-exito:hover { background: #059669; }
 </style>

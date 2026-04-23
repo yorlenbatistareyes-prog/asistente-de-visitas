@@ -35,7 +35,7 @@
   }
 
   export let listaCongregaciones: Congregacion[] = [];
-  let panelVisible = true;
+  let panelVisible = false;
   let mostrarDetalle = false; 
   let desgloseVisitas: DesgloseVisita[] = []; 
   let congregacionesAnalizadas = 0;

@@ -1,6 +1,6 @@
 [package]
 name = "asistente-de-visitas"
-version = "1.0.21"
+version = "1.0.41"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -16,7 +16,7 @@ tauri-build = { version = "2", features = [] }
 # --- Core de Tauri ---
 tauri = { version = "2", features = [] }
 
-# --- Serialización (VITAL para tu nueva Agenda) ---
+# --- Serialización (VITAL para tu nueva Agenda) ---""
 # El feature "derive" es lo que permite guardar tus structs en la BD/JSON
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -43,3 +43,7 @@ tokio = { version = "1", features = ["full"] }
 
 chrono = "0.4"
 whoami = "2.1"
+argon2 = "0.5.3"
+tauri-plugin-http = "2"
+
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

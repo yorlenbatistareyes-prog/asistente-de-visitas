@@ -7,7 +7,9 @@ pub static DB_PATH: OnceLock<String> = OnceLock::new();
 // Hacemos esta función "pub" para que los demás archivos (.rs) puedan usarla
 pub fn establecer_conexion() -> Result<Connection> {
     // Leemos la ruta de la bóveda
-    let path = DB_PATH.get().expect("La ruta de la base de datos no ha sido configurada"); 
+    let path = DB_PATH
+        .get()
+        .expect("La ruta de la base de datos no ha sido configurada");
     Connection::open(path)
 }
 
@@ -68,6 +70,22 @@ pub fn inicializar_bd() -> Result<()> {
         [],
     )?;
 
+    // --- MIGRACIÓN AUTOMÁTICA DE ABREVIATURAS PARA LOS FILTROS ---
+    let migraciones = [
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'PRECURSOR ESPECIAL TEMPORAL', 'PET')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'PRECURSOR ESPECIAL', 'PE')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'PRECURSOR REGULAR', 'PR')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'SIERVO MINISTERIAL', 'SM')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'COORDINADOR', 'CCA')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'SECRETARIO', 'SEC')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'SUPERINTENDENTE DE SERVICIO', 'SS')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'SUPERINTENDENTE DE GRUPO', 'SG')",
+        "UPDATE personas SET privilegio = REPLACE(privilegio, 'AUXILIAR DE GRUPO', 'GA')",
+    ];
+
+    for query in migraciones.iter() {
+        let _ = conn.execute(query, []);
+    }
+
     Ok(())
 }
-

@@ -11,6 +11,10 @@
   import { createPdf } from '$lib/utils/pdfConfig';
   
   import { fechaPorCongregacion, resumenUltimoAnalisis } from '$lib/stores/appStore';
+  
+  // 👇 NUEVO: Importamos el cerebro de sincronización
+import { dispararSincronizacionLocal } from '$lib/stores/autoSyncStore';
+  
   const dispatch = createEventDispatcher();
   
   export let nombreCongregacion: string;
@@ -214,6 +218,9 @@
       const valorJSON = JSON.stringify(registro);
       await guardarConfig(claveBorrador, valorJSON);
       
+      // ⏰ NUEVO: Lo ponemos aquí para que detecte la Fecha y el Checklist también
+      dispararSincronizacionLocal(); 
+      
       if (idModificado) await new Promise(r => setTimeout(r, 400));
       
       if (idModificado) {
@@ -234,7 +241,7 @@
     if (moduloActivo) {
       const idActual = moduloActivo.id;
       moduloActivo = null; 
-      await guardarCambios(idActual); 
+      await guardarCambios(idActual); // Este ya trae el gatillo incluido por dentro
     }
   }
 
@@ -269,6 +276,7 @@
       
       await guardarConfig(`borrador_${nombreCongregacion}`, "{}");
       registro = { ...valoresPorDefecto };
+      dispararSincronizacionLocal();
       dispatch('limpiarFormulario');
       alert("✅ Informe finalizado y guardado en historial.");
     } catch (e) { alert("❌ Error al finalizar."); }
@@ -643,6 +651,34 @@
     font-weight: 700; 
     line-height: 1.2; 
   }
+
+  /* 👇 AGREGA ESTE BLOQUE NUEVO AQUÍ 👇 */
+  
+  .nota-body {
+    flex: 1; /* Ocupa el espacio restante de la tarjeta */
+    overflow: hidden; /* Oculta lo que se salga de la caja */
+    margin-top: 10px;
+  }
+
+  .preview-text {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    /* Magia para cortar el texto a 3 líneas con puntos suspensivos */
+    display: -webkit-box;
+    -webkit-line-clamp: 3; 
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .empty-text {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  /* 👆 FIN DEL BLOQUE NUEVO 👆 */
 
   /* 4. MODAL Y FORMULARIO */
   .modal-backdrop {

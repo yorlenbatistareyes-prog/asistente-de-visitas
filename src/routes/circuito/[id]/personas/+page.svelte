@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores'; 
-  import { Search, Upload, Plus, Trash2, Phone, Mail, User, MapPin, Edit, Users } from "lucide-svelte";
+  import { page } from '$app/stores';
+  import { slide } from 'svelte/transition'; 
+  import { Filter, Search, Upload, Plus, Trash2, Phone, Mail, User, MapPin, Edit, Users, ChevronDown, ChevronUp } from "lucide-svelte";
   import Papa from 'papaparse';
   import { save as saveDialog, open as openDialog, confirm as confirmDialog, message as messageDialog } from '@tauri-apps/plugin-dialog';
   import { readFile } from '@tauri-apps/plugin-fs';
@@ -29,7 +30,83 @@
     };
   };
 
+  // --- VARIABLES PARA EL FILTRO AVANZADO ---
+  let filtrosSeleccionados: string[] = []; // Ahora es una lista de selecciones
+  let mostrarMenuFiltros = false;
+  let categoriasFiltroExpandidas: Record<string, boolean> = {};
+
+  // --- VARIABLES PARA EL FILTRO AVANZADO (AHORA COINCIDE CON LAS ABREVIATURAS) ---
+  const categoriasFiltro = [
+    {
+      nombre: 'Designaciones',
+      opciones: ['PUBLICADOR', 'BETEL', 'VOLUNTARIO A DISTANCIA', 'LDC - SIERVO CONSTRUCCIÓN', 'LDC - VOLUNTARIO CONSTRUCCIÓN', 'PE', 'PET', 'PR']
+    },
+    {
+      nombre: 'Hermanos Nombrados',
+      opciones: ['ANCIANO', 'SM']
+    },
+    {
+      nombre: 'Privilegios',
+      opciones: ['CCA', 'SEC', 'SS', 'SG', 'GA', 'CEH', 'GVP', 'SA', 'SAA']
+    },
+    {
+      nombre: 'Solicitudes Vigentes',
+      opciones: ['A-19', 'A-2']
+    }
+  ];
+
+  function toggleCategoriaFiltro(nombre: string) {
+    categoriasFiltroExpandidas[nombre] = !categoriasFiltroExpandidas[nombre];
+  }
+
+  function toggleFiltroCheckbox(priv: string) {
+    if (filtrosSeleccionados.includes(priv)) {
+      filtrosSeleccionados = filtrosSeleccionados.filter(p => p !== priv);
+    } else {
+      filtrosSeleccionados = [...filtrosSeleccionados, priv];
+    }
+  }
+
   let nuevaP: Persona;
+
+  // --- LÓGICA DE PRIVILEGIOS POR CATEGORÍAS (CORREGIDA) ---
+  const categoriasPrivilegios = [
+    {
+      nombre: 'Designaciones',
+      opciones: ['PUBLICADOR', 'BETEL', 'VOLUNTARIO A DISTANCIA', 'LDC - SIERVO CONSTRUCCIÓN', 'LDC - VOLUNTARIO CONSTRUCCIÓN', 'PE', 'PET', 'PR']
+    },
+    {
+      nombre: 'Hermanos Nombrados',
+      opciones: ['ANCIANO', 'SM']
+    },
+    {
+      nombre: 'Privilegios',
+      opciones: ['CCA', 'SEC', 'SS', 'SG', 'GA', 'CEH', 'GVP', 'SA', 'SAA']
+    },
+    {
+      nombre: 'Solicitudes Vigentes',
+      opciones: ['A-19', 'A-2']
+    }
+  ];
+
+  let mostrarMenuPrivilegios = false;
+  let categoriasExpandidas: Record<string, boolean> = {};
+
+  function toggleCategoriaPrivilegio(nombre: string) {
+    categoriasExpandidas[nombre] = !categoriasExpandidas[nombre];
+  }
+
+  function togglePrivilegio(priv: string) {
+    let actuales = nuevaP.privilegio ? nuevaP.privilegio.split(',').map(p => p.trim()).filter(Boolean) : [];
+    
+    if (actuales.includes(priv)) {
+      actuales = actuales.filter(p => p !== priv);
+    } else {
+      actuales.push(priv);
+    }
+    
+    nuevaP.privilegio = actuales.join(', ');
+  }
 
   $: if (circuitoId) {
     resetForm();
@@ -46,17 +123,27 @@
     }
   }
 
-  // --- FILTRADO Y AGRUPACIÓN POR CONGREGACIÓN ---
+ // --- FILTRADO Y AGRUPACIÓN POR CONGREGACIÓN ---
   
-  // 1. Primero filtramos según la búsqueda
-  $: filtradas = personas.filter(p => 
-    `${p.nombre} ${p.apellidos}`.toLowerCase().includes(busqueda.toLowerCase()) ||
-    (p.congregacion || "").toLowerCase().includes(busqueda.toLowerCase())
-  );
+  // 1. Filtramos por búsqueda Y por las casillas seleccionadas
+  $: filtradas = personas.filter(p => {
+    const coincideBusqueda = `${p.nombre} ${p.apellidos}`.toLowerCase().includes(busqueda.toLowerCase()) ||
+                             (p.congregacion || "").toLowerCase().includes(busqueda.toLowerCase());
+                             
+    // Si no hay filtros marcados, pasa directo. Si hay, revisa si el privilegio de la persona incluye ALGUNO de los seleccionados.
+    const privilegiosPersona = p.privilegio ? p.privilegio.toUpperCase().split(',').map(x => x.trim()) : [];
+    const coincideFiltro = filtrosSeleccionados.length === 0 || 
+                           filtrosSeleccionados.some(filtro => privilegiosPersona.includes(filtro));
 
-  // 2. Luego agrupamos las filtradas
+    return coincideBusqueda && coincideFiltro;
+  });
+
+  // 2. Luego agrupamos las filtradas (CON NORMALIZACIÓN)
   $: personasAgrupadas = filtradas.reduce((grupos, persona) => {
-    const nombreCongregacion = persona.congregacion || 'Sin Congregación Asignada';
+    // Quitamos espacios extra y forzamos mayúsculas para evitar duplicados
+    const nombreOriginal = persona.congregacion || '';
+    const nombreCongregacion = nombreOriginal.trim().toUpperCase() || 'SIN CONGREGACIÓN ASIGNADA';
+    
     if (!grupos[nombreCongregacion]) {
       grupos[nombreCongregacion] = [];
     }
@@ -64,12 +151,26 @@
     return grupos;
   }, {} as Record<string, Persona[]>);
 
-  // 3. Obtenemos las llaves (nombres de congregaciones) ordenadas alfabéticamente
+  // 3. Obtenemos las llaves ordenadas alfabéticamente
   $: congregacionesOrdenadas = Object.keys(personasAgrupadas).sort((a, b) => {
-    if (a === 'Sin Congregación Asignada') return 1;
-    if (b === 'Sin Congregación Asignada') return -1;
+    if (a === 'SIN CONGREGACIÓN ASIGNADA') return 1;
+    if (b === 'SIN CONGREGACIÓN ASIGNADA') return -1;
     return a.localeCompare(b);
   });
+
+  // --- LÓGICA DEL ACORDEÓN ---
+  let expandidas: Record<string, boolean> = {};
+
+  function toggleExpandir(nombre: string) {
+    expandidas[nombre] = !expandidas[nombre];
+  }
+
+  // Truco UX: Si estás buscando a alguien O usas un filtro, abrimos todos los paneles
+  $: if (busqueda.trim() !== '' || filtrosSeleccionados.length > 0) {
+    const todas: Record<string, boolean> = {};
+    congregacionesOrdenadas.forEach(c => todas[c] = true);
+    expandidas = todas;
+  }
 
 
   async function importarCSV() {
@@ -232,6 +333,76 @@
       <input type="text" placeholder="Buscar por nombre o congregación..." bind:value={busqueda} class="search-input" />
     </div>
 
+    <div class="filter-select card-global relativo">
+      <button 
+        class="btn-abrir-filtro-main" 
+        on:click={() => mostrarMenuFiltros = !mostrarMenuFiltros}
+      >
+        <Filter size={18} color="var(--text-muted)" />
+        <span class="texto-filtro">
+          {#if filtrosSeleccionados.length === 0}
+            Filtrar...
+          {:else if filtrosSeleccionados.length === 1}
+            {filtrosSeleccionados[0]}
+          {:else}
+            Filtros ({filtrosSeleccionados.length})
+          {/if}
+        </span>
+        <ChevronDown size={16} color="var(--text-muted)" />
+      </button>
+
+      {#if mostrarMenuFiltros}
+        <div class="menu-flotante-checkboxes menu-filtros">
+          
+          <div class="header-menu-filtros">
+            <span class="titulo-f">Filtros</span>
+            {#if filtrosSeleccionados.length > 0}
+              <button class="btn-limpiar-filtros" on:click={() => filtrosSeleccionados = []}>Limpiar</button>
+            {/if}
+          </div>
+
+          <div class="scroll-filtros">
+            {#each categoriasFiltro as cat}
+              <div class="categoria-privilegio">
+                <div 
+                  class="categoria-header" 
+                  role="button" tabindex="0"
+                  on:click={() => toggleCategoriaFiltro(cat.nombre)}
+                  on:keydown={(e) => { if (e.key === 'Enter') toggleCategoriaFiltro(cat.nombre); }}
+                >
+                  <span class="cat-titulo">{cat.nombre}</span>
+                  {#if categoriasFiltroExpandidas[cat.nombre]}
+                    <ChevronUp size={16} />
+                  {:else}
+                    <ChevronDown size={16} />
+                  {/if}
+                </div>
+                
+                {#if categoriasFiltroExpandidas[cat.nombre]}
+                  <div class="categoria-opciones" transition:slide={{ duration: 200 }}>
+                    {#each cat.opciones as priv}
+                      <label class="opcion-checkbox">
+                        <input 
+                          type="checkbox" 
+                          checked={filtrosSeleccionados.includes(priv)}
+                          on:change={() => toggleFiltroCheckbox(priv)}
+                        />
+                        <span class="check-texto">{priv}</span>
+                      </label>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+          
+          <button type="button" class="btn-cerrar-menu" on:click={() => mostrarMenuFiltros = false}>
+            Aplicar y cerrar
+          </button>
+        </div>
+      {/if}
+    </div>
+
     <div class="filters-aside">
       <button class="btn-importar card-global" on:click={importarCSV}>
            <Upload size={18} /> <span>Importar CSV</span>
@@ -251,55 +422,63 @@
     {#each congregacionesOrdenadas as nombreCongregacion}
       <div class="grupo-congregacion card-global">
         
-        <div class="header-congregacion">
+        <div 
+          class="header-congregacion" 
+          role="button" 
+          tabindex="0" 
+          on:click={() => toggleExpandir(nombreCongregacion)} 
+          on:keydown={(e) => { if (e.key === 'Enter') toggleExpandir(nombreCongregacion); }}
+        >
           <div class="titulo-cong">
             <Users size={20} color="var(--primary)" />
             <h2>{nombreCongregacion}</h2>
           </div>
-          <span class="badge-conteo">{personasAgrupadas[nombreCongregacion].length} personas</span>
+          
+          <div class="header-acciones">
+            <span class="badge-conteo">{personasAgrupadas[nombreCongregacion].length} personas</span>
+            {#if expandidas[nombreCongregacion]}
+              <ChevronUp size={20} color="var(--text-muted)" />
+            {:else}
+              <ChevronDown size={20} color="var(--text-muted)" />
+            {/if}
+          </div>
         </div>
 
-        <div class="tabla-personas">
-          {#each personasAgrupadas[nombreCongregacion] as p}
-            <div class="persona-row">
-              <div class="p-info" role="button" tabindex="0" on:click={() => abrirEdicion(p)}
-                on:keydown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {e.preventDefault();
-                    abrirEdicion(p);
-                  }
-                }}>
-                <span class="p-nombre">{p.apellidos}, {p.nombre}</span>
-                <span class="p-meta">{p.privilegio || 'Publicador'}</span>
+        {#if expandidas[nombreCongregacion]}
+          <div class="tabla-personas" transition:slide={{ duration: 250 }}>
+            {#each personasAgrupadas[nombreCongregacion] as p}
+              <div class="persona-row">
+                <div class="p-info" role="button" tabindex="0" on:click={() => abrirEdicion(p)}
+                  on:keydown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {e.preventDefault();
+                      abrirEdicion(p);
+                    }
+                  }}>
+                  <span class="p-nombre">{p.apellidos}, {p.nombre}</span>
+                  <span class="p-meta">{p.privilegio || 'Publicador'}</span>
+                </div>
+                
+                <div class="p-contacto">
+                  {#if p.telefono_celular}<span title="Celular"><Phone size={14}/> {p.telefono_celular}</span>{/if}
+                  {#if p.email}<span title="Email"><Mail size={14}/> {p.email}</span>{/if}
+                </div>
+                
+                <div class="p-acciones">
+                   <button class="btn-icon-edit" title="Editar" on:click|preventDefault|stopPropagation={() => abrirEdicion(p)}>
+                      <Edit size={16} />
+                   </button>
+                   <button class="btn-icon-delete" title="Eliminar" on:click|preventDefault|stopPropagation={() => borrar(p.id, p.nombre)}>
+                      <Trash2 size={16} />
+                   </button>
+                </div>
               </div>
-              
-              <div class="p-contacto">
-                {#if p.telefono_celular}<span title="Celular"><Phone size={14}/> {p.telefono_celular}</span>{/if}
-                {#if p.email}<span title="Email"><Mail size={14}/> {p.email}</span>{/if}
-              </div>
-              
-              <div class="p-acciones">
-                 <button 
-                    class="btn-icon-edit" 
-                    title="Editar" 
-                    on:click|preventDefault|stopPropagation={() => abrirEdicion(p)}
-                 >
-                    <Edit size={16} />
-                 </button>
-  
-                 <button 
-                    class="btn-icon-delete" 
-                    title="Eliminar" 
-                    on:click|preventDefault|stopPropagation={() => borrar(p.id, p.nombre)}
-                 >
-                    <Trash2 size={16} />
-                 </button>
-              </div>
-            </div>
-          {/each}
-        </div>
+            {/each}
+          </div>
+        {/if}
 
       </div>
     {:else}
+
       <div class="vacio card-global">
         <User size={48} color="var(--border-color)" style="margin-bottom: 15px;" />
         <p>No hay personas registradas o que coincidan con la búsqueda.</p>
@@ -330,15 +509,82 @@
           </div>
           <div class="form-group">
             <label for="congregacion_input">Congregación</label>
-            <input id="congregacion_input" type="text" class="input-global" bind:value={nuevaP.congregacion} />
+            <input id="congregacion_input" type="text" class="input-global" bind:value={nuevaP.congregacion} list="lista-congs" autocomplete="off" />
+            
+            <datalist id="lista-congs">
+              {#each congregacionesOrdenadas as cong}
+                {#if cong !== 'SIN CONGREGACIÓN ASIGNADA'}
+                  <option value={cong}></option>
+                {/if}
+              {/each}
+            </datalist>
           </div>
         </div>
 
         <div class="col">
-          <div class="form-group">
-            <label for="privilegio_input">Privilegio</label>
-            <input id="privilegio_input" type="text" class="input-global" bind:value={nuevaP.privilegio} placeholder="Ej: Anciano" />
+          <div class="form-group relativo">
+            <label for="privilegio_input">Privilegios</label>
+            
+            <div class="input-con-desplegable">
+              <input 
+                id="privilegio_input" 
+                type="text" 
+                class="input-global" 
+                bind:value={nuevaP.privilegio} 
+                placeholder="Ej: ANCIANO, PRECURSOR..." 
+              />
+              <button 
+                type="button" 
+                class="btn-abrir-menu" 
+                on:click={() => mostrarMenuPrivilegios = !mostrarMenuPrivilegios}
+              >
+                <ChevronDown size={18} />
+              </button>
+            </div>
+
+            {#if mostrarMenuPrivilegios}
+              <div class="menu-flotante-checkboxes">
+                {#each categoriasPrivilegios as cat}
+                  <div class="categoria-privilegio">
+                    <div 
+                      class="categoria-header" 
+                      role="button" 
+                      tabindex="0"
+                      on:click={() => toggleCategoriaPrivilegio(cat.nombre)}
+                      on:keydown={(e) => { if (e.key === 'Enter') toggleCategoriaPrivilegio(cat.nombre); }}
+                    >
+                      <span class="cat-titulo">{cat.nombre}</span>
+                      {#if categoriasExpandidas[cat.nombre]}
+                        <ChevronUp size={16} />
+                      {:else}
+                        <ChevronDown size={16} />
+                      {/if}
+                    </div>
+                    
+                    {#if categoriasExpandidas[cat.nombre]}
+                      <div class="categoria-opciones" transition:slide={{ duration: 200 }}>
+                        {#each cat.opciones as priv}
+                          <label class="opcion-checkbox">
+                            <input 
+                              type="checkbox" 
+                              checked={(nuevaP.privilegio || '').split(',').map(p => p.trim()).includes(priv)}
+                              on:change={() => togglePrivilegio(priv)}
+                            />
+                            <span class="check-texto">{priv}</span>
+                          </label>
+                        {/each}
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+                
+                <button type="button" class="btn-cerrar-menu" on:click={() => mostrarMenuPrivilegios = false}>
+                  Cerrar lista
+                </button>
+              </div>
+            {/if}
           </div>
+
           <div class="form-group">
             <label for="telefono_celular_input">Teléfono Celular</label>
             <input id="telefono_celular_input" type="text" class="input-global" bind:value={nuevaP.telefono_celular} />
@@ -371,22 +617,70 @@
   .header-registro h1 { font-size: 2.2rem; font-weight: 850; color: var(--text-main); margin: 0; }
   .header-registro p { color: var(--text-muted); margin-top: 5px; }
 
+  /* --- BARRAS DE HERRAMIENTAS Y FILTROS --- */
   .toolbar-modular { display: flex; gap: 15px; align-items: center; margin-bottom: 25px; }
   
   .search-pill { 
-    flex: 1; height: 44px; border-radius: 50px; display: flex; align-items: center; 
-    padding: 0 20px; background: var(--bg-panel); border: 1px solid var(--border-color);
+    flex: 1; 
+    height: 44px; 
+    border-radius: 50px; 
+    display: flex; 
+    align-items: center; 
+    padding: 0 20px; 
+    background: var(--bg-panel); 
+    border: 1px solid var(--border-color);
+    box-sizing: border-box; /* Asegura que el padding no engorde la barra */
   }
   
   .search-input { background: transparent; border: none; outline: none; color: var(--text-main); width: 100%; margin-left: 10px; font-size: 0.9rem; }
   .search-input::placeholder { color: var(--text-muted); }
 
+  .filter-select {
+    height: 44px;
+    border-radius: 50px;
+    display: flex;
+    align-items: center;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    flex: 0.7; 
+    min-width: 220px;
+    padding: 0; 
+    cursor: pointer;
+    box-sizing: border-box;
+    /* 👇 ESTA ES LA MAGIA QUE SOLUCIONA EL CRUCE DE CAPAS 👇 */
+    position: relative !important;
+    z-index: 9999 !important; 
+  }
+
+  .btn-abrir-filtro-main {
+    background: transparent;
+    border: none;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 15px;
+    cursor: pointer;
+    border-radius: 50px;
+  }
+
+  .texto-filtro {
+    flex: 1;
+    text-align: left;
+    margin-left: 10px;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    font-weight: 600;
+  }
+
   .filters-aside { display: flex; gap: 10px; }
   
+  /* --- BOTONES --- */
   .btn-primary-fino {
-    height: 38px; /* Más fino y elegante */
+    height: 38px; 
     padding: 0 24px; 
-    border-radius: 30px; /* Forma de píldora */
+    border-radius: 30px; 
     display: flex; 
     align-items: center; 
     gap: 8px; 
@@ -394,7 +688,7 @@
     font-weight: 700; 
     font-size: 0.85rem; 
     border: none;
-    background-color: #5c0a1f !important; /* Rojo vino intenso */
+    background-color: #5c0a1f !important; 
     color: white !important; 
     transition: all 0.2s ease;
     box-shadow: 0 2px 4px rgba(92, 10, 31, 0.2);
@@ -407,12 +701,12 @@
   }
 
   .btn-importar {
-    background-color: #14532d; /* Verde bosque profundo */
+    background-color: #14532d; 
     color: white; 
     border: none; 
-    height: 38px; /* Altura igualada al botón rojo */
+    height: 38px; 
     padding: 0 24px;
-    border-radius: 30px; /* Forma de píldora */
+    border-radius: 30px; 
     display: flex; 
     align-items: center; 
     gap: 8px; 
@@ -424,12 +718,34 @@
   }
 
   .btn-importar:hover { 
-    background-color: #052e16; /* Verde casi negro */
+    background-color: #052e16; 
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(20, 83, 45, 0.3);
   }
 
-  /* ESTILOS DE LA VISTA AGRUPADA */
+  .btn-danger-fino {
+    background-color: transparent;
+    color: #ef4444;
+    border: 1px solid #ef4444;
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+  }
+
+  .btn-danger-fino:hover {
+    background-color: #ef4444;
+    color: white;
+    box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+  }
+
+  /* --- VISTA AGRUPADA (CONGREGACIONES) --- */
   .lista-agrupada { display: flex; flex-direction: column; gap: 25px; }
   
   .grupo-congregacion { 
@@ -446,7 +762,12 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    cursor: pointer; 
+    transition: background 0.2s;
   }
+
+  .header-congregacion:hover { background: rgba(100, 116, 139, 0.1); }
+  .header-acciones { display: flex; align-items: center; gap: 15px; }
 
   .titulo-cong { display: flex; align-items: center; gap: 10px; }
   .titulo-cong h2 { margin: 0; font-size: 1.15rem; color: var(--text-main); font-weight: 800; }
@@ -454,13 +775,15 @@
   .badge-conteo {
     background: var(--bg-app);
     color: var(--text-muted);
-    padding: 4px 10px;
+    padding: 4px 12px;
     border-radius: 20px;
     font-size: 0.8rem;
     font-weight: 700;
     border: 1px solid var(--border-color);
+    white-space: nowrap;
   }
 
+  /* --- TABLA DE PERSONAS --- */
   .tabla-personas { width: 100%; }
   
   .persona-row { 
@@ -487,7 +810,7 @@
     opacity: 0.8; 
     transition: all 0.2s; 
     padding: 6px; 
-    border-radius: 50%; /* Iconos circulares */
+    border-radius: 50%; 
     display: flex;
     justify-content: center;
     align-items: center;
@@ -496,21 +819,12 @@
   .btn-icon-edit { color: var(--primary); }
   .btn-icon-delete { color: #ef4444; }
   
-  .btn-icon-edit:hover { 
-    opacity: 1; 
-    background: #5c0a1f; 
-    color: white !important; 
-  }
-
-  .btn-icon-delete:hover { 
-    opacity: 1; 
-    background: #ef4444; 
-    color: white !important; 
-  }
+  .btn-icon-edit:hover { opacity: 1; background: #5c0a1f; color: white !important; }
+  .btn-icon-delete:hover { opacity: 1; background: #ef4444; color: white !important; }
 
   .vacio { padding: 60px; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--border-color); background: transparent;}
 
-  /* MODAL */
+  /* --- MODAL --- */
   .modal-backdrop {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
     background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px);
@@ -549,55 +863,135 @@
   .btn-global:not(.btn-primary):hover { background: var(--bg-app); color: var(--text-main); }
   
   .btn-primary { 
-    background-color: #5c0a1f !important; /* Rojo vino intenso */
+    background-color: #5c0a1f !important; 
     color: white !important; 
-    border-radius: 30px !important; /* Forma de píldora */
+    border-radius: 30px !important; 
     padding: 0 24px !important;
-    height: 42px; /* Un poquito más alto para el modal */
+    height: 42px; 
     font-weight: 700;
     border: none;
     transition: all 0.2s ease;
   }
-
   .btn-primary:hover { 
     background-color: #3a0411 !important; 
     transform: translateY(-1px); 
     box-shadow: var(--shadow-sm); 
   }
 
+  /* --- MENÚS DESPLEGABLES (COMÚN Y FILTROS) --- */
+  .relativo { position: relative; }
+
+  .input-con-desplegable { display: flex; align-items: center; position: relative; }
+
+  .btn-abrir-menu {
+    position: absolute; right: 5px; background: transparent; border: none;
+    cursor: pointer; color: var(--text-muted); padding: 5px;
+    border-radius: 50%; display: flex; transition: background 0.2s;
+  }
+  .btn-abrir-menu:hover { background: rgba(0,0,0,0.05); color: var(--text-main); }
+
+  .menu-flotante-checkboxes {
+    position: absolute; top: 100%; left: 0; width: 100%;
+    background: var(--bg-panel); border: 1px solid var(--border-color);
+    border-radius: var(--radius-md); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); /* Sombra más fuerte */
+    z-index: 99999 !important; /* Capa extrema */
+    margin-top: 5px; max-height: 200px; overflow-y: auto;
+    display: flex; flex-direction: column; padding: 5px;
+  }
+
+  /* El modificador que rompe el límite de altura para el botón de filtros de afuera */
+  .menu-filtros {
+    top: 50px; 
+    right: 0;
+    width: 280px; 
+    max-height: none; 
+    overflow: hidden; 
+  }
+
+  .scroll-filtros {
+    max-height: 400px; 
+    overflow-y: auto;
+  }
+
+  .header-menu-filtros {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 12px; border-bottom: 1px solid var(--border-color);
+  }
+  .titulo-f { font-weight: 800; font-size: 0.9rem; color: var(--text-main); }
+
+  .btn-limpiar-filtros {
+    background: transparent; border: none; color: #ef4444;
+    font-size: 0.8rem; font-weight: 700; cursor: pointer;
+  }
+  .btn-limpiar-filtros:hover { text-decoration: underline; }
+
+  .categoria-privilegio { border-bottom: 1px solid var(--border-color); }
+  .categoria-privilegio:last-of-type { border-bottom: none; }
+
+  .categoria-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 12px; cursor: pointer; background: rgba(100, 116, 139, 0.05);
+    transition: background 0.2s;
+  }
+  .categoria-header:hover { background: rgba(100, 116, 139, 0.1); }
+  .cat-titulo { font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .categoria-opciones { padding: 4px 0; background: var(--bg-panel); }
+
+  .opcion-checkbox {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    cursor: pointer; border-radius: var(--radius-sm); transition: background 0.2s;
+  }
+  .opcion-checkbox:hover { background: rgba(100, 116, 139, 0.05); }
+  .opcion-checkbox input[type="checkbox"] { width: 16px; height: 16px; accent-color: #5c0a1f; cursor: pointer; }
+  .opcion-checkbox .check-texto { font-size: 0.85rem; color: var(--text-main); font-weight: 600; }
+
+  .btn-cerrar-menu {
+    margin-top: 5px; background: #f8fafc; border: 1px solid var(--border-color);
+    padding: 8px; border-radius: var(--radius-sm); font-weight: 700;
+    color: var(--text-main); cursor: pointer; text-align: center;
+  }
+  .btn-cerrar-menu:hover { background: #e2e8f0; }
+
+  /* --- ANIMACIONES --- */
   @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-  @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
-
   /* =============================================
-     DISEÑO RESPONSIVO (Tablets y Móviles)
+     DISEÑO RESPONSIVO UNIFICADO
      ============================================= */
 
-  /* Móviles (hasta 768px) */
+  @media (max-width: 600px) { 
+    .form-grid { grid-template-columns: 1fr; } 
+  }
+
   @media (max-width: 768px) {
-    /* 1. Cabecera */
     .header-registro h1 { font-size: 1.8rem; }
 
-    /* 2. Barra de Herramientas y Botones */
+    /* Barras más altas y cómodas en móvil */
     .toolbar-modular { 
       flex-direction: column; 
       align-items: stretch; 
       gap: 15px; 
     }
     
-    .search-pill { 
-      width: 100%; 
-      box-sizing: border-box; 
-      height: 48px; 
+    .search-pill, .filter-select { 
+      width: 100% !important; 
+      box-sizing: border-box !important; 
+      height: 52px !important; 
+      min-height: 52px !important; /* Evita que se aplasten */
+      border-radius: 30px !important;
     }
 
-    /* Mantenemos los botones 50/50 igual que en Congregaciones */
+    .search-input, .texto-filtro {
+      font-size: 1rem !important; 
+    }
+
+    /* Botones agrupados abajo */
     .filters-aside { 
       width: 100%;
       display: flex !important;
       flex-direction: row !important;
-      flex-wrap: nowrap !important;
+      flex-wrap: wrap !important;
       gap: 10px !important;
     }
 
@@ -605,9 +999,9 @@
     .filters-aside .btn-primary-fino {
       flex: 1 !important;
       width: 100% !important;
-      height: 44px !important;
+      height: 50px !important; /* 👈 Botones a la par con las barras */
       padding: 0 5px !important;
-      font-size: 0.8rem !important;
+      font-size: 0.85rem !important;
       justify-content: center !important;
       white-space: nowrap !important;
       overflow: hidden !important;
@@ -615,98 +1009,36 @@
       border-radius: 30px !important;
     }
 
-    /* 3. Filas de Personas (Evitamos que se aplaste el texto) */
-    .persona-row {
-      flex-direction: column; /* Apilamos la info hacia abajo */
-      align-items: flex-start;
-      position: relative; /* Para poder colocar los botones en la esquina */
-      padding: 15px;
-      gap: 10px;
-    }
-
-    .p-info {
-      padding-right: 70px; /* Dejamos un hueco para que el texto no pise los botones */
-    }
-
-    .p-contacto {
-      flex-direction: column; /* Teléfono y correo uno debajo del otro */
-      gap: 8px;
-      width: 100%;
-    }
-
-    /* Movemos los botones de Editar y Borrar a la esquina superior derecha */
-    .p-acciones {
-      position: absolute;
-      top: 15px;
-      right: 15px;
-      margin-left: 0;
-      gap: 8px;
-    }
-
-    .btn-icon-edit, .btn-icon-delete {
-      padding: 8px; /* Iconos más gorditos para el dedo */
-    }
-
-    /* 4. Ajustes del Modal */
-    .persona-modal { padding: 20px; }
-    
-    .modal-actions {
-      flex-direction: column-reverse; /* El botón de cancelar queda abajo */
-      gap: 10px;
-    }
-    
-    .modal-actions button {
-      width: 100%;
-      height: 48px !important; /* Botones de guardar fáciles de tocar */
-    }
-  }
-
-  /* Móviles muy pequeños (hasta 480px) */
-  @media (max-width: 480px) {
-    .filters-aside .btn-importar,
-    .filters-aside .btn-primary-fino {
-      font-size: 0.75rem !important; /* Achicamos letra si la pantalla es enana */
-    }
-  }
-
-  /* Estilo del botón de Limpiar */
-  .btn-danger-fino {
-    background-color: transparent;
-    color: #ef4444;
-    border: 1px solid #ef4444;
-    height: 38px;
-    padding: 0 16px;
-    border-radius: 30px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-weight: 700;
-    font-size: 0.85rem;
-    transition: all 0.2s ease;
-  }
-
-  .btn-danger-fino:hover {
-    background-color: #ef4444;
-    color: white;
-    box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
-  }
-
-  /* --- AJUSTE VITAL PARA MÓVILES (Sobrescribe tu regla anterior) --- */
-  @media (max-width: 768px) {
-    .filters-aside { 
-      flex-wrap: wrap !important; /* Ahora sí permitimos que envuelvan */
-    }
-    
     .filters-aside .btn-danger-fino {
-      flex: 1 1 100% !important; /* Obliga al botón rojo a saltar a una nueva línea entera abajo */
-      height: 44px !important;
+      flex: 1 1 100% !important; 
+      height: 50px !important; /* 👈 Botón de limpiar también a 50px */
       justify-content: center;
     }
 
-    .texto-btn-danger {
-      display: inline !important; /* Aseguramos que se lea "Limpiar" en el móvil */
+    .texto-btn-danger { display: inline !important; }
+
+    /* Filas de la tabla */
+    .persona-row {
+      flex-direction: column; 
+      align-items: flex-start;
+      position: relative; 
+      padding: 15px;
+      gap: 10px;
     }
+    .p-info { padding-right: 70px; }
+    .p-contacto { flex-direction: column; gap: 8px; width: 100%; }
+    
+    .p-acciones { position: absolute; top: 15px; right: 15px; margin-left: 0; gap: 8px; }
+    .btn-icon-edit, .btn-icon-delete { padding: 8px; }
+
+    /* Modal */
+    .persona-modal { padding: 20px; }
+    .modal-actions { flex-direction: column-reverse; gap: 10px; }
+    .modal-actions button { width: 100%; height: 50px !important; }
   }
 
+  @media (max-width: 480px) {
+    .filters-aside .btn-importar,
+    .filters-aside .btn-primary-fino { font-size: 0.75rem !important; }
+  }
 </style>

@@ -1,4 +1,6 @@
-use google_drive3::oauth2::{read_application_secret, InstalledFlowAuthenticator, InstalledFlowReturnMethod};
+use google_drive3::oauth2::{
+    read_application_secret, InstalledFlowAuthenticator, InstalledFlowReturnMethod,
+};
 
 // Este es el comando que llamaremos desde tu interfaz (con TypeScript)
 #[tauri::command]
@@ -21,7 +23,7 @@ pub async fn login_google_drive() -> Result<String, String> {
 
     // 3. ¡LA PARTE QUE FALTABA! Pedir el token para disparar el navegador
     let scopes = &["https://www.googleapis.com/auth/drive.file"];
-    
+
     match auth.token(scopes).await {
         Ok(_token) => {
             // Si el usuario acepta en el navegador, guardamos el token y enviamos éxito
