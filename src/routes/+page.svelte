@@ -12,15 +12,6 @@
     type Circuito 
   } from '$lib/services/db';
 
-  // --- NUEVAS IMPORTACIONES PARA EL RADAR DE INICIO ---
-  import { get } from 'svelte/store';
-  import { sesionApp } from '$lib/stores/authStore';
-  import { estadoSincronizacion } from '$lib/stores/autoSyncStore';
-  import { chequearEstadoNube, descargarRespaldo, subirRespaldo } from '$lib/services/syncService';
-  import { cargarConfig, guardarConfig } from '$lib/services/db';
-  import { prepararDatosParaSubir, restaurarDatosDeDescarga } from '$lib/services/dbSyncHelper';
-  import { ServerCrash, DownloadCloud, UploadCloud } from 'lucide-svelte';
-
   interface CircuitoVisual extends Circuito {
     numCongregaciones?: number;
   }
@@ -28,34 +19,28 @@
   let circuitos: CircuitoVisual[] = [];
   let mostrandoModal = false;
 
-  // NUEVAS VARIABLES PARA BÚSQUEDA Y FILTRO
   let busqueda = "";
   let filtroEstado = "todos";
-  let ordenamiento = "recientes"; // <--- NUEVO: Variable para controlar el orden
+  let ordenamiento = "recientes"; 
   
   let nuevoNombre = "";
   let nuevasEtiquetas = "";
   let nuevaFechaInicio = "";
   let nuevaFechaFin = "";
 
-  // LÓGICA REACTIVA DE FILTRADO Y ORDENAMIENTO
-  // Esta lista se actualiza sola cada vez que escribes, cambias el filtro o el orden
   $: circuitosFiltrados = (circuitos || [])
     .filter(c => {
       const nombre = c.nombre?.toLowerCase() || "";
       const etiquetas = c.etiquetas?.toLowerCase() || "";
       const textoBusqueda = busqueda.toLowerCase();
       
-      // Filtro por nombre o ubicación
       const coincideTexto = nombre.includes(textoBusqueda) || etiquetas.includes(textoBusqueda);
       
-      // Filtro por estado (Actual, Futuro, Anterior)
       if (filtroEstado === "todos") return coincideTexto;
       const estadoActual = obtenerEstado(c).texto.toLowerCase(); 
       return coincideTexto && estadoActual === filtroEstado.toLowerCase();
     })
     .sort((a, b) => {
-      // NUEVO: Lógica matemática para ordenar las tarjetas
       if (ordenamiento === "recientes") {
         return (b.fechaInicio || "").localeCompare(a.fechaInicio || "");
       } else if (ordenamiento === "antiguos") {
@@ -83,114 +68,9 @@
     }
   }
 
-  // --- VARIABLES DEL RADAR DE CONFLICTO ---
-  let mostrandoModalConflicto = false;
-  let infoNube = { dispositivo: "", fecha: "" };
-  let procesandoConflicto = false;
-
-  // --- EL RADAR (Sustituye a tu onMount anterior) ---
   onMount(async () => {
-    await cargarCircuitos(); // Carga tu pantalla normal rápido
-    await chequearNubeAlArrancar(); // Radar silencioso de fondo
+    await cargarCircuitos(); 
   });
-
- async function chequearNubeAlArrancar() {
-    // 🛑 1. EL POST-IT: Si ya revisamos en esta sesión, apagamos el radar inmediatamente para ahorrar recursos
-    if (sessionStorage.getItem('radar_completado')) return;
-
-    const sesion = get(sesionApp);
-    if (!sesion.isLoggedIn || !sesion.token) return; 
-
-    try {
-      const estadoNube = await chequearEstadoNube(sesion.token);
-      if (!estadoNube || !estadoNube.last_synced_at) return;
-
-      let localUltimaSync = await cargarConfig('last_synced_at');
-      if (!localUltimaSync) localUltimaSync = "1970-01-01T00:00:00.000Z";
-
-      const fechaLocal = new Date(localUltimaSync).getTime();
-      const fechaNube = new Date(estadoNube.last_synced_at).getTime();
-
-      if (fechaNube > fechaLocal) {
-        infoNube = {
-          dispositivo: estadoNube.last_device || "Dispositivo desconocido",
-          fecha: new Date(estadoNube.last_synced_at).toLocaleString()
-        };
-        
-        // 🌟 Le avisamos a la barra superior que hay un conflicto (Se pondrá ROJA)
-        estadoSincronizacion.set({ estado: 'conflicto', mensaje: 'Hay datos nuevos en la nube', nubeDispositivo: infoNube.dispositivo, nubeFecha: infoNube.fecha });
-        mostrandoModalConflicto = true; 
-      } 
-      
-      // ✅ 2. PONER EL POST-IT: Todo salió bien o ya avisamos del conflicto. 
-      // Anotamos que ya revisamos por hoy. ¡Silencio total!
-      sessionStorage.setItem('radar_completado', 'true');
-
-    } catch (e) {
-      console.error("Radar silencioso falló:", e);
-    }
-  }
-  
-  // --- FUNCIONES PARA RESOLVER EL CONFLICTO ---
-  async function resolverDescargando() {
-    procesandoConflicto = true;
-    mostrandoModalConflicto = false; // Cerramos el modal para que el usuario vea la barra superior
-    
-    // 🌟 La barra se pone AZUL girando
-    estadoSincronizacion.set({ estado: 'sincronizando', mensaje: 'Descargando datos...', nubeDispositivo: '', nubeFecha: '' });
-
-    try {
-      const sesion = get(sesionApp);
-      const datosNube = await descargarRespaldo(sesion.token);
-      
-      const datosParseados = typeof datosNube.backup.backup_data === 'string' 
-        ? JSON.parse(datosNube.backup.backup_data) 
-        : datosNube.backup.backup_data;
-
-      await restaurarDatosDeDescarga(datosParseados);
-      await guardarConfig('last_synced_at', datosNube.backup.last_synced_at); 
-      
-      // 🌟 La barra se pone VERDE
-      estadoSincronizacion.set({ estado: 'al_dia', mensaje: '¡Datos actualizados!', nubeDispositivo: '', nubeFecha: '' });
-      
-      // Damos 1.5 segundos para que el usuario vea el mensaje de éxito antes de recargar la página
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-
-    } catch (e) {
-      alert("❌ Error al descargar: " + e);
-      estadoSincronizacion.set({ estado: 'error', mensaje: 'Fallo al descargar', nubeDispositivo: '', nubeFecha: '' });
-      procesandoConflicto = false;
-    }
-  }
-
-  async function resolverForzandoSubida() {
-    procesandoConflicto = true;
-    mostrandoModalConflicto = false; // Cerramos el modal
-    
-    // 🌟 La barra se pone AZUL girando
-    estadoSincronizacion.set({ estado: 'sincronizando', mensaje: 'Forzando subida...', nubeDispositivo: '', nubeFecha: '' });
-
-    try {
-      const sesion = get(sesionApp);
-      const jsonDatos = await prepararDatosParaSubir();
-      const fechaActual = new Date().toISOString();
-      
-      await subirRespaldo(sesion.token, jsonDatos, fechaActual);
-      await guardarConfig('last_synced_at', fechaActual);
-      
-      // 🌟 La barra se pone VERDE
-      estadoSincronizacion.set({ estado: 'al_dia', mensaje: '¡Nube sobrescrita!', nubeDispositivo: '', nubeFecha: '' });
-      setTimeout(() => estadoSincronizacion.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '' }), 3000);
-
-    } catch (e) {
-      alert("❌ Error al forzar subida: " + e);
-      estadoSincronizacion.set({ estado: 'error', mensaje: 'Fallo al subir', nubeDispositivo: '', nubeFecha: '' });
-    } finally {
-      procesandoConflicto = false;
-    }
-  }
 
   async function guardarNuevoCircuito() {
     if (!nuevoNombre.trim()) return;
@@ -209,17 +89,15 @@
   }
 
   async function eliminar(id: number, nombre: string) {
-    // 1. Usamos el confirm nativo de Tauri (fíjate en el await)
     const elUsuarioEstaSeguro = await confirm(
       `¿Estás seguro de eliminar el circuito "${nombre}" y TODAS sus congregaciones?`, 
       { title: 'Eliminar Circuito', kind: 'warning' }
     );
 
-    // 2. Solo si presionas "Sí/Aceptar", procedemos a borrar y recargar la lista
     if (elUsuarioEstaSeguro) {
       try {
         await eliminarCircuito(id, nombre);
-        await cargarCircuitos(); // La tarjeta visual se borrará justo en este momento
+        await cargarCircuitos(); 
       } catch (error) {
         alert("Error al eliminar: " + error);
       }
@@ -295,14 +173,11 @@
                 <circle cx="12" cy="3.0" r="2.2" />
                 <path d="M8.5 10.0 v-1.5 l1.5 -1.5 h4 l1.5 1.5 v1.5" />
                 <line x1="12" y1="7.0" x2="12" y2="10.0" />
-
                 <line x1="6.5" y1="11.5" x2="17.5" y2="11.5" />
                 <path d="M8.5 11.5 L9.5 14 h5 L15.5 11.5" />
-
                 <path d="M6.2 19.5 A 1.6 1.9 0 1 1 9.0 19.5" />
                 <path d="M10.6 19.5 A 1.6 1.9 0 1 1 13.4 19.5" />
                 <path d="M15.0 19.5 A 1.6 1.9 0 1 1 17.8 19.5" />
-
                 <path d="M4.0 22.5 A 1.6 1.9 0 1 1 6.8 22.5" />
                 <path d="M8.4 22.5 A 1.6 1.9 0 1 1 11.2 22.5" />
                 <path d="M12.8 22.5 A 1.6 1.9 0 1 1 15.6 22.5" />
@@ -336,7 +211,6 @@
             <button class="btn-delete" on:click={() => eliminar(circuito.id!, circuito.nombre)} title="Eliminar">
               <Trash2 size={18} />
             </button>
-            
             <button class="btn-manage" on:click={() => entrarAlCircuito(circuito.id!)}>
               Gestionar Circuito <ArrowRight size={16} />
             </button>
@@ -381,436 +255,77 @@
   </div>
 {/if}
 
-{#if mostrandoModalConflicto}
-  <div class="modal-backdrop">
-    <div class="card-global modal-content conflicto-modal">
-      <div class="modal-header-alerta">
-        <ServerCrash size={28} color="#ef4444" />
-        <h2>¡Nuevos datos detectados!</h2>
-      </div>
-      
-      <p class="alerta-texto">
-        Se ha detectado una versión más reciente de tus datos en la nube. Si continúas usando la app sin actualizar, podrías sobrescribir el trabajo de otro dispositivo.
-      </p>
-      
-      <div class="info-nube-box">
-        <p><strong>Subido por:</strong> {infoNube.dispositivo}</p>
-        <p><strong>Fecha de subida:</strong> {infoNube.fecha}</p>
-      </div>
-
-      <p class="alerta-pregunta">¿Qué deseas hacer?</p>
-
-      <div class="modal-actions-column">
-        <button class="btn-global btn-descargar-nube" on:click={resolverDescargando} disabled={procesandoConflicto}>
-          <DownloadCloud size={20} />
-          <span>Descargar y sobrescribir esta app (Recomendado)</span>
-        </button>
-        
-        <button class="btn-global btn-forzar-subida" on:click={resolverForzandoSubida} disabled={procesandoConflicto}>
-          <UploadCloud size={20} />
-          <span>Ignorar la nube y forzar la subida de mis datos locales</span>
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
-
 <style>
   .dashboard-circuitos { 
     max-width: 1200px; 
     margin: 0 auto; 
     padding-top: 20px;
   }
-
-  /* --- CABECERA --- */
-  .header-section { 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: flex-end; 
-    margin-bottom: 40px; 
-  }
-  
-  .header-section h1 { 
-    margin: 0; 
-    font-size: 2rem; 
-    font-weight: 800; 
-    color: var(--text-main); 
-  }
-
-  .btn-primary { 
-    background-color: #5c0a1f !important; /* Rojo vino intenso */
-    color: white !important; 
-    border: none; 
-    padding: 10px 24px; 
-    font-weight: 700;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(92, 10, 31, 0.2);
-  }
-
-  .btn-primary:hover { 
-    background-color: #3a0411 !important; /* Rojo casi negro */
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(92, 10, 31, 0.3);
-  }
-
-  /* --- BARRA DE HERRAMIENTAS MODULAR --- */
-  .toolbar-modular {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 35px;
-  }
-
-  .search-pill {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    padding: 0 20px;
-    height: 44px; 
-    background: var(--bg-panel);
-    border: 1px solid var(--border-color);
-    border-radius: 50px;
-    transition: all 0.2s ease;
-  }
-
-  .search-pill:focus-within {
-    border-color: #5c0a1f; /* Acento vino */
-    box-shadow: 0 0 0 3px rgba(92, 10, 31, 0.1);
-  }
-
-  .search-input {
-    width: 100%;
-    border: none;
-    background: transparent;
-    color: var(--text-main);
-    outline: none;
-    font-size: 0.9rem;
-    margin-left: 10px;
-  }
-
-  .filters-aside {
-    display: flex;
-    gap: 12px;
-  }
-
-  .filter-item {
-    background: var(--bg-panel);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 0 15px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-  }
-
-  .filter-item:hover { border-color: #5c0a1f; } /* Hover vino */
-
-  .minimal-select {
-    background: transparent;
-    color: var(--text-main);
-    border: none;
-    font-size: 0.85rem;
-    font-weight: 600;
-    outline: none;
-    cursor: pointer;
-  }
-
-  /* --- GRID Y TARJETAS --- */
-  .grid-circuitos { 
-    display: grid; 
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); 
-    gap: 30px; 
-  }
-
-  .rassembly-card { 
-    display: flex; 
-    flex-direction: column; 
-    padding: 0; 
-    overflow: hidden; 
-    min-height: 320px;
-    position: relative; 
-    transition: all 0.3s ease;
-    border: 1px solid var(--border-color);
-    border-top: 4px solid #5c0a1f; /* Borde superior vino */
-    background: var(--bg-panel);
-    border-radius: var(--radius-lg);
-  }
-  
-  .rassembly-card:hover { 
-    transform: translateY(-8px);
-    box-shadow: var(--shadow-3d);
-  }
-
+  .header-section { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px; }
+  .header-section h1 { margin: 0; font-size: 2rem; font-weight: 800; color: var(--text-main); }
+  .btn-primary { background-color: #5c0a1f !important; color: white !important; border: none; padding: 10px 24px; font-weight: 700; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(92, 10, 31, 0.2); }
+  .btn-primary:hover { background-color: #3a0411 !important; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(92, 10, 31, 0.3); }
+  .toolbar-modular { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 35px; }
+  .search-pill { flex: 1; display: flex; align-items: center; padding: 0 20px; height: 44px; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 50px; transition: all 0.2s ease; }
+  .search-pill:focus-within { border-color: #5c0a1f; box-shadow: 0 0 0 3px rgba(92, 10, 31, 0.1); }
+  .search-input { width: 100%; border: none; background: transparent; color: var(--text-main); outline: none; font-size: 0.9rem; margin-left: 10px; }
+  .filters-aside { display: flex; gap: 12px; }
+  .filter-item { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 12px; padding: 0 15px; height: 44px; display: flex; align-items: center; }
+  .filter-item:hover { border-color: #5c0a1f; } 
+  .minimal-select { background: transparent; color: var(--text-main); border: none; font-size: 0.85rem; font-weight: 600; outline: none; cursor: pointer; }
+  .grid-circuitos { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 30px; }
+  .rassembly-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; min-height: 320px; position: relative; transition: all 0.3s ease; border: 1px solid var(--border-color); border-top: 4px solid #5c0a1f; background: var(--bg-panel); border-radius: var(--radius-lg); }
+  .rassembly-card:hover { transform: translateY(-8px); box-shadow: var(--shadow-3d); }
   .card-header { padding: 25px 30px 0 30px; }
   .top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
   .header-divider { height: 1px; background-color: var(--border-color); width: 100%; }
   .card-content { padding: 10px 30px 30px 30px; flex: 1; display: flex; flex-direction: column; }
   .circuit-icon { color: var(--text-main); opacity: 0.8; }
-
-  /* --- ESTADOS --- */
-  .badge-status { 
-    display: inline-block; padding: 6px 16px; border-radius: 20px; 
-    font-size: 0.75rem; font-weight: 800; text-transform: uppercase; 
-  }
+  .badge-status { display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; }
   .badge-actual { background: #1e3a8a; color: white; }
   .badge-futuro { background: #f59e0b; color: white; }
   .badge-anterior { background: #64748b; color: white; }
-
-  .circuit-title { 
-    margin: 15px 0 20px 0; font-size: 1.6rem; font-weight: 900; 
-    color: var(--text-main); text-transform: uppercase; 
-  }
-  
+  .circuit-title { margin: 15px 0 20px 0; font-size: 1.6rem; font-weight: 900; color: var(--text-main); text-transform: uppercase; }
   .meta-row { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; color: var(--text-muted); font-weight: 500; }
-
-  /* --- ACCIONES --- */
-  .actions-wrapper {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 70px;
-    background: var(--bg-panel);
-    border-top: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    padding: 0 20px;
-    opacity: 0;
-    transform: translateY(10px);
-    transition: all 0.3s ease;
-    pointer-events: none;
-    z-index: 10;
-  }
-
+  .actions-wrapper { position: absolute; bottom: 0; left: 0; right: 0; height: 70px; background: var(--bg-panel); border-top: 1px solid var(--border-color); display: flex; align-items: center; padding: 0 20px; opacity: 0; transform: translateY(10px); transition: all 0.3s ease; pointer-events: none; z-index: 10; }
   .rassembly-card:hover .actions-wrapper { opacity: 1; transform: translateY(0); pointer-events: auto; }
   .card-actions { display: flex; gap: 12px; width: 100%; }
-  
-  .btn-delete { 
-    width: 40px;
-    height: 40px; 
-    border-radius: 10px; 
-    border: none; 
-    background: #fee2e2; 
-    color: #ef4444; 
-    cursor: pointer; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center;
-    flex-shrink: 0; 
-  }
-
+  .btn-delete { width: 40px; height: 40px; border-radius: 10px; border: none; background: #fee2e2; color: #ef4444; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   :global(.dark) .btn-delete { background: rgba(239, 68, 68, 0.15); }
-
-  .btn-manage { 
-    flex: 1; 
-    height: 40px;
-    border-radius: 10px; 
-    border: none; 
-    background: #5c0a1f; /* Rojo vino */
-    color: white; 
-    font-weight: 700;
-    font-size: 0.85rem; 
-    cursor: pointer; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
-    gap: 8px;
-  }
-  
-  .btn-manage:hover {
-    background: #3a0411;
-  }
-
-  /* --- MODAL --- */
-  .modal-backdrop {
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px);
-    display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 20px;
-  }
-
-  .modal-content {
-    width: 100%; max-width: 500px; background: var(--bg-panel);
-    border-radius: var(--radius-lg); padding: 35px; box-shadow: var(--shadow-3d);
-    animation: scaleIn 0.2s ease-out; border-top: 5px solid #5c0a1f; /* Borde superior vino */
-  }
-
+  .btn-manage { flex: 1; height: 40px; border-radius: 10px; border: none; background: #5c0a1f; color: white; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-manage:hover { background: #3a0411; }
+  .modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 20px; }
+  .modal-content { width: 100%; max-width: 500px; background: var(--bg-panel); border-radius: var(--radius-lg); padding: 35px; box-shadow: var(--shadow-3d); animation: scaleIn 0.2s ease-out; border-top: 5px solid #5c0a1f; }
   .form-group { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
   .form-group label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); }
   .form-row { display: flex; gap: 15px; margin-bottom: 25px; }
   .form-group.half { flex: 1; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px; }
-
   @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-
-  /* =============================================
-     DISEÑO RESPONSIVO (Tablets y Móviles)
-     ============================================= */
-
-  /* Pantallas medianas y Tablets (hasta 1024px) */
-  @media (max-width: 1024px) {
-    .grid-circuitos { 
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
-    }
-  }
-
-  /* Móviles (hasta 768px) */
+  
+  @media (max-width: 1024px) { .grid-circuitos { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); } }
   @media (max-width: 768px) {
-    /* 1. Cabecera */
-    .header-section {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 15px;
-      margin-bottom: 25px;
-    }
-    .header-section button {
-      width: 100%;
-      justify-content: center;
-      min-height: 52px !important; /* Más altura forzada */
-    }
-
-    /* 2. Barra de Herramientas */
-    .toolbar-modular {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 12px;
-      width: 100%;
-      box-sizing: border-box; 
-    }
-    
-    .search-pill {
-      width: 100%;
-      box-sizing: border-box; 
-      min-height: 52px !important; /* Altura imponente para el buscador */
-      padding: 0 20px; /* Asegura buen espacio interior */
-      border-radius: 12px; /* Alineamos la curva a los botones de abajo */
-    }
-
-    .search-input {
-      font-size: 1rem; /* Texto un poquito más grande para leer bien en el sol */
-    }
-
-    .filters-aside {
-      flex-direction: column; 
-      width: 100%;
-      gap: 12px;
-    }
-    
-    .filter-item {
-      width: 100%;
-      box-sizing: border-box; 
-      min-height: 52px !important; /* Igual que el buscador */
-    }
-    
-    .minimal-select {
-      width: 100%;
-      font-size: 0.95rem; /* Texto más legible */
-    }
-
-    /* 3. Tarjetas de Circuitos */
-    .grid-circuitos {
-      grid-template-columns: 1fr; 
-    }
-    .rassembly-card {
-      min-height: auto; 
-    }
-    .card-content {
-      padding-bottom: 10px; 
-    }
-    
-    /* Contenedor de acciones SIEMPRE VISIBLE */
-    .actions-wrapper {
-      position: static; 
-      opacity: 1; 
-      transform: translateY(0);
-      pointer-events: auto;
-      height: auto;
-      padding: 0 25px 25px 25px;
-      border-top: none;
-      background: transparent;
-    }
-
-    /* 4. SOLUCIÓN A LOS BOTONES ESTRECHITOS */
-    .card-actions {
-      flex-direction: column; /* Apila "Eliminar" y "Gestionar" uno encima del otro */
-      gap: 12px;
-      width: 100%;
-      box-sizing: border-box;
-    }
-
-    .btn-delete, .btn-manage {
-      width: 100%;
-      min-height: 52px !important; /* Usamos min-height forzado con !important para vencer cualquier global */
-      padding: 12px 20px !important; /* Relleno generoso */
-      justify-content: center;
-      border-radius: 12px !important; 
-      font-size: 1rem !important; /* Texto claro y grande */
-    }
+    .header-section { flex-direction: column; align-items: flex-start; gap: 15px; margin-bottom: 25px; }
+    .header-section button { width: 100%; justify-content: center; min-height: 52px !important; }
+    .toolbar-modular { flex-direction: column; align-items: stretch; gap: 12px; width: 100%; box-sizing: border-box; }
+    .search-pill { width: 100%; box-sizing: border-box; min-height: 52px !important; padding: 0 20px; border-radius: 12px; }
+    .search-input { font-size: 1rem; }
+    .filters-aside { flex-direction: column; width: 100%; gap: 12px; }
+    .filter-item { width: 100%; box-sizing: border-box; min-height: 52px !important; }
+    .minimal-select { width: 100%; font-size: 0.95rem; }
+    .grid-circuitos { grid-template-columns: 1fr; }
+    .rassembly-card { min-height: auto; }
+    .card-content { padding-bottom: 10px; }
+    .actions-wrapper { position: static; opacity: 1; transform: translateY(0); pointer-events: auto; height: auto; padding: 0 25px 25px 25px; border-top: none; background: transparent; }
+    .card-actions { flex-direction: column; gap: 12px; width: 100%; box-sizing: border-box; }
+    .btn-delete, .btn-manage { width: 100%; min-height: 52px !important; padding: 12px 20px !important; justify-content: center; border-radius: 12px !important; font-size: 1rem !important; }
   }
-
-  /* Móviles muy pequeños (hasta 480px) */
   @media (max-width: 480px) {
-    .header-section h1 {
-      font-size: 1.6rem;
-    }
-    
-    /* Aseguramos que el contenido de la tarjeta no choque con los bordes */
-    .card-header, .card-content, .actions-wrapper {
-      padding-left: 20px;
-      padding-right: 20px;
-    }
-
-    /* Modal */
-    .modal-content {
-      padding: 20px;
-    }
-    .form-row {
-      flex-direction: column; 
-      gap: 15px;
-      margin-bottom: 15px;
-    }
-    .modal-actions {
-      flex-direction: column-reverse; 
-      gap: 10px;
-    }
-    .modal-actions button {
-      width: 100%;
-      min-height: 52px !important;
-    }
+    .header-section h1 { font-size: 1.6rem; }
+    .card-header, .card-content, .actions-wrapper { padding-left: 20px; padding-right: 20px; }
+    .modal-content { padding: 20px; }
+    .form-row { flex-direction: column; gap: 15px; margin-bottom: 15px; }
+    .modal-actions { flex-direction: column-reverse; gap: 10px; }
+    .modal-actions button { width: 100%; min-height: 52px !important; }
   }
-
-  /* --- ESTILOS DEL MODAL DE CONFLICTO --- */
-  .conflicto-modal { border-top: 5px solid #ef4444; }
-  .modal-header-alerta { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
-  .modal-header-alerta h2 { margin: 0; color: #ef4444; font-size: 1.4rem; font-weight: 800; }
-  .alerta-texto { color: var(--text-main); font-size: 0.95rem; margin-bottom: 15px; line-height: 1.5; }
-  
-  .info-nube-box { 
-    background: rgba(239, 68, 68, 0.05); 
-    border: 1px dashed rgba(239, 68, 68, 0.4); 
-    border-radius: 8px; 
-    padding: 15px; 
-    margin-bottom: 20px; 
-  }
-  .info-nube-box p { margin: 5px 0; color: var(--text-main); font-size: 0.9rem; }
-  .alerta-pregunta { font-weight: 700; color: var(--text-main); margin-bottom: 15px; }
-  
-  .modal-actions-column { display: flex; flex-direction: column; gap: 10px; }
-  
-  .btn-descargar-nube { 
-    background: #3b82f6; color: white; border: none; 
-    display: flex; justify-content: flex-start; gap: 15px; 
-    padding: 16px; font-weight: 700; text-align: left;
-  }
-  .btn-descargar-nube:hover:not(:disabled) { background: #2563eb; transform: translateY(-1px); }
-  
-  .btn-forzar-subida { 
-    background: transparent; color: #ef4444; border: 1px solid #ef4444; 
-    display: flex; justify-content: flex-start; gap: 15px; 
-    padding: 16px; font-weight: 700; text-align: left;
-  }
-  .btn-forzar-subida:hover:not(:disabled) { background: rgba(239, 68, 68, 0.1); }
-
 </style>

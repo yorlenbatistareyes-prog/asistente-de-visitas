@@ -2,10 +2,17 @@
 import Database from '@tauri-apps/plugin-sql';
 import { invoke } from '@tauri-apps/api/core';
 
-// 👇 NUEVO: Importamos el cerebro de sincronización automática
-import { dispararSincronizacionLocal } from '$lib/stores/autoSyncStore';
+// 🛑 ELIMINAMOS la importación de autoSyncStore para romper la Dependencia Circular
+// import { dispararSincronizacionLocal } from '$lib/stores/autoSyncStore';
 
 let dbInstance: Database | null = null;
+
+// 👇 NUEVO: Esta función "grita" al sistema que hubo un cambio, sin depender de nadie
+function notificarCambioLocal() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('db_local_cambiada'));
+  }
+}
 
 // --- INTERFACES ---
 export interface Circuito {
@@ -151,7 +158,7 @@ export async function crearCircuito(nombre: string, etiquetas: string = "", fech
   const fechaCreacion = new Date().toISOString().split('T')[0]; 
   try {
     await invoke('crear_circuito_rust', { nombre, etiquetas, fechaCreacion, fechaInicio, fechaFin });
-    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
+    notificarCambioLocal(); // ⏰ AVISAMOS MEDIANTE EVENTO
   } catch (error) {
     console.error("Error creando circuito en Rust:", error);
     throw error;
@@ -179,7 +186,7 @@ export async function obtenerCircuitoPorId(id: number): Promise<Circuito | null>
 export async function eliminarCircuito(id: number, nombre: string) {
   try {
     await invoke('eliminar_circuito_rust', { id, nombre });
-    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
+    notificarCambioLocal(); // ⏰ AVISAMOS MEDIANTE EVENTO
   } catch (error) {
     console.error("Error eliminando circuito en Rust:", error);
     throw error;
@@ -200,7 +207,7 @@ export async function obtenerCongregaciones(circuito: string): Promise<Congregac
 export async function guardarCongregacion(cong: Congregacion) {
   try {
     await invoke('guardar_congregacion_rust', { cong });
-    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
+    notificarCambioLocal(); // ⏰ AVISAMOS MEDIANTE EVENTO
   } catch (error) {
     console.error("Error guardando congregación en Rust:", error);
     throw error;
@@ -210,7 +217,7 @@ export async function guardarCongregacion(cong: Congregacion) {
 export async function eliminarCongregacion(id: number) {
   try {
     await invoke('eliminar_congregacion_rust', { id });
-    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
+    notificarCambioLocal(); // ⏰ AVISAMOS MEDIANTE EVENTO
   } catch (error) {
     console.error("Error eliminando congregación en Rust:", error);
     throw error;
@@ -224,7 +231,7 @@ export async function guardarConfig(clave: string, valor: string) {
     
     // 🧠 LA INTELIGENCIA: Dispara la sincronización SOLO si no es el reloj interno
     if (clave !== 'last_synced_at') {
-      dispararSincronizacionLocal();
+      notificarCambioLocal();
     }
     
   } catch (error) {
@@ -256,7 +263,7 @@ export async function obtenerPersonasPorCircuito(circuitoId: number): Promise<Pe
 export async function guardarPersona(p: Persona) {
   try {
     await invoke('guardar_persona_rust', { p });
-    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
+    notificarCambioLocal(); // ⏰ AVISAMOS MEDIANTE EVENTO
   } catch (error) {
     console.error("Error guardando persona en Rust:", error);
     throw error;
@@ -266,7 +273,7 @@ export async function guardarPersona(p: Persona) {
 export async function eliminarPersona(id: number) {
   try {
     await invoke('eliminar_persona_rust', { id });
-    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
+    notificarCambioLocal(); // ⏰ AVISAMOS MEDIANTE EVENTO
   } catch (error) {
     console.error("Error eliminando persona en Rust:", error);
     throw error;
@@ -287,7 +294,7 @@ export async function obtenerHistorialPorCongregacion(congregacion_id: number): 
 export async function guardarHistorial(visita: VisitaHistorial) {
   try {
     await invoke('guardar_historial_rust', { visita });
-    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
+    notificarCambioLocal(); // ⏰ AVISAMOS MEDIANTE EVENTO
   } catch (error) {
     console.error("Error guardando historial en Rust:", error);
     throw error;
@@ -297,7 +304,7 @@ export async function guardarHistorial(visita: VisitaHistorial) {
 export async function eliminarHistorial(id: number) {
   try {
     await invoke('eliminar_historial_rust', { id });
-    dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
+    notificarCambioLocal(); // ⏰ AVISAMOS MEDIANTE EVENTO
   } catch (error) {
     console.error("Error eliminando historial en Rust:", error);
     throw error;
@@ -307,11 +314,11 @@ export async function eliminarHistorial(id: number) {
 export async function eliminarTodasLasPersonas(circuitoId: number) {
   const db = await Database.load('sqlite:av_database.db');
   await db.execute('DELETE FROM personas WHERE circuito_id = $1', [circuitoId]);
-  dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
+  notificarCambioLocal(); // ⏰ AVISAMOS MEDIANTE EVENTO
 }
 
 export async function eliminarTodasLasCongregaciones(circuito: string) {
   const db = await Database.load('sqlite:av_database.db');
   await db.execute('DELETE FROM congregaciones WHERE circuito = $1', [circuito]);
-  dispararSincronizacionLocal(); // ⏰ AVISAMOS AL CEREBRO
+  notificarCambioLocal(); // ⏰ AVISAMOS MEDIANTE EVENTO
 }

@@ -4,6 +4,7 @@ import { writable, get } from 'svelte/store';
 import { sesionApp } from '$lib/stores/authStore';
 import { chequearEstadoNube, subirRespaldo } from '$lib/services/syncService';
 import { prepararDatosParaSubir } from '$lib/services/dbSyncHelper';
+// Mantenemos a db.ts como nuestro único Manager de base de datos
 import { cargarConfig, guardarConfig } from '$lib/services/db';
 
 // Definimos todos los posibles estados que verá el usuario
@@ -20,19 +21,29 @@ export const estadoSincronizacion = writable({
 let temporizadorSync: ReturnType<typeof setTimeout> | null = null;
 
 /**
- * Función principal: LLAMAR CADA VEZ QUE SE GUARDE/BORRE ALGO EN LA APP.
+ * Función principal: Ocurre cuando el store detecta un cambio en la base de datos.
  */
-export function dispararSincronizacionLocal() {
-    // 1. Verificamos si el usuario tiene la sesión iniciada
-    const sesion = get(sesionApp);
-    if (!sesion.isLoggedIn || !sesion.token) return;
+export async function dispararSincronizacionLocal() {
+    let sesion = get(sesionApp);
 
-    // 2. EL DEBOUNCE: Si ya había un cronómetro corriendo, lo matamos.
+    // 🛠️ RESCATE DE MEMORIA: Si Svelte perdió la sesión, la sacamos de la BD
+    if (!sesion.isLoggedIn || !sesion.token) {
+        // OJO: Cambia 'user_token' por la clave exacta que usas al guardar el token en el login
+        const tokenGuardado = await cargarConfig('user_token'); 
+        if (!tokenGuardado) return; // Si no hay token, abortamos
+        
+        sesion = { isLoggedIn: true, token: tokenGuardado, correo: sesion.correo || '', verificando: sesion.verificando || false };
+    }
+
+    // 🛡️ CANDADO: Si ya estamos subiendo datos, esperamos a que termine
+    if (get(estadoSincronizacion).estado === 'sincronizando') return;
+
+    // EL DEBOUNCE: Reiniciamos el reloj
     if (temporizadorSync) {
         clearTimeout(temporizadorSync);
     }
 
-    // 3. Avisamos a la UI que estamos esperando
+    // Avisamos a la UI que estamos esperando
     estadoSincronizacion.set({
         estado: 'esperando',
         mensaje: 'Esperando para sincronizar...',
@@ -40,10 +51,10 @@ export function dispararSincronizacionLocal() {
         nubeFecha: ''
     });
 
-    // 4. Arrancamos el cronómetro de 5 segundos (5000 milisegundos)
+    // ⚡ TURBO: 1.5 segundos para que sea ultra rápido
     temporizadorSync = setTimeout(async () => {
         await procesarSubidaAutomatica(sesion.token);
-    }, 5000);
+    }, 1500);
 }
 
 /**
@@ -54,21 +65,17 @@ async function procesarSubidaAutomatica(token: string) {
 
     try {
         // --- PREVENCIÓN DE CONFLICTOS ---
-        // A. Leemos cuándo fue la última vez que NOSOTROS subimos/bajamos datos.
         let localUltimaSync = await cargarConfig('last_synced_at');
-        if (!localUltimaSync) localUltimaSync = "1970-01-01T00:00:00.000Z"; // Si nunca se ha sincronizado
+        if (!localUltimaSync) localUltimaSync = "1970-01-01T00:00:00.000Z";
 
-        // B. Preguntamos al servidor cómo están sus datos
         const estadoNube = await chequearEstadoNube(token);
 
         if (estadoNube && estadoNube.last_synced_at) {
             const fechaLocal = new Date(localUltimaSync).getTime();
             const fechaNube = new Date(estadoNube.last_synced_at).getTime();
 
-            // C. EL CHOQUE: Si la nube tiene una fecha MAYOR a la nuestra
             if (fechaNube > fechaLocal) {
                 console.warn("⚠️ CONFLICTO DETECTADO: La nube tiene datos más nuevos.");
-                
                 estadoSincronizacion.update(s => ({
                     ...s,
                     estado: 'conflicto',
@@ -76,26 +83,27 @@ async function procesarSubidaAutomatica(token: string) {
                     nubeDispositivo: estadoNube.last_device || 'Dispositivo desconocido',
                     nubeFecha: estadoNube.last_synced_at
                 }));
-                return; // ⛔ ABORTAMOS LA SUBIDA PARA NO BORRAR EL TRABAJO DEL OTRO
+                return; // ⛔ ABORTAMOS
             }
         }
 
-        // --- ZONA SEGURA: PROCEDEMOS A SUBIR ---
+        // --- ZONA SEGURA (LÓGICA DE MILISEGUNDOS DEL AMIGO) ---
         
-        // D. Empaquetamos todo desde la base de datos local
+        // 1. Tomamos la fecha EXACTA antes de recopilar los datos
+        const fechaOriginalMilisegundos = new Date().toISOString();
+
+        // 2. Empaquetamos todo desde la base de datos local
         const jsonDatos = await prepararDatosParaSubir();
-        const fechaActual = new Date().toISOString();
 
-        // E. Subimos usando la función que actualizamos en el Paso 1
-        await subirRespaldo(token, jsonDatos, fechaActual);
+        // 3. Subimos enviando NUESTRA fecha
+        await subirRespaldo(token, jsonDatos, fechaOriginalMilisegundos);
 
-        // F. MUY IMPORTANTE: Actualizamos nuestra marca de tiempo local
-        await guardarConfig('last_synced_at', fechaActual);
+        // 4. Guardamos la MISMA fecha exacta localmente
+        await guardarConfig('last_synced_at', fechaOriginalMilisegundos);
 
-       // G. Éxito
+        // G. Éxito
         estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: 'Sincronizado con éxito' }));
 
-        // Después de 3 segundos, ocultamos el mensaje para no molestar
         setTimeout(() => {
             estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
         }, 3000);
@@ -108,31 +116,77 @@ async function procesarSubidaAutomatica(token: string) {
             mensaje: 'Error de conexión. Se reintentará en el próximo cambio.'
         }));
         
-        // Volver a inactivo después de unos segundos
         setTimeout(() => {
             estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
         }, 4000);
     }
 }
 
-/**
- * Función extra para usar desde la página de configuración para forzar que el estado regrese a inactivo
- * si el usuario resolvió el conflicto descargando.
- */
 export function resetearEstadoSincronizacion() {
     estadoSincronizacion.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '' });
 }
 
-/**
- * Función extra: Llamar cuando se haga una subida MANUAL exitosa para evitar falsos conflictos.
- */
 export async function registrarSubidaManualExitosa() {
     const fechaActual = new Date().toISOString();
     await guardarConfig('last_synced_at', fechaActual);
+    
     estadoSincronizacion.set({ estado: 'al_dia', mensaje: 'Sincronizado con éxito', nubeDispositivo: '', nubeFecha: '' });
     
-    // Lo ocultamos a los 3 segundos igual que el automático
     setTimeout(() => {
         estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
     }, 3000);
+}
+
+// 👇 LA MAGIA DE LOS EVENTOS: Esto rompe la dependencia circular.
+// Escuchamos cuando db.ts "grita" que hubo un cambio, sin necesidad de que nos importe directamente.
+if (typeof window !== 'undefined') {
+    window.addEventListener('db_local_cambiada', () => {
+        dispararSincronizacionLocal();
+    });
+}
+
+/**
+ * NUEVO: Función para ejecutar SOLO al abrir la app. 
+ * Revisa si hay datos nuevos en la nube para avisar inmediatamente.
+ */
+export async function comprobarNubeAlAbrir() {
+    let sesion = get(sesionApp);
+
+    // 🛠️ RESCATE DE MEMORIA: Beneficia tanto a Android como a Windows
+    if (!sesion.isLoggedIn || !sesion.token) {
+        const tokenGuardado = await cargarConfig('user_token'); 
+        if (!tokenGuardado) {
+            console.log("Radar: No hay token guardado. Abortando chequeo.");
+            return; 
+        }
+        sesion = { isLoggedIn: true, token: tokenGuardado, correo: sesion.correo || '', verificando: sesion.verificando || false };
+    }
+
+    try {
+        let localUltimaSync = await cargarConfig('last_synced_at');
+        if (!localUltimaSync) localUltimaSync = "1970-01-01T00:00:00.000Z";
+
+        const estadoNube = await chequearEstadoNube(sesion.token);
+
+        if (estadoNube && estadoNube.last_synced_at) {
+            const fechaLocal = new Date(localUltimaSync).getTime();
+            const fechaNube = new Date(estadoNube.last_synced_at).getTime();
+
+            console.log("Radar -> Fecha Local:", localUltimaSync);
+            console.log("Radar -> Fecha Nube:", estadoNube.last_synced_at);
+
+            if (fechaNube > fechaLocal) {
+                console.log("Radar: ¡Datos nuevos detectados en la nube!");
+                estadoSincronizacion.update(s => ({
+                    ...s,
+                    estado: 'conflicto',
+                    mensaje: 'Hay una actualización disponible en la nube.',
+                    nubeDispositivo: estadoNube.last_device || 'Dispositivo desconocido',
+                    nubeFecha: estadoNube.last_synced_at
+                }));
+            }
+        }
+    } catch (error) {
+        console.error("Error al comprobar la nube en el arranque:", error);
+    }
 }
