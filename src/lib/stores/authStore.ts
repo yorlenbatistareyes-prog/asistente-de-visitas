@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { load } from '@tauri-apps/plugin-store';
+import { guardarConfig, cargarConfig } from '$lib/services/db';
 
 // --- 1. ESTADO GLOBAL ---
 export const sesionApp = writable({
@@ -37,6 +38,9 @@ export async function arrancarAplicacion() {
                 isLoggedIn: true, 
                 verificando: false 
             });
+            await guardarConfig('user_token', token);
+            await guardarConfig('user_email', correo);
+
             isInitialized = true;
             return;
         }
@@ -55,6 +59,9 @@ export async function guardarSesion(correo: string, token: string) {
         await store.set('token', token);
         await store.save(); // Aquí ya guardamos manualmente, ¡no hay problema!
         
+        await guardarConfig('user_token', token);
+        await guardarConfig('user_email', correo);
+
         sesionApp.set({ 
             correo, 
             token, 
@@ -89,6 +96,9 @@ export async function cerrarSesionSegura() {
         await store.delete('token');
         await store.save();
         
+        await guardarConfig('user_token', '');
+        await guardarConfig('user_email', '');
+
         sesionApp.set({ 
             correo: '', 
             token: '', 

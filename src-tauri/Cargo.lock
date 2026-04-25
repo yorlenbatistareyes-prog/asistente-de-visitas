@@ -120,7 +120,7 @@ dependencies = [
 
 [[package]]
 name = "asistente-de-visitas"
-version = "1.0.41"
+version = "1.0.43"
 dependencies = [
  "argon2",
  "chrono",

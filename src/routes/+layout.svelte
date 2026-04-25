@@ -15,7 +15,7 @@
 
   // 📡 NUEVAS IMPORTACIONES PARA EL RADAR Y EL MODAL GLOBAL
   import { get } from 'svelte/store';
-  import { sesionApp } from '$lib/stores/authStore';
+  import { sesionApp, arrancarAplicacion } from '$lib/stores/authStore';
   import { estadoSincronizacion, comprobarNubeAlAbrir } from '$lib/stores/autoSyncStore';
   import { descargarRespaldo, subirRespaldo } from '$lib/services/syncService';
   import { prepararDatosParaSubir, restaurarDatosDeDescarga } from '$lib/services/dbSyncHelper';
@@ -105,6 +105,7 @@
   }
 
   onMount(async () => {
+     await arrancarAplicacion();
     // 1. 💻 LÓGICA DE WINDOWS
     try {
       const hayArchivo = await invoke<boolean>('hay_archivo_pendiente');
@@ -131,7 +132,7 @@
     // 3. Detección de nueva versión
     try {
       versionActual = await getVersion();
-      const ultimaVista = await cargarConfig('ultima_version_vista') || "1.0.41";
+      const ultimaVista = await cargarConfig('ultima_version_vista') || "1.0.43";
       if (versionActual !== ultimaVista) {
         cambiosRecientes = historialCambios[versionActual] || [
           { texto: "Mejoras de estabilidad en sincronización y corrección de errores.", tipo: "info" }
