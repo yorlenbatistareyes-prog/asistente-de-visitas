@@ -38,8 +38,6 @@ export async function arrancarAplicacion() {
                 isLoggedIn: true, 
                 verificando: false 
             });
-            await guardarConfig('user_token', token);
-            await guardarConfig('user_email', correo);
 
             isInitialized = true;
             return;

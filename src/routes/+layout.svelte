@@ -132,10 +132,11 @@
     // 3. Detección de nueva versión
     try {
       versionActual = await getVersion();
-      const ultimaVista = await cargarConfig('ultima_version_vista') || "1.0.43";
+      const ultimaVista = await cargarConfig('ultima_version_vista') || "1.0.46";
       if (versionActual !== ultimaVista) {
         cambiosRecientes = historialCambios[versionActual] || [
-          { texto: "Mejoras de estabilidad en sincronización y corrección de errores.", tipo: "info" }
+          { texto: "Mejoras de estabilidad en sincronización y corrección de errores.", tipo: "info" },
+          { texto: "Mejoras visuales de la app en Barra superior y en modales.", tipo: "info" }
         ];
         mostrarNovedades = true;
       }
@@ -294,8 +295,37 @@
   @media (max-width: 600px) { .banner-flotante-update { bottom: 80px; left: 15px; right: 15px; flex-direction: column; align-items: flex-start; gap: 15px; } .banner-botones { width: 100%; justify-content: space-between; } .btn-actualizar-ahora { flex: 1; } }
 
   /* --- MODAL GLOBAL DE CONFLICTO DE NUBE --- */
-  .modal-backdrop-global { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 10000; padding: 20px; }
-  .conflicto-modal { border-top: 5px solid #ef4444; background: var(--bg-panel); border-radius: var(--radius-lg); padding: 35px; width: 100%; max-width: 500px; animation: scaleIn 0.2s ease-out; box-shadow: var(--shadow-3d); }
+  .modal-backdrop-global { 
+    position: fixed; top: 0; left: 0; 
+    width: 100vw; 
+    height: 100vh; 
+    height: 100dvh; /* Evita problemas con la barra del navegador en móviles */
+    background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); 
+    display: flex; justify-content: center; align-items: center; 
+    z-index: 10000; 
+    padding: 20px; 
+    box-sizing: border-box; /* 👈 Esto evita que el padding lo empuje a la derecha */
+  }
+
+  .conflicto-modal { 
+    border-top: 5px solid #ef4444; 
+    background: var(--bg-panel); 
+    border-radius: var(--radius-lg); 
+    padding: 35px; 
+    
+    /* 👈 Aire a los laterales */
+    width: calc(100% - 40px); 
+    max-width: 500px; 
+    
+    /* 👈 Límite de altura y scroll por si la pantalla es muy pequeña */
+    max-height: 85dvh;
+    overflow-y: auto;
+    
+    animation: scaleIn 0.2s ease-out; 
+    box-shadow: var(--shadow-3d); 
+    box-sizing: border-box; /* 👈 Evita que el padding interno desborde la tarjeta */
+  }
+
   .modal-header-alerta { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
   .modal-header-alerta h2 { margin: 0; color: #ef4444; font-size: 1.4rem; font-weight: 800; }
   .alerta-texto { color: var(--text-main); font-size: 0.95rem; margin-bottom: 15px; line-height: 1.5; }
@@ -308,4 +338,11 @@
   .btn-forzar-subida { background: transparent; color: #ef4444; border: 1px solid #ef4444; display: flex; justify-content: flex-start; gap: 15px; padding: 16px; font-weight: 700; text-align: left; border-radius: 8px; cursor: pointer; }
   .btn-forzar-subida:hover:not(:disabled) { background: rgba(239, 68, 68, 0.1); }
   @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+  @media (max-width: 480px) {
+    .conflicto-modal { 
+      padding: 25px 20px; 
+    }
+  }
+
 </style>

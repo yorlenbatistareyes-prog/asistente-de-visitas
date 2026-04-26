@@ -294,8 +294,36 @@
   :global(.dark) .btn-delete { background: rgba(239, 68, 68, 0.15); }
   .btn-manage { flex: 1; height: 40px; border-radius: 10px; border: none; background: #5c0a1f; color: white; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .btn-manage:hover { background: #3a0411; }
-  .modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 20px; }
-  .modal-content { width: 100%; max-width: 500px; background: var(--bg-panel); border-radius: var(--radius-lg); padding: 35px; box-shadow: var(--shadow-3d); animation: scaleIn 0.2s ease-out; border-top: 5px solid #5c0a1f; }
+  .modal-backdrop { 
+    position: fixed; top: 0; left: 0; 
+    width: 100vw; 
+    height: 100vh; 
+    height: 100dvh; /* Soporte moderno: evita problemas con la barra del navegador en móviles */
+    background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); 
+    display: flex; justify-content: center; align-items: center; 
+    z-index: 2000; 
+    padding: 20px; 
+    box-sizing: border-box; /* Asegura que el padding respete el tamaño de la pantalla */
+  }
+  
+  .modal-content { 
+    /* 👇 ESTA LÍNEA DA EL RESPIRO LATERAL (20px de aire a cada lado) */
+    width: calc(100% - 40px); 
+    max-width: 500px; 
+    
+    /* 👇 ESTO DA EL RESPIRO ARRIBA Y ABAJO */
+    max-height: 85dvh; 
+    overflow-y: auto; 
+    
+    background: var(--bg-panel); 
+    border-radius: var(--radius-lg); 
+    padding: 35px; 
+    box-shadow: var(--shadow-3d); 
+    animation: scaleIn 0.2s ease-out; 
+    border-top: 5px solid #5c0a1f; 
+    box-sizing: border-box; 
+  }
+
   .form-group { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
   .form-group label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); }
   .form-row { display: flex; gap: 15px; margin-bottom: 25px; }
@@ -317,13 +345,22 @@
     .rassembly-card { min-height: auto; }
     .card-content { padding-bottom: 10px; }
     .actions-wrapper { position: static; opacity: 1; transform: translateY(0); pointer-events: auto; height: auto; padding: 0 25px 25px 25px; border-top: none; background: transparent; }
-    .card-actions { flex-direction: column; gap: 12px; width: 100%; box-sizing: border-box; }
-    .btn-delete, .btn-manage { width: 100%; min-height: 52px !important; padding: 12px 20px !important; justify-content: center; border-radius: 12px !important; font-size: 1rem !important; }
+    
+    .card-actions { flex-direction: row; gap: 12px; width: 100%; box-sizing: border-box; }
+    
+    /* 2. Estilos compartidos para altura y bordes en móvil */
+    .btn-delete, .btn-manage { min-height: 52px !important; justify-content: center; border-radius: 12px !important; font-size: 1rem !important; }
+    
+    /* 3. El botón de eliminar se queda como un cuadrado perfecto a la izquierda */
+    .btn-delete { width: 52px; padding: 0 !important; flex-shrink: 0; }
+    
+    /* 4. El botón de gestionar toma todo el espacio sobrante a la derecha */
   }
+
   @media (max-width: 480px) {
     .header-section h1 { font-size: 1.6rem; }
     .card-header, .card-content, .actions-wrapper { padding-left: 20px; padding-right: 20px; }
-    .modal-content { padding: 20px; }
+    .modal-content { padding: 25px 20px; }
     .form-row { flex-direction: column; gap: 15px; margin-bottom: 15px; }
     .modal-actions { flex-direction: column-reverse; gap: 10px; }
     .modal-actions button { width: 100%; min-height: 52px !important; }

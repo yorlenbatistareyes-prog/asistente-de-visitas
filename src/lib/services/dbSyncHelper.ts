@@ -1,6 +1,6 @@
 // src/lib/services/dbSyncHelper.ts
 import { initDB } from '$lib/services/db';
-
+import { iniciarRestauracion, terminarRestauracion } from '$lib/services/db';
 /**
  * EMPAQUETADOR: Extrae todo de la base de datos local y lo convierte en un JSON listo para subir.
  */
@@ -41,6 +41,7 @@ export async function prepararDatosParaSubir() {
  * DESEMPAQUETADOR: Recibe el JSON de la nube y sobreescribe la base de datos local.
  */
 export async function restaurarDatosDeDescarga(jsonData: any) {
+  iniciarRestauracion();   // 👈 Activamos el semáforo
   try {
     const db = await initDB();
 
@@ -48,27 +49,20 @@ export async function restaurarDatosDeDescarga(jsonData: any) {
       throw new Error("El archivo de respaldo está corrupto o vacío.");
     }
 
-    // Extraemos las tablas, incluyendo los borradores
     const { circuitos, congregaciones, personas, historial_visitas, borradores } = jsonData.tablas;
 
-    // 2. BORRADO EN ORDEN INVERSO (ZONA CRÍTICA)
     await db.execute('DELETE FROM historial_visitas');
     await db.execute('DELETE FROM personas');
     await db.execute('DELETE FROM congregaciones');
     await db.execute('DELETE FROM circuitos');
-    await db.execute("DELETE FROM configuracion WHERE clave LIKE 'borrador_%'"); // <-- Limpiamos borradores viejos
+    await db.execute("DELETE FROM configuracion WHERE clave LIKE 'borrador_%'");
 
-    /// 3. FUNCIÓN: Inserta cualquier tabla dinámicamente con todas sus columnas
     const insertarDinamico = async (nombreTabla: string, datos: any[]) => {
       if (!datos || datos.length === 0) return;
-      
       for (const fila of datos) {
-        // Envolvemos las columnas en comillas por seguridad
         const columnas = Object.keys(fila).map(k => `"${k}"`).join(', ');
-        // Creamos los comodines ($1, $2, $3...)
         const comodines = Object.keys(fila).map((_, i) => `$${i + 1}`).join(', ');
         const valores = Object.values(fila);
-
         await db.execute(
           `INSERT INTO ${nombreTabla} (${columnas}) VALUES (${comodines})`, 
           valores
@@ -76,17 +70,18 @@ export async function restaurarDatosDeDescarga(jsonData: any) {
       }
     };
 
-    // 4. Restauramos todas las tablas y borradores en 5 simples líneas
     await insertarDinamico('circuitos', circuitos);
     await insertarDinamico('congregaciones', congregaciones);
     await insertarDinamico('personas', personas);
     await insertarDinamico('historial_visitas', historial_visitas);
-    if (borradores) await insertarDinamico('configuracion', borradores); // <-- Inyectamos los borradores
+    console.log(`📊 Historial restaurado: ${historial_visitas?.length || 0} registros`);
+    if (borradores) await insertarDinamico('configuracion', borradores);
 
-    return true; 
-
+    return true;
   } catch (error) {
     console.error("Error restaurando la base de datos:", error);
     throw new Error("No se pudo restaurar el respaldo en el dispositivo. Revisa la consola.");
+  } finally {
+    terminarRestauracion();   // 👈 Desactivamos el semáforo siempre, incluso si hay error
   }
 }
