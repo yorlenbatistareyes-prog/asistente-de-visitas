@@ -35,18 +35,36 @@
   
   let cambiosRecientes: { texto: string, tipo: string }[] = [];
 
+  // ==================================================
+  // 📢 CENTRO DE CONTROL DE VERSIONES Y NOVEDADES
+  // ==================================================
+  // 1. Cambia esto a tu versión más antigua base si instalaran de cero hoy
+  const VERSION_INSTALACION_NUEVA = "1.0.46"; 
+
+  // 2. Aquí mapeamos las palabras con los íconos visuales
+  // 2. MAPA DE ÍCONOS: Usa la palabra de la izquierda en tu campo "tipo"
   const iconosMapa: Record<string, any> = {
-    correcion: CheckCircle2, notificacion: Bell, movil: Smartphone, mejora: Zap,
-    info: Info, base_datos: Database, importar: Download, respaldo: Save,
-    diseno: Palette, seguridad: ShieldCheck, error: Bug 
+    correcion: CheckCircle2, // 🟢 Círculo con un check (Para bugs arreglados o tareas logradas)
+    notificacion: Bell,      // 🔔 Campana (Para nuevos avisos, alertas o recordatorios)
+    movil: Smartphone,       // 📱 Teléfono celular (Para cambios exclusivos de la versión Android)
+    mejora: Zap,             // ⚡ Rayo (Para mayor velocidad, rendimiento o funciones nuevas geniales)
+    info: Info,              // ℹ️ Círculo con una 'i' (Para información general o cambios menores)
+    base_datos: Database,    // 🗄️ Discos apilados (Para cambios en cómo se guardan los datos)
+    importar: Download,      // ⬇️ Flecha hacia abajo (Para nuevas funciones de descarga o importación)
+    respaldo: Save,          // 💾 Disquete (Para cosas relacionadas con copias de seguridad o la nube)
+    diseno: Palette,         // 🎨 Paleta de pintura (Para cambios visuales, colores, botones, interfaz)
+    seguridad: ShieldCheck,  // 🛡️ Escudo con un check (Para mejoras de privacidad o seguridad)
+    error: Bug               // 🐛 Bicho/Insecto (Para indicar que se resolvió un error grave)
   };
 
+  // 3. Añade tu nueva versión AQUÍ ARRIBA cuando vayas a compilar
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.39": [
-      { texto: "Sistema de actualización de la aplicación añadido. Puede ver el panel de actualización en la sección de configuración.", tipo: "Zap" },
-      { texto: "Se ha actualizado el nombre de la app que se muestra en la pantalla del dispositivo", tipo: "Bug" }
-    ]
+    "1.0.46": [
+      { texto: "Mejoras de estabilidad en sincronización y corrección de errores.", tipo: "mejora" },
+      { texto: "Mejoras visuales de la app en Barra superior y en modales.", tipo: "diseno" }
+    ],
   };
+  // ==================================================
 
   // 🛡️ VARIABLES DEL MODAL GLOBAL DE CONFLICTO
   let procesandoConflicto = false;
@@ -132,11 +150,13 @@
     // 3. Detección de nueva versión
     try {
       versionActual = await getVersion();
-      const ultimaVista = await cargarConfig('ultima_version_vista') || "1.0.46";
+      const ultimaVista = await cargarConfig('ultima_version_vista') || VERSION_INSTALACION_NUEVA;
+      
       if (versionActual !== ultimaVista) {
+        // Busca si escribiste los cambios de la versión actual en el historial de arriba
         cambiosRecientes = historialCambios[versionActual] || [
-          { texto: "Mejoras de estabilidad en sincronización y corrección de errores.", tipo: "info" },
-          { texto: "Mejoras visuales de la app en Barra superior y en modales.", tipo: "info" }
+          // Si por error olvidas escribirlos, mostrará esto por defecto:
+          { texto: "Actualizaciones generales de mantenimiento y rendimiento.", tipo: "mejora" }
         ];
         mostrarNovedades = true;
       }
