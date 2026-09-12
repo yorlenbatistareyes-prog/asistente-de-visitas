@@ -17,7 +17,7 @@
 
 <div class="barra-sistema-footer">
   <div class="contenido-centro">
-    <span class="version-info">{versionActual} | ¡AVisitas está actualizado!</span>
+    <span class="version-info">{versionActual} | ¡AVisits actualizado!</span>
     <span class="separador">•</span>
     <span class="copyright">© 2026 Todos los derechos Reservados</span>
   </div>

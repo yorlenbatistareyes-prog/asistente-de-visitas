@@ -15,7 +15,7 @@
 
   // 📡 NUEVAS IMPORTACIONES PARA EL RADAR Y EL MODAL GLOBAL
   import { get } from 'svelte/store';
-  import { sesionApp } from '$lib/stores/authStore';
+  import { sesionApp, arrancarAplicacion } from '$lib/stores/authStore';
   import { estadoSincronizacion, comprobarNubeAlAbrir } from '$lib/stores/autoSyncStore';
   import { descargarRespaldo, subirRespaldo } from '$lib/services/syncService';
   import { prepararDatosParaSubir, restaurarDatosDeDescarga } from '$lib/services/dbSyncHelper';
@@ -35,18 +35,36 @@
   
   let cambiosRecientes: { texto: string, tipo: string }[] = [];
 
+  // ==================================================
+  // 📢 CENTRO DE CONTROL DE VERSIONES Y NOVEDADES
+  // ==================================================
+  // 1. Cambia esto a tu versión más antigua base si instalaran de cero hoy
+  const VERSION_INSTALACION_NUEVA = "1.0.46"; 
+
+  // 2. Aquí mapeamos las palabras con los íconos visuales
+  // 2. MAPA DE ÍCONOS: Usa la palabra de la izquierda en tu campo "tipo"
   const iconosMapa: Record<string, any> = {
-    correcion: CheckCircle2, notificacion: Bell, movil: Smartphone, mejora: Zap,
-    info: Info, base_datos: Database, importar: Download, respaldo: Save,
-    diseno: Palette, seguridad: ShieldCheck, error: Bug 
+    correcion: CheckCircle2, // 🟢 Círculo con un check (Para bugs arreglados o tareas logradas)
+    notificacion: Bell,      // 🔔 Campana (Para nuevos avisos, alertas o recordatorios)
+    movil: Smartphone,       // 📱 Teléfono celular (Para cambios exclusivos de la versión Android)
+    mejora: Zap,             // ⚡ Rayo (Para mayor velocidad, rendimiento o funciones nuevas geniales)
+    info: Info,              // ℹ️ Círculo con una 'i' (Para información general o cambios menores)
+    base_datos: Database,    // 🗄️ Discos apilados (Para cambios en cómo se guardan los datos)
+    importar: Download,      // ⬇️ Flecha hacia abajo (Para nuevas funciones de descarga o importación)
+    respaldo: Save,          // 💾 Disquete (Para cosas relacionadas con copias de seguridad o la nube)
+    diseno: Palette,         // 🎨 Paleta de pintura (Para cambios visuales, colores, botones, interfaz)
+    seguridad: ShieldCheck,  // 🛡️ Escudo con un check (Para mejoras de privacidad o seguridad)
+    error: Bug               // 🐛 Bicho/Insecto (Para indicar que se resolvió un error grave)
   };
 
+  // 3. Añade tu nueva versión AQUÍ ARRIBA cuando vayas a compilar
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.39": [
-      { texto: "Sistema de actualización de la aplicación añadido. Puede ver el panel de actualización en la sección de configuración.", tipo: "Zap" },
-      { texto: "Se ha actualizado el nombre de la app que se muestra en la pantalla del dispositivo", tipo: "Bug" }
-    ]
+    "1.0.46": [
+      { texto: "Mejoras de estabilidad en sincronización y corrección de errores.", tipo: "mejora" },
+      { texto: "Mejoras visuales de la app en Barra superior y en modales.", tipo: "diseno" }
+    ],
   };
+  // ==================================================
 
   // 🛡️ VARIABLES DEL MODAL GLOBAL DE CONFLICTO
   let procesandoConflicto = false;
@@ -105,6 +123,7 @@
   }
 
   onMount(async () => {
+     await arrancarAplicacion();
     // 1. 💻 LÓGICA DE WINDOWS
     try {
       const hayArchivo = await invoke<boolean>('hay_archivo_pendiente');
@@ -131,10 +150,13 @@
     // 3. Detección de nueva versión
     try {
       versionActual = await getVersion();
-      const ultimaVista = await cargarConfig('ultima_version_vista') || "1.0.41";
+      const ultimaVista = await cargarConfig('ultima_version_vista') || VERSION_INSTALACION_NUEVA;
+      
       if (versionActual !== ultimaVista) {
+        // Busca si escribiste los cambios de la versión actual en el historial de arriba
         cambiosRecientes = historialCambios[versionActual] || [
-          { texto: "Mejoras de estabilidad en sincronización y corrección de errores.", tipo: "info" }
+          // Si por error olvidas escribirlos, mostrará esto por defecto:
+          { texto: "Actualizaciones generales de mantenimiento y rendimiento.", tipo: "mejora" }
         ];
         mostrarNovedades = true;
       }
@@ -293,8 +315,37 @@
   @media (max-width: 600px) { .banner-flotante-update { bottom: 80px; left: 15px; right: 15px; flex-direction: column; align-items: flex-start; gap: 15px; } .banner-botones { width: 100%; justify-content: space-between; } .btn-actualizar-ahora { flex: 1; } }
 
   /* --- MODAL GLOBAL DE CONFLICTO DE NUBE --- */
-  .modal-backdrop-global { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 10000; padding: 20px; }
-  .conflicto-modal { border-top: 5px solid #ef4444; background: var(--bg-panel); border-radius: var(--radius-lg); padding: 35px; width: 100%; max-width: 500px; animation: scaleIn 0.2s ease-out; box-shadow: var(--shadow-3d); }
+  .modal-backdrop-global { 
+    position: fixed; top: 0; left: 0; 
+    width: 100vw; 
+    height: 100vh; 
+    height: 100dvh; /* Evita problemas con la barra del navegador en móviles */
+    background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); 
+    display: flex; justify-content: center; align-items: center; 
+    z-index: 10000; 
+    padding: 20px; 
+    box-sizing: border-box; /* 👈 Esto evita que el padding lo empuje a la derecha */
+  }
+
+  .conflicto-modal { 
+    border-top: 5px solid #ef4444; 
+    background: var(--bg-panel); 
+    border-radius: var(--radius-lg); 
+    padding: 35px; 
+    
+    /* 👈 Aire a los laterales */
+    width: calc(100% - 40px); 
+    max-width: 500px; 
+    
+    /* 👈 Límite de altura y scroll por si la pantalla es muy pequeña */
+    max-height: 85dvh;
+    overflow-y: auto;
+    
+    animation: scaleIn 0.2s ease-out; 
+    box-shadow: var(--shadow-3d); 
+    box-sizing: border-box; /* 👈 Evita que el padding interno desborde la tarjeta */
+  }
+
   .modal-header-alerta { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
   .modal-header-alerta h2 { margin: 0; color: #ef4444; font-size: 1.4rem; font-weight: 800; }
   .alerta-texto { color: var(--text-main); font-size: 0.95rem; margin-bottom: 15px; line-height: 1.5; }
@@ -307,4 +358,11 @@
   .btn-forzar-subida { background: transparent; color: #ef4444; border: 1px solid #ef4444; display: flex; justify-content: flex-start; gap: 15px; padding: 16px; font-weight: 700; text-align: left; border-radius: 8px; cursor: pointer; }
   .btn-forzar-subida:hover:not(:disabled) { background: rgba(239, 68, 68, 0.1); }
   @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+  @media (max-width: 480px) {
+    .conflicto-modal { 
+      padding: 25px 20px; 
+    }
+  }
+
 </style>

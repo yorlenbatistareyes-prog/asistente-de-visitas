@@ -5,10 +5,29 @@ import { invoke } from '@tauri-apps/api/core';
 // 🛑 ELIMINAMOS la importación de autoSyncStore para romper la Dependencia Circular
 // import { dispararSincronizacionLocal } from '$lib/stores/autoSyncStore';
 
+// Control para evitar sincronización automática durante la restauración
+let estaRestaurando = false;
+
+export function iniciarRestauracion() {
+    estaRestaurando = true;
+}
+
+export function terminarRestauracion() {
+    estaRestaurando = false;
+}
+
+export function isRestaurando() {
+    return estaRestaurando;
+}
+
 let dbInstance: Database | null = null;
 
 // 👇 NUEVO: Esta función "grita" al sistema que hubo un cambio, sin depender de nadie
 function notificarCambioLocal() {
+  if (estaRestaurando) {
+    console.log("🔄 Restauración en curso, no se notifica cambio local.");
+    return;
+  }
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('db_local_cambiada'));
   }
