@@ -79,8 +79,9 @@
     mostrarModal = true;
   }
 
-  function entrarACongregacion(nombre: string) {
-    goto(`/congregacion/${nombre}`);
+    function entrarACongregacion(nombre: string) {
+    // Desactivado: los formularios ahora viven en Visitas
+    console.log("Clic en congregación (navegación desactivada):", nombre);
   }
 
   function editarCongregacion(cong: Congregacion) {

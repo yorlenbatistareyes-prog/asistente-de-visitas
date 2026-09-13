@@ -27,11 +27,31 @@
     DownloadCloud, X, ServerCrash, UploadCloud
   } from "lucide-svelte";
 
-  let mostrarNovedades = false; 
+   let mostrarNovedades = false; 
   // Variables para la actualización automática
   let avisoUpdateVisible = false;
   let updateInfo: any = null;
   let versionActual = "";
+
+  // ⚠️ Versión de corte: la reestructuración mayor
+  // Los usuarios con versión MENOR a esta verán el aviso de respaldo
+  const VERSION_REESTRUCTURACION = "2.0.0";
+
+  // Compara versiones semánticas (ej: "1.0.41" < "1.0.42")
+  function versionEsMenor(actual: string, corte: string): boolean {
+    const a = actual.split('.').map(Number);
+    const b = corte.split('.').map(Number);
+    for (let i = 0; i < 3; i++) {
+      if ((a[i] || 0) < (b[i] || 0)) return true;
+      if ((a[i] || 0) > (b[i] || 0)) return false;
+    }
+    return false;
+  }
+
+  // ¿Debe mostrarse el aviso de respaldo?
+  $: mostrarAvisoRespaldo = versionActual && versionEsMenor(versionActual, VERSION_REESTRUCTURACION);
+
+  
   
   let cambiosRecientes: { texto: string, tipo: string }[] = [];
 
@@ -214,7 +234,15 @@
       <div class="icono-banner">
         <DownloadCloud size={20} color="#10b981" />
       </div>
-      <span>¡Hay una nueva versión <strong>v{updateInfo.version}</strong> disponible!</span>
+      <div class="banner-texto">
+        <span>¡Hay una nueva versión <strong>v{updateInfo.version}</strong> disponible!</span>
+        
+        {#if mostrarAvisoRespaldo}
+          <span class="aviso-backup">
+            💡 Recomendamos hacer un respaldo antes de actualizar. Ve a <strong>Configuración → Respaldos</strong>.
+          </span>
+        {/if}
+      </div>
     </div>
     <div class="banner-botones">
       <button class="btn-actualizar-ahora" on:click={irA_Descarga}>Instalar</button>
@@ -283,6 +311,24 @@
   /* --- BANNER DE UPDATE --- */
   .banner-flotante-update { position: fixed; bottom: 60px; right: 20px; background: var(--bg-panel); border-left: 4px solid #10b981; box-shadow: 0 10px 25px rgba(0,0,0,0.2); border-radius: 12px; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; z-index: 9999; animation: deslizarArriba 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
   .banner-contenido { display: flex; align-items: center; gap: 12px; color: var(--text-main); font-size: 0.95rem; }
+  
+    .banner-texto {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .aviso-backup {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.3;
+  }
+
+  .aviso-backup strong {
+    color: #f59e0b;
+    font-weight: 700;
+  }
+  
   .icono-banner { background: rgba(16, 185, 129, 0.1); padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
   .banner-botones { display: flex; align-items: center; gap: 10px; }
   .btn-actualizar-ahora { background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
