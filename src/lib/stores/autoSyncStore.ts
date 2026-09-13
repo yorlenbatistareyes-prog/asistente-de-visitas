@@ -29,11 +29,13 @@ export async function dispararSincronizacionLocal() {
 
     // 🛠️ RESCATE DE MEMORIA: Si Svelte perdió la sesión, la sacamos de la BD
     if (!sesion.isLoggedIn || !sesion.token) {
-        // OJO: Cambia 'user_token' por la clave exacta que usas al guardar el token en el login
         const tokenGuardado = await cargarConfig('user_token'); 
-        if (!tokenGuardado) return; // Si no hay token, abortamos
+        if (!tokenGuardado) return;
         
         sesion = { isLoggedIn: true, token: tokenGuardado, correo: sesion.correo || '', verificando: sesion.verificando || false };
+        
+        // 🌟 Actualizamos el store real para que TopBar y otros componentes se enteren
+        sesionApp.set(sesion);
     }
 
     // 🛡️ CANDADO: Si ya estamos subiendo datos, esperamos a que termine
@@ -60,7 +62,6 @@ export async function dispararSincronizacionLocal() {
         await procesarSubidaAutomatica(sesion.token);
     }, 5000);
 }
-
 /**
  * Función interna: Ocurre cuando el cronómetro llega a 0.
  */
@@ -88,25 +89,17 @@ async function procesarSubidaAutomatica(token: string) {
                     nubeDispositivo: estadoNube.last_device || 'Dispositivo desconocido',
                     nubeFecha: estadoNube.last_synced_at
                 }));
-                return; // ⛔ ABORTAMOS
+                return;
             }
         }
 
         // --- ZONA SEGURA (LÓGICA DE MILISEGUNDOS DEL AMIGO) ---
-        
-        // 1. Tomamos la fecha EXACTA antes de recopilar los datos
         const fechaOriginalMilisegundos = new Date().toISOString();
-
-        // 2. Empaquetamos todo desde la base de datos local
         const jsonDatos = await prepararDatosParaSubir();
-
-        // 3. Subimos enviando NUESTRA fecha
         await subirRespaldo(token, jsonDatos, fechaOriginalMilisegundos);
-
-        // 4. Guardamos la MISMA fecha exacta localmente
         await guardarConfig('last_synced_at', fechaOriginalMilisegundos);
 
-        // G. Éxito
+        // Éxito
         estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: 'Sincronizado con éxito' }));
 
         setTimeout(() => {
@@ -168,14 +161,23 @@ if (typeof window !== 'undefined') {
 export async function comprobarNubeAlAbrir() {
     let sesion = get(sesionApp);
 
-    // 🛠️ RESCATE DE MEMORIA: Beneficia tanto a Android como a Windows
+       // 🛠️ RESCATE DE MEMORIA: Si Svelte perdió la sesión, la sacamos de la BD
     if (!sesion.isLoggedIn || !sesion.token) {
+        console.log('⚠️ [SYNC] No hay sesión activa. Intentando rescatar token de BD...');
         const tokenGuardado = await cargarConfig('user_token'); 
+        console.log('🔍 [SYNC] Token en BD:', tokenGuardado ? 'ENCONTRADO' : 'NO ENCONTRADO');
+        
         if (!tokenGuardado) {
-            console.log("Radar: No hay token guardado. Abortando chequeo.");
-            return; 
+            console.log('🛑 [SYNC] Abortando: no hay token guardado');
+            return; // Si no hay token, abortamos
         }
+        
         sesion = { isLoggedIn: true, token: tokenGuardado, correo: sesion.correo || '', verificando: sesion.verificando || false };
+        
+        // 🌟 LÍNEA NUEVA: Actualizamos el store real para que TopBar y otros componentes se enteren
+        sesionApp.set(sesion);
+        
+        console.log('✅ [SYNC] Sesión rescatada desde BD Y actualizada en sesionApp');
     }
 
     try {

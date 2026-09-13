@@ -2,7 +2,7 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { Plus, Users, MapPin, Calendar, Upload, Edit, Trash2, Search } from "lucide-svelte"; 
+  import { Plus, Users, Upload, Edit, Trash2, Search } from "lucide-svelte"; 
   import Papa from 'papaparse'; 
   
   import { save as saveDialog, open as openDialog, confirm as confirmDialog, message as messageDialog } from '@tauri-apps/plugin-dialog';
@@ -94,13 +94,11 @@
       return;
     }
 
-    // 🌟 Usamos el diálogo NATIVO de Tauri (Asíncrono), no el del navegador (Síncrono)
     const confirmacionOficial = await confirmDialog(
       `¿Seguro que deseas eliminar a la congregación "${nombre}"? Toda su información se perderá de forma permanente.`, 
       { title: 'Eliminar Congregación', kind: 'warning' }
     );
 
-    // Si el usuario pulsa 'Cancelar', la variable es false y salimos sin hacer nada
     if (!confirmacionOficial) {
       console.log("Borrado cancelado por el usuario.");
       return;
@@ -122,20 +120,18 @@
       const nueva = e.detail;
       if (!circuitoActual) return;
 
-      // EL CLON EXACTO DEL CSV: Mismos campos, mismo orden, sin horarios.
       let datosParaGuardar: any = {
         circuito: circuitoActual.nombre,
         nombre: nueva.nombre.trim().toUpperCase(),
-        enVisita: Boolean(nueva.enVisita), // Forzamos a que sea un booleano estricto
+        enVisita: Boolean(nueva.enVisita),
         ciudad: nueva.ciudad || "",
         provincia: nueva.provincia || "",
         pais: nueva.pais || "",
         telefono: nueva.telefono || "",
         idioma: "Español",
-        esLenguaSenas: Boolean(nueva.esLenguaSenas) // Forzamos booleano estricto
+        esLenguaSenas: Boolean(nueva.esLenguaSenas)
       };
 
-      // Agregamos el ID solo si es una edición
       if (nueva.id && String(nueva.id).trim() !== "") {
         datosParaGuardar.id = Number(nueva.id);
       }
@@ -158,38 +154,30 @@
     }
 
     try {
-      // 1. Detectamos si es Android
       const esAndroid = navigator.userAgent.toLowerCase().includes('android');
-
-      // 2. Preparamos el diálogo de Tauri
       const opcionesDialogo: any = {
         title: 'Seleccionar archivo CSV',
         multiple: false,
         directory: false
       };
 
-      // 3. Filtro estricto SOLO en Windows
       if (!esAndroid) {
         opcionesDialogo.filters = [{ name: 'Documentos CSV', extensions: ['csv'] }];
       }
 
-      // 4. Abrimos el selector de archivos
       const seleccion = await openDialog(opcionesDialogo);
       if (!seleccion) return;
 
       const rutaOrigen = Array.isArray(seleccion) ? seleccion[0] : seleccion;
 
-      // 🌟 5. LA SOLUCIÓN: Verificamos la extensión SOLO en Windows
       if (!esAndroid && !rutaOrigen.toLowerCase().endsWith('.csv')) {
         alert("❌ Formato incorrecto. Por favor selecciona un archivo .csv");
         return;
       }
 
-      // 6. Leemos el archivo usando Tauri
       const csvBytes = await readFile(rutaOrigen as string);
       const textoCSV = new TextDecoder().decode(csvBytes);
 
-      // 7. Usamos PapaParse
       Papa.parse(textoCSV, {
         header: true,
         skipEmptyLines: true,
@@ -199,7 +187,6 @@
 
           for (const fila of datosCSV) {
             if (!fila["Congregación"]) continue;
-
             try {
               await guardarCongregacion({
                 circuito: circuitoActual!.nombre, 
@@ -217,7 +204,6 @@
               console.error("Error guardando congregación:", fila["Congregación"], err);
             }
           }
-          
           await cargarDatos(); 
           alert(`✅ Importación completada: ${importadas} congregaciones añadidas.`);
         }
@@ -237,7 +223,6 @@
 
     if (!circuitoActual) return;
 
-    // Diálogo nativo
     const confirmado = await confirmDialog(
       "⚠️ PELIGRO: ¿Estás seguro de que deseas eliminar TODAS las congregaciones de este circuito?\n\n¡Esta acción borrará también todo el historial de visitas asociado a ellas de forma permanente!",
       { title: 'Vaciar Congregaciones', kind: 'warning' }
@@ -247,7 +232,7 @@
 
     try {
       await eliminarTodasLasCongregaciones(circuitoActual.nombre);
-      await cargarDatos(); // Refrescamos la lista para que quede en blanco
+      await cargarDatos(); 
       console.log("✅ Todas las congregaciones han sido eliminadas.");
     } catch (error) {
       console.error("Error al vaciar las congregaciones:", error);
@@ -263,8 +248,7 @@
       <p>Añade y selecciona una congregación para gestionar sus informes.</p>
     </div>
     
-    <div class="toolbar-botones" style="display: flex; gap: 10px;">
-
+    <div class="toolbar-botones">
       <button class="btn-importar" on:click={importarCSV}>
         <Upload size={18} /> <span>Importar CSV</span>
       </button>
@@ -288,73 +272,80 @@
     />
   </div>
 
-  <div class="grid-congregaciones">
-    {#each listaFiltrada as cong (cong.id || cong.nombre)}
-      
-      <div 
-        class="card-global cong-card" 
-        role="button" 
-        tabindex="0"
-        on:click={(e) => {
-          if ((e.target as HTMLElement)?.closest('button')) return; // Si tocaste un botón, cancela la entrada a la congregación
-          entrarACongregacion(cong.nombre);
-        }}
-        on:keydown={(e) => {
-          if ((e.target as HTMLElement)?.closest('button')) return;
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault(); // Evita que la página salte si presionan la barra espaciadora
-            entrarACongregacion(cong.nombre);
-          }
-        }}
-      >
+  <div class="table-wrapper card-global">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th class="col-icon"></th>
+          <th>Nombre ↑</th>
+          <th>Ciudad</th>
+          <th>Estado/Provincia</th>
+          <th>Última Visita</th>
+          <th class="text-center">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each listaFiltrada as cong (cong.id || cong.nombre)}
+          <tr 
+            class="clickable-row"
+            on:click={(e) => {
+              if ((e.target as HTMLElement)?.closest('button')) return; 
+              entrarACongregacion(cong.nombre);
+            }}
+          >
+            <!-- Ícono Verde Oscuro tipo Referencia -->
+            <td class="col-icon">
+              <div class="icon-box">
+                <Users size={18} strokeWidth={2.5} />
+              </div>
+            </td>
+            
+            <td class="font-bold">{cong.nombre}</td>
+            <td>{cong.ciudad || '-'}</td>
+            <td>{cong.provincia || '-'}</td>
+            
+            <td>
+              <span class="badge-fecha {$fechaPorCongregacion[cong.nombre] ? 'has-date' : 'no-date'}">
+                {$fechaPorCongregacion[cong.nombre] || "Sin registrar"}
+              </span>
+            </td>
+
+            <!-- Acciones -->
+            <td>
+              <div class="action-buttons">
+                <button 
+                   type="button" 
+                   class="btn-icon-edit action-btn" 
+                   title="Editar" 
+                   on:click={(e) => { e.preventDefault(); e.stopPropagation(); editarCongregacion(cong); }}
+                >
+                   <Edit size={16} />
+                </button>
         
-        <div class="card-icon">
-          <Users size={30} />
-        </div>
-        <div class="card-info">
-          <h4>{cong.nombre}</h4>
-          
-          <div class="meta-row">
-            <MapPin size={12} /> 
-            <span>{cong.ciudad || 'Ciudad no especificada'}</span>
-          </div>
-          
-          <div class="meta-row">
-            <Calendar size={12} /> 
-            <span>Última visita: {$fechaPorCongregacion[cong.nombre] || "Sin registrar"}</span>
-          </div>
-        </div>
+                <button 
+                   type="button" 
+                   class="btn-icon-delete action-btn" 
+                   title="Eliminar" 
+                   on:click={(e) => { e.preventDefault(); e.stopPropagation(); borrar(cong.id, cong.nombre); }}
+                >
+                   <Trash2 size={16} />
+                </button>
+              </div>
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
 
-        <div class="card-actions">
-          <button 
-             type="button" 
-             class="btn-icon-edit" 
-             title="Editar" 
-             on:click={(e) => { e.preventDefault(); e.stopPropagation(); editarCongregacion(cong); }}
-          >
-             <Edit size={18} />
-          </button>
-  
-          <button 
-             type="button" 
-             class="btn-icon-delete" 
-             title="Eliminar" 
-             on:click={(e) => { e.preventDefault(); e.stopPropagation(); borrar(cong.id, cong.nombre); }}
-          >
-             <Trash2 size={18} />
-          </button>
-        </div>
-      </div>
-    {/each}
-
+    <!-- Estado vacío -->
     {#if listaFiltrada.length === 0}
-      <div class="card-global empty-state">
-        <Users size={48} color="var(--text-muted)" />
+      <div class="empty-state">
+        <Users size={40} color="var(--text-muted)" style="margin-bottom: 15px; opacity: 0.5;" />
         <p>
           {#if busqueda}
             No se encontraron resultados para "<strong>{busqueda}</strong>".
           {:else}
-            Aún no hay congregaciones en este circuito.<br>Haz clic en "Añadir Congregación" o "Importar JW" para comenzar.
+            Aún no hay congregaciones en este circuito.<br>Haz clic en "Añadir Congregación" o "Importar CSV" para comenzar.
           {/if}
         </p>
       </div>
@@ -386,293 +377,93 @@
   .header-section h3 { margin: 0 0 5px 0; font-size: 1.5rem; color: var(--text-main); font-weight: 800; }
   .header-section p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
 
-  .btn-primary {
-    background-color: #5c0a1f !important; /* Rojo vino intenso */
-    color: white !important;
-    border: none;
-    height: 38px; /* Más fino */
-    padding: 0 24px; /* Más ancho para compensar la altura */
-    border-radius: 30px; /* Forma de píldora */
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-weight: 700;
-    font-size: 0.85rem;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(92, 10, 31, 0.2);
+  .toolbar-botones {
+    display: flex; gap: 10px;
   }
 
-  .btn-primary:hover { 
-    background-color: #3a0411 !important; 
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(92, 10, 31, 0.3);
-  }
+  .btn-primary { background-color: #5c0a1f !important; color: white !important; border: none; height: 38px; padding: 0 24px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(92, 10, 31, 0.2); }
+  .btn-primary:hover { background-color: #3a0411 !important; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(92, 10, 31, 0.3); }
+  
+  .btn-importar { background-color: #14532d; color: white; border: none; height: 38px; padding: 0 24px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(20, 83, 45, 0.2); }
+  .btn-importar:hover { background-color: #052e16; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(20, 83, 45, 0.3); }
+  
+  .btn-danger-fino { background-color: transparent; color: #ef4444; border: 1px solid #ef4444; height: 38px; padding: 0 16px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; transition: all 0.2s ease; }
+  .btn-danger-fino:hover { background-color: #ef4444; color: white; box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3); }
 
   /* BARRA DE BÚSQUEDA */
-  .search-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  .search-bar { display: flex; align-items: center; gap: 10px; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 12px; padding: 0 16px; height: 44px; margin-bottom: 24px; color: var(--text-muted); max-width: 1200px; }
+  .search-bar input { border: none; background: transparent; outline: none; font-size: 0.9rem; color: var(--text-main); width: 100%; }
+  .search-bar input::placeholder { color: var(--text-muted); }
+
+  /* =========================================
+     TABLA ESTILO DATA-GRID
+     ========================================= */
+  .table-wrapper {
+    overflow-x: auto;
+    padding: 0;
+    border-radius: 10px;
     background: var(--bg-panel);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 0 16px;
-    height: 44px;
-    margin-bottom: 24px;
-    color: var(--text-muted);
-    max-width: 1200px;
   }
 
-  .search-bar input {
-    border: none;
-    background: transparent;
-    outline: none;
-    font-size: 0.9rem;
-    color: var(--text-main);
+  .data-table {
     width: 100%;
-  }
-
-  .search-bar input::placeholder {
-    color: var(--text-muted);
-  }
-
-  .grid-congregaciones {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
-  }
-
-  .cong-card {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    padding: 20px;
+    border-collapse: collapse;
+    white-space: nowrap;
     text-align: left;
-    cursor: pointer;
-    border: 1px solid var(--border-color);
-    background: var(--bg-panel); 
-    position: relative;
+    font-size: 0.85rem;
   }
 
-  .cong-card:hover { border-color: var(--primary); }
+  .data-table thead tr {
+    background-color: var(--bg-subtle, #f8fafc);
+    border-bottom: 2px solid var(--border-color);
+  }
 
-  .card-icon {
-    background: rgba(100, 116, 139, 0.1); 
+  .data-table th {
+    padding: 12px 16px;
+    font-weight: 700;
     color: var(--text-muted);
-    padding: 15px;
-    border-radius: 12px;
-    transition: all 0.2s;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
-  .cong-card:hover .card-icon {
-    background: rgba(225, 29, 72, 0.1);
-    color: var(--primary);
+  .data-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-main);
+    vertical-align: middle;
   }
 
-  .card-info { flex: 1; }
-  .card-info h4 { margin: 0 0 10px 0; font-size: 1.15rem; color: var(--text-main); font-weight: 800; }
+  .clickable-row { cursor: pointer; transition: background-color 0.2s ease; }
+  .clickable-row:hover { background-color: rgba(92, 10, 31, 0.03); }
 
-  .meta-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    margin-bottom: 5px;
+  .col-icon { width: 40px; padding-right: 0 !important; }
+  
+  .icon-box {
+    width: 32px; height: 32px; background-color: #1b4d3e; color: white;
+    border-radius: 6px; display: flex; justify-content: center; align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   }
 
-  .card-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-left: auto;
-    padding-left: 10px;
-    border-left: 1px solid var(--border-color);
-  }
+  .font-bold { font-weight: 700; font-size: 0.9rem; }
+  .badge-fecha { font-size: 0.8rem; font-weight: 600; }
+  .badge-fecha.no-date { color: var(--text-muted); font-style: italic; }
+  .text-center { text-align: center; }
 
-  .btn-icon-edit, .btn-icon-delete {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    opacity: 0.4;
-    transition: all 0.2s;
-    padding: 2px;
-  }
-
+  .action-buttons { display: flex; justify-content: center; gap: 12px; }
+  .action-btn { background: transparent; border: none; cursor: pointer; opacity: 0.5; transition: all 0.2s; padding: 4px; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
   .btn-icon-edit { color: var(--primary); }
   .btn-icon-delete { color: #ef4444; }
+  .action-btn:hover { opacity: 1; transform: scale(1.1); background-color: var(--bg-subtle, #f1f5f9); }
 
-  .btn-icon-edit:hover, .btn-icon-delete:hover {
-    opacity: 1;
-    transform: scale(1.1);
-  }
-
-  .empty-state {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding: 60px;
-    border-style: dashed;
-    border-color: var(--border-color);
-    color: var(--text-muted);
-    background: transparent;
-  }
+  .empty-state { padding: 60px 20px; text-align: center; color: var(--text-muted); font-size: 0.95rem; }
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-  .btn-importar {
-    background-color: #14532d; /* Verde bosque profundo */
-    color: white;
-    border: none;
-    height: 38px; /* Más fino, igual al rojo */
-    padding: 0 24px;
-    border-radius: 30px; /* Forma de píldora */
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-weight: 700;
-    font-size: 0.85rem;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(20, 83, 45, 0.2);
-  }
-
-  .btn-importar:hover { 
-    background-color: #052e16; /* Verde casi negro al pasar el ratón */
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(20, 83, 45, 0.3);
-  }
 
   /* =============================================
      DISEÑO RESPONSIVO (Tablets y Móviles)
      ============================================= */
-
-  /* Tablets (hasta 1024px) */
-  @media (max-width: 1024px) {
-    .grid-congregaciones {
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    }
-  }
-
-  /* Móviles (hasta 768px) */
-  @media (max-width: 768px) {
-    /* 1. Cabecera y Títulos */
-    .header-section {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 15px;
-    }
-
-    /* 2. Contenedor de botones: FORZAR LADO A LADO */
-    .header-section > div:last-child {
-      width: 100%;
-      display: flex !important;
-      flex-direction: row !important; /* Obliga a que estén en la misma línea */
-      flex-wrap: nowrap !important; /* Prohibido saltar a la línea de abajo */
-      gap: 10px !important; /* Separación entre ellos */
-    }
-
-    /* 🌟 EL TRUCO PARA IGUALAR LOS BOTONES (Ancho y Alto) 🌟 */
-    /* 3. Botones: Mitad y mitad exactos */
-    .header-section > div:last-child .btn-primary,
-    .header-section > div:last-child .btn-importar {
-      flex: 1 !important; /* Cada botón toma exactamente el 50% del espacio */
-      width: 100% !important;
-      height: 44px !important; /* Altura elegante y táctil */
-      padding: 0 5px !important; /* Reducimos un poco el relleno lateral para que quepa el texto */
-      font-size: 0.8rem !important; /* Letra un pelín más pequeña para pantallas estrechas */
-      
-      /* Centrado perfecto de icono y texto */
-      display: flex !important;
-      justify-content: center !important;
-      align-items: center !important;
-      
-      /* Si la pantalla es ultra-pequeña, evita que el texto se rompa feo */
-      white-space: nowrap !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
-    }
-
-    /* 3. Buscador anti-desbordamiento */
-    .search-bar {
-      width: 100%;
-      box-sizing: border-box; /* Esto evita que se salga de la pantalla */
-      height: 48px; /* Altura cómoda pero no exagerada */
-      border-radius: 12px;
-    }
-    
-    .search-bar input {
-      font-size: 1rem;
-    }
-
-    /* 4. Cuadrícula a una sola columna */
-    .grid-congregaciones {
-      grid-template-columns: 1fr;
-    }
-
-    /* 5. Tarjetas de Congregación */
-    .cong-card {
-      padding: 15px; 
-    }
-
-    .card-info h4 {
-      font-size: 1.1rem; 
-    }
-
-    /* 6. Iconos de acción (Editar y Eliminar) */
-    .card-actions {
-      gap: 15px; /* Los separamos un poco para no tocarlos por error */
-    }
-
-    .btn-icon-edit, .btn-icon-delete {
-      padding: 8px; /* Área táctil más grande */
-    }
-  }
-
-  /* Móviles muy pequeños (hasta 480px) */
-  @media (max-width: 480px) {
-    .header-section h3 {
-      font-size: 1.4rem;
-    }
-
-    /* Achicamos un poco el icono de la izquierda para que el texto respire */
-    .card-icon {
-      padding: 10px;
-    }
-    
-    .card-icon :global(svg) {
-      width: 24px !important;
-      height: 24px !important;
-    }
-  }
-
-  /* Estilo del botón de Limpiar */
-  .btn-danger-fino {
-    background-color: transparent;
-    color: #ef4444;
-    border: 1px solid #ef4444;
-    height: 38px;
-    padding: 0 16px;
-    border-radius: 30px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-weight: 700;
-    font-size: 0.85rem;
-    transition: all 0.2s ease;
-  }
-
-  .btn-danger-fino:hover {
-    background-color: #ef4444;
-    color: white;
-    box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
-  }
-
-  /* --- AJUSTES PARA MÓVILES (Actualizamos tus reglas anteriores) --- */
   @media (max-width: 768px) {
     .header-section {
       flex-direction: column;
@@ -681,19 +472,18 @@
     }
 
     /* 1. Contenedor de botones: EL SECRETO ES FLEX-WRAP: WRAP */
-    .header-section > div:last-child,
     .toolbar-botones {
       width: 100% !important;
       display: flex !important;
       flex-direction: row !important;
-      flex-wrap: wrap !important; /* Esto permite que el botón rojo salte abajo */
+      flex-wrap: wrap !important;
       gap: 10px !important;
     }
 
     /* 2. Botones de Acción (Importar y Añadir) se quedan al 50% arriba */
     .toolbar-botones .btn-primary,
     .toolbar-botones .btn-importar {
-      flex: 1 1 45% !important; /* 45% asegura que quepan los dos con el gap */
+      flex: 1 1 45% !important;
       height: 44px !important;
       padding: 0 5px !important;
       font-size: 0.8rem !important;
@@ -707,14 +497,25 @@
 
     /* 3. El botón Rojo (Limpiar) se va abajo a ocupar todo el ancho */
     .toolbar-botones .btn-danger-fino {
-      flex: 1 1 100% !important; /* 100% lo obliga a estar solo en su línea */
+      flex: 1 1 100% !important;
       height: 44px !important;
       justify-content: center !important;
       margin-top: 5px;
     }
     
-    .texto-btn-danger {
-      display: inline !important;
+    .texto-btn-danger { display: inline !important; }
+    
+    .search-bar {
+      width: 100%;
+      box-sizing: border-box;
+      height: 48px;
+      border-radius: 12px;
     }
+    
+    .search-bar input { font-size: 1rem; }
+  }
+
+  @media (max-width: 480px) {
+    .header-section h3 { font-size: 1.4rem; }
   }
 </style>

@@ -1,13 +1,13 @@
 <script lang="ts">
   import { Activity, Users, Star, UserCheck, BookOpen, AlertTriangle, ChevronUp, 
     ChevronDown, TrendingUp, Settings2, Map } from "lucide-svelte"; 
-  import { initDB, type Congregacion } from '$lib/services/db';
+   import { initDB, obtenerUltimasRevisionesPorCircuito, type Congregacion } from '$lib/services/db';
   import { page } from '$app/stores';
   import { actualizacionHistorial, circuitoActivo } from '$lib/stores/appStore';
   import { onMount } from "svelte";
 
   // 1. EL MOLDE CON TODOS LOS CAMPOS
-  interface DesgloseVisita {
+    interface DesgloseVisita {
     nombre_congregacion: string;
     fecha_visita: string;
     datos: {
@@ -28,6 +28,11 @@
       inactivos: number;
       sinCursos: number;
       // --- NUEVOS ---
+      totalCursosBiblicos: number;
+      totalInactivos: number;
+      asistenciaEntreSemana: number;
+      asistenciaFinSemana: number;
+      // --- TERRITORIOS ---
       totalTerritorios: number;
       territoriosSinTrabajar6Meses: number;
       territoriosSinTrabajar1Ano: number;
@@ -35,6 +40,7 @@
   }
 
   export let listaCongregaciones: Congregacion[] = [];
+  export let circuitoId: number = 0;
   let panelVisible = false;
   let mostrarDetalle = false; 
   let desgloseVisitas: DesgloseVisita[] = []; 
@@ -56,113 +62,120 @@
     territoriosSinTrabajar1Ano: true
   };
 
-  let metricasGlobales = {
+   let metricasGlobales = {
     total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, tarjetassacadas: 0, sacados: 0,
-    precursoresRegulares: 0, precursoresAuxiliares: 0,  precursoresAuxiliaresPermanentes: 0, 
+    precursoresRegulares: 0, precursoresAuxiliares: 0,  precursoresAuxiliaresPermanentes: 0,
     ancianos: 0, siervosMinisteriales: 0, irregulares: 0, inactivos: 0, sinCursos: 0,
     // --- NUEVOS ---
-    totalTerritorios: 0, 
-    territoriosSinTrabajar6Meses: 0, 
+    totalCursosBiblicos: 0,
+    totalInactivos: 0,
+    asistenciaEntreSemana: 0,
+    asistenciaFinSemana: 0,
+    // --- TERRITORIOS ---
+    totalTerritorios: 0,
+    territoriosSinTrabajar6Meses: 0,
     territoriosSinTrabajar1Ano: 0
   };
 
-  async function calcularMetricas() {
-    if (!listaCongregaciones || listaCongregaciones.length === 0) return;
+   async function calcularMetricas() {
+    if (!listaCongregaciones || listaCongregaciones.length === 0 || !circuitoId) return;
+
     try {
-      const db = await initDB();
-      let t = { total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0, tarjetassacadas: 0, sacados: 0, precursoresRegulares: 0, precursoresAuxiliares: 0, precursoresAuxiliaresPermanentes: 0, ancianos: 0, siervosMinisteriales: 0, irregulares: 0, inactivos: 0, sinCursos: 0, totalTerritorios: 0, territoriosSinTrabajar6Meses: 0, territoriosSinTrabajar1Ano: 0 };
+      // 1. Traemos la última revisión de cada congregación desde Rust
+      const revisiones = await obtenerUltimasRevisionesPorCircuito(circuitoId);
+
+      let t = {
+        total: 0, bautizados: 0, mayores65: 0, nuevos: 0, readmitidos: 0, reactivados: 0,
+        tarjetassacadas: 0, sacados: 0,
+        precursoresRegulares: 0, precursoresAuxiliares: 0, precursoresAuxiliaresPermanentes: 0,
+        ancianos: 0, siervosMinisteriales: 0, irregulares: 0, inactivos: 0, sinCursos: 0,
+        totalCursosBiblicos: 0, totalInactivos: 0,
+        asistenciaEntreSemana: 0, asistenciaFinSemana: 0,
+        totalTerritorios: 0, territoriosSinTrabajar6Meses: 0, territoriosSinTrabajar1Ano: 0
+      };
+
       let contador = 0;
-      
-      // NUEVO: Array temporal para construir la tabla del desglose
       let tablaDesglose: DesgloseVisita[] = [];
 
-      for (const cong of listaCongregaciones) {
-        const resCong = await db.select<{id: number}[]>('SELECT id FROM congregaciones WHERE nombre = $1 LIMIT 1', [cong.nombre]);
-        if (resCong.length > 0) {
-          // AÑADIDO: Seleccionamos la 'fecha' además del contenido y tipo
-          const res = await db.select<{fecha: string, contenido: string, tipo: string}[]>(
-            "SELECT fecha, contenido, tipo FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC",
-            [resCong[0].id]
-          );
-          
-          const revisiones = res.filter(v => v.tipo.includes('Revisi'));
-          if (revisiones.length > 0) {
-            try {
-              const visitaReciente = revisiones[0];
-              let snapshot = JSON.parse(visitaReciente.contenido);
-              if (typeof snapshot === 'string') snapshot = JSON.parse(snapshot);
-              
-              contador++;
-              const val = (k: string) => {
-                const d = snapshot[k];
-                if (d && typeof d === 'object' && 'valor' in d) return Number(d.valor) || 0;
-                return Number(d) || 0;
-              };
+      for (const rev of revisiones) {
+        try {
+          // 2. Parseamos el JSON de contadores
+          const datos = JSON.parse(rev.contadores);
 
-              // 1. Llenamos las métricas globales
-              t.total += val('total');
-              t.bautizados += val('bautizados');
-              t.mayores65 += val('mayores65');
-              t.nuevos += val('nuevos');
-              t.readmitidos += val('readmitidos');
-              t.reactivados += val('reactivados');
-              t.tarjetassacadas += val('tarjetassacadas');
-              t.sacados += val('sacados');
-              t.precursoresRegulares += val('precursoresRegulares');
-              t.precursoresAuxiliares += val('precursoresAuxiliares');
-               t.precursoresAuxiliaresPermanentes += val('precursoresAuxiliaresPermanentes'); 
-              t.ancianos += val('ancianos');
-              t.siervosMinisteriales += val('siervosMinisteriales');
-              t.irregulares += val('irregulares');
-              t.inactivos += val('inactivos');
-              t.sinCursos += val('sinCursos');
-              t.totalTerritorios += val('totalTerritorios');
-              t.territoriosSinTrabajar6Meses += val('territoriosSinTrabajar6Meses');
-              t.territoriosSinTrabajar1Ano += val('territoriosSinTrabajar1Ano');
+          const val = (k: string) => Number(datos[k]) || 0;
 
-              // 2. EXTRAEMOS ABSOLUTAMENTE TODO PARA LA TABLA
-              tablaDesglose.push({
-                nombre_congregacion: cong.nombre,
-                fecha_visita: visitaReciente.fecha,
-                datos: {
-                  total: val('total'),
-                  bautizados: val('bautizados'),
-                  mayores65: val('mayores65'),
-                  nuevos: val('nuevos'),
-                  readmitidos: val('readmitidos'),
-                  reactivados: val('reactivados'),
-                  tarjetassacadas: val('tarjetassacadas'),
-                  sacados: val('sacados'),
-                  precursoresRegulares: val('precursoresRegulares'),
-                  precursoresAuxiliares: val('precursoresAuxiliares'),
-                  precursoresAuxiliaresPermanentes: val('precursoresAuxiliaresPermanentes'), 
-                  ancianos: val('ancianos'),
-                  siervosMinisteriales: val('siervosMinisteriales'),
-                  irregulares: val('irregulares'),
-                  inactivos: val('inactivos'),
-                  sinCursos: val('sinCursos'),
-                  // --- NUEVOS ---
-                  totalTerritorios: val('totalTerritorios'),
-                  territoriosSinTrabajar6Meses: val('territoriosSinTrabajar6Meses'),
-                  territoriosSinTrabajar1Ano: val('territoriosSinTrabajar1Ano')
-                }
-              });
+          contador++;
 
-            } catch (e) {
-              console.error("Error procesando JSON para:", cong.nombre, e);
+          // 3. Llenamos las métricas globales
+          t.total += val('total');
+          t.bautizados += val('bautizados');
+          t.mayores65 += val('mayores65');
+          t.nuevos += val('nuevos');
+          t.readmitidos += val('readmitidos');
+          t.reactivados += val('reactivados');
+          t.tarjetassacadas += val('tarjetasSacadas');
+          t.sacados += val('sacados');
+          t.precursoresRegulares += val('precursoresRegulares');
+          t.precursoresAuxiliares += val('precursoresAuxiliares');
+          t.precursoresAuxiliaresPermanentes += val('precursoresAuxiliaresPermanentes');
+          t.ancianos += val('ancianos');
+          t.siervosMinisteriales += val('siervosMinisteriales');
+          t.irregulares += val('irregulares');
+          t.inactivos += val('inactivos');
+          t.sinCursos += val('sinCursos');
+          t.totalCursosBiblicos += val('totalCursosBiblicos');
+          t.totalInactivos += val('totalInactivos');
+          t.asistenciaEntreSemana += val('asistenciaEntreSemana');
+          t.asistenciaFinSemana += val('asistenciaFinSemana');
+          t.totalTerritorios += val('totalTerritorios');
+          t.territoriosSinTrabajar6Meses += val('territoriosSinTrabajar6Meses');
+          t.territoriosSinTrabajar1Ano += val('territoriosSinTrabajar1Ano');
+
+          // 4. Añadimos fila al desglose
+          tablaDesglose.push({
+            nombre_congregacion: rev.congregacionNombre,
+            fecha_visita: rev.fecha,
+            datos: {
+              total: val('total'),
+              bautizados: val('bautizados'),
+              mayores65: val('mayores65'),
+              nuevos: val('nuevos'),
+              readmitidos: val('readmitidos'),
+              reactivados: val('reactivados'),
+              tarjetassacadas: val('tarjetasSacadas'),
+              sacados: val('sacados'),
+              precursoresRegulares: val('precursoresRegulares'),
+              precursoresAuxiliares: val('precursoresAuxiliares'),
+              precursoresAuxiliaresPermanentes: val('precursoresAuxiliaresPermanentes'),
+              ancianos: val('ancianos'),
+              siervosMinisteriales: val('siervosMinisteriales'),
+              irregulares: val('irregulares'),
+              inactivos: val('inactivos'),
+              sinCursos: val('sinCursos'),
+              totalCursosBiblicos: val('totalCursosBiblicos'),
+              totalInactivos: val('totalInactivos'),
+              asistenciaEntreSemana: val('asistenciaEntreSemana'),
+              asistenciaFinSemana: val('asistenciaFinSemana'),
+              totalTerritorios: val('totalTerritorios'),
+              territoriosSinTrabajar6Meses: val('territoriosSinTrabajar6Meses'),
+              territoriosSinTrabajar1Ano: val('territoriosSinTrabajar1Ano')
             }
-          }
+          });
+
+        } catch (e) {
+          console.error("Error procesando revisión de:", rev.congregacionNombre, e);
         }
       }
-      
+
       metricasGlobales = { ...t };
       congregacionesAnalizadas = contador;
-      
-      // Asignamos la tabla terminada a la variable reactiva
       desgloseVisitas = tablaDesglose;
 
-    } catch (e) { console.error("Error crítico en cálculos:", e); }
+    } catch (e) {
+      console.error("Error crítico en cálculos:", e);
+    }
   }
+
 
   function togglePanel() { panelVisible = !panelVisible; }
 
@@ -271,6 +284,27 @@
         </div>
       </div>
 
+      <div class="stats-group theme-green">
+        <div class="group-title"><BookOpen size={12}/> Cursos Bíblicos</div>
+        <div class="stat-items">
+          <div class="stat-box">
+            <span class="val">{metricasGlobales.totalCursosBiblicos}</span><span class="lbl">Total C.B.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-group theme-blue">
+        <div class="group-title"><Users size={12}/> Asistencia</div>
+        <div class="stat-items">
+          <div class="stat-box">
+            <span class="val">{metricasGlobales.asistenciaEntreSemana}</span><span class="lbl">Ent. Sem.</span>
+          </div>
+          <div class="stat-box">
+            <span class="val">{metricasGlobales.asistenciaFinSemana}</span><span class="lbl">Fin Sem.</span>
+          </div>
+        </div>
+      </div>
+
       <div class="stats-group theme-slate">
         <div class="group-title"><UserCheck size={12}/> Hermanos Nombrados</div>
         <div class="stat-items">
@@ -295,6 +329,10 @@
           <div class="stat-box">
             <span class="val">{metricasGlobales.inactivos}</span><span class="lbl">Inact.</span>
             <span class="pct">{metricasGlobales.total > 0 ? ((metricasGlobales.inactivos / metricasGlobales.total)*100).toFixed(1) : '0.0'}%</span>
+          </div>
+          <div class="stat-box">
+            <span class="val">{metricasGlobales.totalInactivos}</span><span class="lbl">T. Inact.</span>
+            <span class="pct">{metricasGlobales.total > 0 ? ((metricasGlobales.totalInactivos / metricasGlobales.total)*100).toFixed(1) : '0.0'}%</span>
           </div>
           <div class="stat-box">
             <span class="val">{metricasGlobales.sinCursos}</span><span class="lbl">Sin Curso</span>

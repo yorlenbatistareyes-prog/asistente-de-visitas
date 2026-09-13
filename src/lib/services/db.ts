@@ -82,6 +82,25 @@ export interface VisitaHistorial {
   contenido: string;
 }
 
+export interface Ruta {
+  id?: number;
+  circuitoId: number;
+  congregacionId?: number;
+  nombre: string;
+  fechaInicio: string;
+  fechaFin: string;
+  completada: boolean;
+}
+
+export interface VisitaProgramada {
+  id?: number;
+  rutaId: number;
+  congregacionId: number;
+  fechaSemana: string;    // Ej. "Lunes 26 Oct - Domingo 1 Nov"
+  estado: string;         // "pendiente", "en_progreso", "completada"
+  notas?: string;
+}
+
 // --- 1. INICIALIZACIÓN Y CREACIÓN DE TABLAS ---
 export async function initDB(): Promise<Database> {
   if (dbInstance) return dbInstance;
@@ -153,6 +172,33 @@ export async function initDB(): Promise<Database> {
         tipo TEXT NOT NULL,
         completado BOOLEAN DEFAULT 0,
         contenido TEXT,
+        FOREIGN KEY(congregacion_id) REFERENCES congregaciones(id) ON DELETE CASCADE
+      );
+    `);
+
+    // TABLA RUTAS (Agrupador principal del calendario)
+    await dbInstance.execute(`
+      CREATE TABLE IF NOT EXISTS rutas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        circuito_id INTEGER NOT NULL,
+        nombre TEXT NOT NULL,
+        fechaInicio TEXT NOT NULL,
+        fechaFin TEXT NOT NULL,
+        completada BOOLEAN DEFAULT 0,
+        FOREIGN KEY(circuito_id) REFERENCES circuitos(id) ON DELETE CASCADE
+      );
+    `);
+
+    // TABLA VISITAS PROGRAMADAS (Vincula una congregación a una ruta específica)
+    await dbInstance.execute(`
+      CREATE TABLE IF NOT EXISTS visitas_programadas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ruta_id INTEGER NOT NULL,
+        congregacion_id INTEGER NOT NULL,
+        fechaSemana TEXT NOT NULL,
+        estado TEXT DEFAULT 'pendiente',
+        notas TEXT,
+        FOREIGN KEY(ruta_id) REFERENCES rutas(id) ON DELETE CASCADE,
         FOREIGN KEY(congregacion_id) REFERENCES congregaciones(id) ON DELETE CASCADE
       );
     `);
@@ -340,4 +386,247 @@ export async function eliminarTodasLasCongregaciones(circuito: string) {
   const db = await Database.load('sqlite:av_database.db');
   await db.execute('DELETE FROM congregaciones WHERE circuito = $1', [circuito]);
   notificarCambioLocal(); // ⏰ AVISAMOS MEDIANTE EVENTO
+}
+
+// ==================================================
+// --- 7. GESTIÓN DE RUTAS Y VISITAS PROGRAMADAS ---
+// ==================================================
+
+export async function obtenerRutasPorCircuito(circuitoId: number): Promise<Ruta[]> {
+  try {
+    return await invoke<Ruta[]>('obtener_rutas_rust', { circuitoId });
+  } catch (error) {
+    console.error("Error obteniendo rutas:", error);
+    return [];
+  }
+}
+
+export async function guardarRuta(ruta: Ruta) {
+  try {
+    await invoke('guardar_ruta_rust', { ruta });
+    notificarCambioLocal(); // ⏰ EL EMBUDO DE SINCRONIZACIÓN
+  } catch (error) {
+    console.error("Error guardando ruta:", error);
+    throw error;
+  }
+}
+export async function eliminarRuta(id: number) {
+  try {
+    await invoke('eliminar_ruta_rust', { id });
+    notificarCambioLocal(); // ⏰ EL EMBUDO DE SINCRONIZACIÓN
+  } catch (error) {
+    console.error("Error eliminando ruta:", error);
+    throw error;
+  }
+}
+
+export async function obtenerVisitasPorRuta(rutaId: number): Promise<VisitaProgramada[]> {
+  try {
+    return await invoke<VisitaProgramada[]>('obtener_visitas_programadas_rust', { rutaId });
+  } catch (error) {
+    console.error("Error obteniendo visitas programadas:", error);
+    return [];
+  }
+}
+
+export async function guardarVisitaProgramada(visita: VisitaProgramada) {
+  try {
+    await invoke('guardar_visita_programada_rust', { visita });
+    notificarCambioLocal(); // ⏰ EL EMBUDO DE SINCRONIZACIÓN
+  } catch (error) {
+    console.error("Error guardando visita programada:", error);
+    throw error;
+  }
+}
+
+
+export interface VisitaVista {
+  id: number;
+  rutaId: number;
+  congregacionId: number;
+  fechaSemana: string;
+  estado: 'pendiente' | 'en_progreso' | 'completada';
+  nombreCongregacion: string;
+  nombreRuta: string;
+}
+
+export async function obtenerVisitasPorCircuito(circuitoId: number): Promise<VisitaVista[]> {
+  try {
+    const db = await Database.load('sqlite:av_database.db');
+    
+    const query = `
+      SELECT 
+        v.id, 
+        v.ruta_id as rutaId, 
+        v.congregacion_id as congregacionId, 
+        v.fechaSemana, 
+        v.estado,
+        c.nombre as nombreCongregacion,
+        r.nombre as nombreRuta
+      FROM visitas_programadas v
+      INNER JOIN congregaciones c ON v.congregacion_id = c.id
+      INNER JOIN rutas r ON v.ruta_id = r.id
+      WHERE r.circuito_id = $1
+      ORDER BY v.fechaSemana ASC
+    `;
+    
+    return await db.select<VisitaVista[]>(query, [circuitoId]);
+  } catch (error) {
+    console.error("Error obteniendo visitas para la vista:", error);
+    return [];
+  }
+}
+
+export async function eliminarVisitaProgramada(id: number) {
+  try {
+    await invoke('eliminar_visita_programada_rust', { id });
+    notificarCambioLocal(); // ⏰ EL EMBUDO DE SINCRONIZACIÓN
+  } catch (error) {
+    console.error("Error eliminando visita programada:", error);
+    throw error;
+  }
+}
+
+export async function obtenerVisitaPorId(id: number): Promise<VisitaProgramada | null> {
+  try {
+    return await invoke<VisitaProgramada | null>('obtener_visita_por_id_rust', { id });
+  } catch (error) {
+    console.error(`Error obteniendo la visita ${id} desde Rust:`, error);
+    return null;
+  }
+}
+
+// ==================================================
+// --- 8. GESTIÓN DE ANÁLISIS DE VISITAS ---
+// ==================================================
+
+export interface AnalisisVisita {
+  id?: number;
+  visitaId: number;
+  fecha: string;
+  contenido: string;
+  checklist?: string;
+  completado: boolean;
+}
+
+export async function obtenerAnalisisPorVisita(visitaId: number): Promise<AnalisisVisita | null> {
+  try {
+    return await invoke<AnalisisVisita | null>('obtener_analisis_por_visita_rust', { visitaId });
+  } catch (error) {
+    console.error(`Error obteniendo análisis de la visita ${visitaId}:`, error);
+    return null;
+  }
+}
+
+export async function guardarAnalisisVisita(analisis: AnalisisVisita): Promise<number> {
+  try {
+    const id = await invoke<number>('guardar_analisis_visita_rust', { analisis });
+    notificarCambioLocal(); // ⏰ EL EMBUDO DE SINCRONIZACIÓN
+    return id;
+  } catch (error) {
+    console.error("Error guardando análisis de visita:", error);
+    throw error;
+  }
+}
+
+export async function eliminarAnalisisVisita(id: number) {
+  try {
+    await invoke('eliminar_analisis_visita_rust', { id });
+    notificarCambioLocal(); // ⏰ EL EMBUDO DE SINCRONIZACIÓN
+  } catch (error) {
+    console.error("Error eliminando análisis de visita:", error);
+    throw error;
+  }
+}
+
+// ==================================================
+// --- 9. GESTIÓN DE REVISIÓN DE VISITAS ---
+// ==================================================
+
+export interface RevisionVisita {
+  id?: number;
+  visitaId: number;
+  fecha: string;
+  contadores: string;
+  completado: boolean;
+}
+
+export async function obtenerRevisionPorVisita(visitaId: number): Promise<RevisionVisita | null> {
+  try {
+    return await invoke<RevisionVisita | null>('obtener_revision_por_visita_rust', { visitaId });
+  } catch (error) {
+    console.error(`Error obteniendo revisión de la visita ${visitaId}:`, error);
+    return null;
+  }
+}
+
+export async function guardarRevisionVisita(revision: RevisionVisita): Promise<number> {
+  try {
+    const id = await invoke<number>('guardar_revision_visita_rust', { revision });
+    notificarCambioLocal(); // ⏰ EL EMBUDO DE SINCRONIZACIÓN
+    return id;
+  } catch (error) {
+    console.error("Error guardando revisión de visita:", error);
+    throw error;
+  }
+}
+
+export async function eliminarRevisionVisita(id: number) {
+  try {
+    await invoke('eliminar_revision_visita_rust', { id });
+    notificarCambioLocal(); // ⏰ EL EMBUDO DE SINCRONIZACIÓN
+  } catch (error) {
+    console.error("Error eliminando revisión de visita:", error);
+    throw error;
+  }
+}
+
+export async function obtenerContadoresRevisionAnterior(visitaId: number): Promise<string | null> {
+  try {
+    return await invoke<string | null>('obtener_contadores_revision_anterior_rust', { visitaId });
+  } catch (error) {
+    console.error(`Error obteniendo contadores de la revisión anterior:`, error);
+    return null;
+  }
+}
+
+// ==================================================
+// --- 10. GESTIÓN DE REPORTES / HISTORIAL ---
+// ==================================================
+
+export interface FilaHistorial {
+  visitaId: number;
+  congregacionNombre: string;
+  fechaSemana: string;
+  contadores: string | null;
+}
+
+export async function obtenerHistorialRevisiones(circuitoId: number): Promise<FilaHistorial[]> {
+  try {
+    return await invoke<FilaHistorial[]>('obtener_historial_revisiones_rust', { circuitoId });
+  } catch (error) {
+    console.error("Error obteniendo historial de revisiones:", error);
+    return [];
+  }
+}
+
+// ==================================================
+// --- 11. ÚLTIMAS REVISIONES POR CIRCUITO ---
+// ==================================================
+
+export interface UltimaRevisionPorCongregacion {
+  congregacionId: number;
+  congregacionNombre: string;
+  visitaId: number;
+  fecha: string;
+  contadores: string;
+}
+
+export async function obtenerUltimasRevisionesPorCircuito(circuitoId: number): Promise<UltimaRevisionPorCongregacion[]> {
+  try {
+    return await invoke<UltimaRevisionPorCongregacion[]>('obtener_ultimas_revisiones_por_circuito_rust', { circuitoId });
+  } catch (error) {
+    console.error("Error obteniendo últimas revisiones del circuito:", error);
+    return [];
+  }
 }

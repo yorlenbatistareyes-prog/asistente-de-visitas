@@ -6,6 +6,11 @@ pub mod database;
 pub mod drive;
 pub mod historial;
 pub mod personas;
+pub mod rutas;
+pub mod visitas;
+pub mod analisis;
+pub mod revision;
+pub mod reportes;
 
 use serde::{Deserialize, Serialize};
 use std::process::Command; // Necesario para abrir Word/Excel
@@ -290,6 +295,33 @@ pub fn run() {
             restaurar_bd,
             crear_respaldo_bd,
             verificar_actualizacion_rust,
+
+            // --- COMANDOS DE RUTAS ---
+            rutas::obtener_rutas_rust,
+            rutas::guardar_ruta_rust,
+             rutas::eliminar_ruta_rust,
+
+            // --- COMANDOS DE VISITAS PROGRAMADAS ---
+            visitas::obtener_visitas_programadas_rust,
+            visitas::guardar_visita_programada_rust,
+            visitas::eliminar_visita_programada_rust,
+            visitas::obtener_visita_por_id_rust,
+
+            // --- COMANDOS DE ANÁLISIS DE VISITAS ---
+            analisis::obtener_analisis_por_visita_rust,
+            analisis::guardar_analisis_visita_rust,
+            analisis::eliminar_analisis_visita_rust,
+
+            // --- COMANDOS DE REVISIÓN DE VISITAS ---
+            revision::obtener_revision_por_visita_rust,
+            revision::guardar_revision_visita_rust,
+            revision::eliminar_revision_visita_rust,
+            revision::obtener_contadores_revision_anterior_rust,
+
+            // --- COMANDOS DE REPORTES / HISTORIAL ---
+            reportes::obtener_historial_revisiones_rust,
+            reportes::obtener_ultimas_revisiones_por_circuito_rust,
+
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
