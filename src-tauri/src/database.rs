@@ -55,6 +55,68 @@ pub fn inicializar_bd() -> Result<()> {
         [],
     )?;
 
+
+    // TABLA RUTAS
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS rutas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            circuito_id INTEGER NOT NULL,
+            congregacion_id INTEGER,
+            nombre TEXT NOT NULL,
+            fechaInicio TEXT NOT NULL,
+            fechaFin TEXT NOT NULL,
+            completada BOOLEAN DEFAULT 0,
+            FOREIGN KEY(circuito_id) REFERENCES circuitos(id) ON DELETE CASCADE,
+            FOREIGN KEY(congregacion_id) REFERENCES congregaciones(id) ON DELETE SET NULL
+        )",
+        [],
+    )?;
+
+    // MIGRACIÓN: añadir la columna congregacion_id si la tabla ya existía sin ella
+    let _ = conn.execute("ALTER TABLE rutas ADD COLUMN congregacion_id INTEGER", []);
+
+    // TABLA VISITAS PROGRAMADAS
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS visitas_programadas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ruta_id INTEGER NOT NULL,
+            congregacion_id INTEGER NOT NULL,
+            fechaSemana TEXT NOT NULL,
+            estado TEXT DEFAULT 'pendiente',
+            notas TEXT,
+            FOREIGN KEY(ruta_id) REFERENCES rutas(id) ON DELETE CASCADE,
+            FOREIGN KEY(congregacion_id) REFERENCES congregaciones(id) ON DELETE CASCADE
+        )",
+        [],
+    )?;
+
+        // TABLA ANALISIS_VISITAS (Vincula un análisis a una visita específica)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS analisis_visitas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            visita_id INTEGER NOT NULL,
+            fecha TEXT NOT NULL,
+            contenido TEXT NOT NULL,
+            checklist TEXT,
+            completado BOOLEAN DEFAULT 0,
+            FOREIGN KEY(visita_id) REFERENCES visitas_programadas(id) ON DELETE CASCADE
+        )",
+        [],
+    )?;
+
+        // TABLA REVISION_VISITAS (Vincula una revisión de archivos a una visita específica)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS revision_visitas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            visita_id INTEGER NOT NULL,
+            fecha TEXT NOT NULL,
+            contadores TEXT NOT NULL,
+            completado BOOLEAN DEFAULT 0,
+            FOREIGN KEY(visita_id) REFERENCES visitas_programadas(id) ON DELETE CASCADE
+        )",
+        [],
+    )?;
+
     // --- NUEVO: CREACIÓN DE LA VISTA PARA LAS ESTADÍSTICAS ---
     // Esta vista filtra automáticamente la última visita finalizada de cada congregación
     conn.execute(

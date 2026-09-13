@@ -1,38 +1,27 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { Users, UserSquare, ArrowLeft } from 'lucide-svelte';
+  import { Users, UserSquare, ArrowLeft, Map, Briefcase, BarChart2 } from 'lucide-svelte';
   
-  import { obtenerCircuitoPorId, obtenerCongregaciones, type Circuito, type Congregacion } from '$lib/services/db';
-  import PanelEstadisticasCircuito from "$lib/components/PanelEstadisticasCircuito.svelte";
+  import { obtenerCircuitoPorId, type Circuito } from '$lib/services/db';
 
   $: idCircuito = Number($page.params.id);
   
   let circuito: Circuito | null = null;
-  let listaCongregaciones: Congregacion[] = []; 
 
   async function cargarDatos() {
     if (!idCircuito) return;
     
-    // 1. Cargamos el circuito
+    // Solo cargamos el circuito. Las congregaciones ahora se cargan en la pestaña "registros"
     circuito = await obtenerCircuitoPorId(idCircuito);
-    
-    if (circuito) {
-      // 2. Cargamos las congregaciones directo desde Rust, ¡sin mapeos raros!
-      listaCongregaciones = await obtenerCongregaciones(circuito.nombre);
-      console.log("Datos listos para el Panel:", listaCongregaciones);
-    }
   }
 
   onMount(cargarDatos);
 
-  // Si el ID de la URL cambia (ej. cambias de circuito), recargamos todo
   $: if (idCircuito) {
     cargarDatos();
   }
 
-  // Si detectamos que entramos a una congregación y volvemos (cambio de ruta), 
-  // refrescamos la lista para captar nuevas revisiones archivadas.
   $: if ($page.url.pathname) {
      cargarDatos();
   }
@@ -53,17 +42,13 @@
       {/if}
     </div>
 
-    <div class="panel-wrapper">
-      <PanelEstadisticasCircuito {listaCongregaciones} />
-    </div>
-
     <nav class="tabs-container">
       <a 
         href={`/circuito/${idCircuito}/congregaciones`} 
         class="tab" 
         class:active={$page.url.pathname.includes('/congregaciones')}
       >
-        <Users size={16} /> Congregaciones
+        <Users size={16} /> <span>Congregaciones</span>
       </a>
       
       <a 
@@ -71,7 +56,31 @@
         class="tab" 
         class:active={$page.url.pathname.includes('/personas')}
       >
-        <UserSquare size={16} /> Registro de Personas
+        <UserSquare size={16} /> <span>Personas</span>
+      </a>
+
+      <a 
+        href={`/circuito/${idCircuito}/rutas`} 
+        class="tab" 
+        class:active={$page.url.pathname.includes('/rutas')}
+      >
+        <Map size={16} /> <span>Rutas</span>
+      </a>
+
+      <a 
+        href={`/circuito/${idCircuito}/visitas`} 
+        class="tab" 
+        class:active={$page.url.pathname.includes('/visitas')}
+      >
+        <Briefcase size={16} /> <span>Visitas</span>
+      </a>
+
+      <a 
+        href={`/circuito/${idCircuito}/registros`} 
+        class="tab" 
+        class:active={$page.url.pathname.includes('/registros')}
+      >
+        <BarChart2 size={16} /> <span>Registros e Informes</span>
       </a>
     </nav>
   </header>
@@ -107,7 +116,7 @@
   .btn-back:hover { color: var(--text-main); }
 
   .title-area {
-    display: flex; align-items: center; gap: 15px; margin-bottom: 5px;
+    display: flex; align-items: center; gap: 15px; margin-bottom: 15px;
   }
   .title-area h2 { margin: 0; font-size: 1.8rem; color: var(--text-main); }
   
@@ -116,21 +125,20 @@
     padding: 4px 10px; border-radius: 20px;
   }
 
-  /* Contenedor para darle respiro al panel dentro de la cabecera */
-  .panel-wrapper {
-    margin-bottom: 5px;
-  }
-
+  /* Contenedor de pestañas con scroll horizontal oculto para móviles */
   .tabs-container {
     display: flex; gap: 20px; border-bottom: 2px solid var(--border-color);
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+  .tabs-container::-webkit-scrollbar { display: none; }
 
   .tab {
     display: flex; align-items: center; gap: 8px;
     text-decoration: none; color: var(--text-muted); font-weight: 600;
     font-size: 0.95rem; padding: 12px 0; border-bottom: 3px solid transparent;
-    margin-bottom: -2px; 
-    transition: all 0.2s;
+    margin-bottom: -2px; transition: all 0.2s;
+    white-space: nowrap; /* Evita que el texto se parta en dos líneas */
   }
 
   .tab:hover { color: var(--text-main); }
@@ -147,23 +155,20 @@
   @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
   /* =============================================
-     DISEÑO RESPONSIVO (Contenedor Circuito)
+     DISEÑO RESPONSIVO
      ============================================= */
 
   @media (max-width: 768px) {
-    /* 1. Ajuste de márgenes generales */
     .circuito-header {
-      padding: 15px 15px 0 15px; /* Menos espacio en los bordes */
+      padding: 15px 15px 0 15px; 
       gap: 10px;
     }
 
-    /* 2. Botón Volver: Más visible y fácil de tocar */
     .btn-back {
       padding: 8px 0;
       font-size: 0.9rem;
     }
 
-    /* 3. Título y Badge: Uno debajo del otro */
     .title-area {
       flex-direction: column;
       align-items: flex-start;
@@ -171,34 +176,24 @@
     }
 
     .title-area h2 {
-      font-size: 1.5rem; /* Título un poco más pequeño para que no rompa */
+      font-size: 1.5rem; 
       line-height: 1.2;
     }
 
-    /* 4. Pestañas (Tabs): Estilo móvil de alto impacto */
     .tabs-container {
-      gap: 0; /* Quitamos el gap para que se estiren solas */
-      justify-content: space-between;
+      gap: 15px; 
+      justify-content: flex-start;
     }
 
     .tab {
-      flex: 1; /* Cada pestaña ocupa el 50% exacto */
-      justify-content: center; /* Centramos el texto e icono */
+      padding: 15px 5px; 
       font-size: 0.85rem;
-      padding: 15px 0; /* Más altura para el dedo */
-      gap: 5px;
     }
-
-    /* Ocultamos el texto de las pestañas en móviles muy pequeños si es necesario, 
-       pero por ahora con flex: 1 debería caber bien */
   }
 
-  /* Móviles muy pequeños (hasta 480px) */
   @media (max-width: 480px) {
-    
     .title-area h2 {
       font-size: 1.3rem;
     }
   }
-
 </style>
