@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { goto, afterNavigate } from '$app/navigation';
   import { Calendar, Plus, Briefcase, ArrowRight, Map } from "lucide-svelte";
   import { confirm } from '@tauri-apps/plugin-dialog';
 
@@ -12,14 +12,17 @@
     obtenerCircuitoPorId,
     obtenerCongregaciones,
     guardarVisitaProgramada,
+    obtenerVisitasPorCircuito,
     type Ruta,
-    type Congregacion
+    type Congregacion,
+    type VisitaVista
   } from '$lib/services/db';
 
   $: idCircuito = Number($page.params.id);
 
   let rutas: Ruta[] = [];
   let congregaciones: Congregacion[] = [];
+  let visitasProgramadas: VisitaVista[] = [];
   let cargando = true;
 
   // --- CONTROL DE MODALES ---
@@ -45,28 +48,37 @@
   }
 
   async function cargarDatos() {
-    cargando = true;
-    if (idCircuito) {
-      // 1. Cargamos rutas y las ordenamos de antigua a reciente
-      const rutasObtenidas = await obtenerRutasPorCircuito(idCircuito);
-      rutas = rutasObtenidas.sort((a, b) => {
-        return new Date(a.fechaInicio).getTime() - new Date(b.fechaInicio).getTime();
-      });
-      
-      // 2. Cargamos congregaciones del circuito
-      const circuito = await obtenerCircuitoPorId(idCircuito);
-      if (circuito) {
-        congregaciones = await obtenerCongregaciones(circuito.nombre);
-      }
+  cargando = true;
+  if (idCircuito) {
+    const rutasObtenidas = await obtenerRutasPorCircuito(idCircuito);
+    rutas = rutasObtenidas.sort((a, b) => {
+      return new Date(a.fechaInicio).getTime() - new Date(b.fechaInicio).getTime();
+    });
+    
+    const circuito = await obtenerCircuitoPorId(idCircuito);
+    if (circuito) {
+      congregaciones = await obtenerCongregaciones(circuito.nombre);
     }
-    cargando = false;
-  }
 
-  onMount(cargarDatos);
+    // NUEVO: Consultamos las visitas ya creadas en este circuito
+    visitasProgramadas = await obtenerVisitasPorCircuito(idCircuito);
+  }
+  cargando = false;
+}
+
+onMount(cargarDatos);
 
   $: if (idCircuito) {
     cargarDatos();
   }
+
+  // NUEVO: Forzamos recarga al usar el botón "Atrás" del móvil
+  afterNavigate(() => {
+    cargarDatos();
+  });
+
+  // NUEVO: Variable 100% reactiva y más rápida
+  $: rutasConVisita = new Set(visitasProgramadas.map(v => v.rutaId || (v as any).ruta_id));
 
     function abrirModalNuevoEvento() {
     // Modo creación: limpia todos los campos
@@ -219,9 +231,15 @@ async function borrarRuta(ruta: Ruta) {
               </div>
             {/if}
 
-            <button class="btn-accion" on:click={() => iniciarCreacionVisita(ruta)}>
-              Crear Visita <ArrowRight size={14} />
-            </button>
+            {#if rutasConVisita.has(ruta.id)}
+              <button class="btn-accion btn-disabled" disabled title="Esta visita ya fue creada">
+                 Visita Creada
+              </button>
+            {:else}
+              <button class="btn-accion" on:click={() => iniciarCreacionVisita(ruta)}>
+                 Crear Visita <ArrowRight size={14} />
+              </button>
+            {/if}
 
             <button class="btn-borrar" on:click={() => borrarRuta(ruta)} title="Eliminar evento">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -543,4 +561,13 @@ async function borrarRuta(ruta: Ruta) {
     .modal-actions { flex-direction: column-reverse; }
     .modal-actions button { width: 100%; height: 44px; }
   }
+
+  .btn-disabled {
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #94a3b8 !important;
+  cursor: not-allowed !important;
+  opacity: 0.8;
+  box-shadow: none !important;
+}
 </style>

@@ -59,28 +59,52 @@ pub struct UltimaRevisionPorCongregacion {
 pub fn obtener_ultimas_revisiones_por_circuito_rust(circuito_id: i64) -> Result<Vec<UltimaRevisionPorCongregacion>, String> {
     let conn = establecer_conexion().map_err(|e| e.to_string())?;
     
-    // Para cada congregación del circuito, obtenemos su revisión más reciente
+    // Estrategia: por cada congregación, tomamos la revisión más reciente
+    // Prioridad 1: revision_visitas (nuevas)
+    // Prioridad 2: historial_visitas tipo "Revisión de Archivos" (viejas)
     let mut stmt = conn.prepare(
-        "SELECT 
-            c.id as congregacion_id,
-            c.nombre as congregacion_nombre,
-            rv.visita_id,
-            rv.fecha,
-            rv.contadores
-         FROM congregaciones c
-         INNER JOIN circuitos ci ON c.circuito = ci.nombre
-         INNER JOIN visitas_programadas vp ON vp.congregacion_id = c.id
-         INNER JOIN revision_visitas rv ON rv.visita_id = vp.id
-         WHERE ci.id = ?1
-           AND rv.id IN (
-               SELECT rv2.id
-               FROM revision_visitas rv2
-               INNER JOIN visitas_programadas vp2 ON rv2.visita_id = vp2.id
-               WHERE vp2.congregacion_id = c.id
-               ORDER BY rv2.fecha DESC
-               LIMIT 1
-           )
-         ORDER BY c.nombre ASC"
+        "WITH todas_revisiones AS (
+            -- Revisiones NUEVAS (prioridad 1)
+            SELECT 
+                c.id as congregacion_id,
+                c.nombre as congregacion_nombre,
+                rv.visita_id as visita_id,
+                rv.fecha as fecha,
+                rv.contadores as contadores,
+                1 as prioridad
+            FROM congregaciones c
+            INNER JOIN circuitos ci ON c.circuito = ci.nombre
+            INNER JOIN visitas_programadas vp ON vp.congregacion_id = c.id
+            INNER JOIN revision_visitas rv ON rv.visita_id = vp.id
+            WHERE ci.id = ?1
+            
+            UNION ALL
+            
+            -- Revisiones VIEJAS (prioridad 2)
+            SELECT 
+                c.id as congregacion_id,
+                c.nombre as congregacion_nombre,
+                0 as visita_id,
+                hv.fecha as fecha,
+                hv.contenido as contadores,
+                2 as prioridad
+            FROM congregaciones c
+            INNER JOIN circuitos ci ON c.circuito = ci.nombre
+            INNER JOIN historial_visitas hv ON hv.congregacion_id = c.id
+            WHERE ci.id = ?1 AND hv.tipo LIKE '%Revisi%'
+        ),
+        ranking AS (
+            SELECT *,
+                ROW_NUMBER() OVER (
+                    PARTITION BY congregacion_id 
+                    ORDER BY prioridad ASC, fecha DESC
+                ) as rn
+            FROM todas_revisiones
+        )
+        SELECT congregacion_id, congregacion_nombre, visita_id, fecha, contadores
+        FROM ranking
+        WHERE rn = 1
+        ORDER BY congregacion_nombre ASC"
     ).map_err(|e| e.to_string())?;
 
     let iter = stmt.query_map([circuito_id], |row| {

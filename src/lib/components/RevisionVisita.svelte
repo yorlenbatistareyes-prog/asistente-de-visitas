@@ -254,10 +254,10 @@
                 <h4>{tarjeta.titulo}</h4>
                 
                 <div class="header-badges">
-                  {#if tarjeta.id !== 'total'}
-                    <div class="badge-porcentaje {totalPubs > 0 ? 'theme-' + tarjeta.color : 'vacio'}">
-                      {totalPubs > 0 ? ((contadores[tarjeta.id] / totalPubs) * 100).toFixed(1) : '0.0'}%
-                    </div>
+                  {#if tarjeta.id !== 'total' && tarjeta.id !== 'totalCursosBiblicos'}
+                <div class="badge-porcentaje {totalPubs > 0 ? 'theme-' + tarjeta.color : 'vacio'}">
+                  {totalPubs > 0 ? ((contadores[tarjeta.id] / totalPubs) * 100).toFixed(1) : '0.0'}%
+                </div>
                   {/if}
 
                   {#if tendencia}

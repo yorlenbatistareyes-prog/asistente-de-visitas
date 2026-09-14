@@ -62,9 +62,9 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "1.0.39": [
-      { texto: "Sistema de actualización de la aplicación añadido. Puede ver el panel de actualización en la sección de configuración.", tipo: "Zap" },
-      { texto: "Se ha actualizado el nombre de la app que se muestra en la pantalla del dispositivo", tipo: "Bug" }
+    "2.0.3": [
+      { texto: "Se corrigieron otros errores menores", tipo: "Zap" },
+      
     ]
   };
 
@@ -171,25 +171,33 @@
       } catch (e) {}
     }, 3000); 
 
-    // 5. 📡 EL RADAR DE LA NUBE
+    // 5. 📡 EL RADAR DE LA NUBE (Espera uniforme de 3 segundos)
     let ultimaComprobacion = 0;
+    let motorListo = false; // 🛡️ Candado para evitar que los eventos se roben el intento inicial
 
     async function ejecutarComprobacion() {
       const ahora = Date.now();
-      // Si han pasado menos de 30 segundos, no comprobamos para no saturar al servidor
+      // Si han pasado menos de 30 segundos desde el último intento, lo ignoramos
       if (ahora - ultimaComprobacion < 30000) return;
       
-      ultimaComprobacion = ahora;
+      // Actualizamos el reloj de la última comprobación AQUÍ
+      ultimaComprobacion = ahora; 
       await comprobarNubeAlAbrir();
     }
 
-    // Arranca 1.5s después de abrir la app
-    setTimeout(ejecutarComprobacion, 1500);
+    // 1. Damos 3 segundos de respiro parejo a todos los dispositivos para inicializar SQLite
+    setTimeout(() => {
+      motorListo = true; // Abrimos el candado
+      ejecutarComprobacion(); // Hacemos la primera comprobación real
+    }, 3000);
 
-    // Y también vigila cada vez que la app vuelve a pantalla
-    window.addEventListener('focus', ejecutarComprobacion);
+    // 2. Eventos condicionados: Solo funcionan si el motor ya arrancó
+    window.addEventListener('focus', () => {
+      if (motorListo) ejecutarComprobacion();
+    });
+    
     window.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
+      if (motorListo && document.visibilityState === 'visible') {
         ejecutarComprobacion();
       }
     });

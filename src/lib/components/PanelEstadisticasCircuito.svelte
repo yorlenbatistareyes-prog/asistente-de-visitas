@@ -77,6 +77,40 @@
     territoriosSinTrabajar1Ano: 0
   };
 
+    // Normaliza los contadores viejos y nuevos a un formato plano { clave: number }
+  function normalizarContadores(jsonStr: string): Record<string, number> {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      const result: Record<string, number> = {};
+
+      for (const [key, value] of Object.entries(parsed)) {
+        let numValue = 0;
+
+        // Formato VIEJO: { valor: X, porcentaje: Y, tendencia: Z }
+        if (value && typeof value === 'object' && 'valor' in (value as any)) {
+          numValue = Number((value as any).valor) || 0;
+        } 
+        // Formato NUEVO: número directo
+        else if (typeof value === 'number') {
+          numValue = value;
+        }
+
+        // Normalizar claves viejas
+        let normalizedKey = key;
+        if (key === 'Tarjetas sacadas' || key === 'tarjetassacadas') {
+          normalizedKey = 'tarjetasSacadas';
+        }
+
+        result[normalizedKey] = numValue;
+      }
+
+      return result;
+    } catch {
+      return {};
+    }
+  }
+
+
    async function calcularMetricas() {
     if (!listaCongregaciones || listaCongregaciones.length === 0 || !circuitoId) return;
 
@@ -100,7 +134,8 @@
       for (const rev of revisiones) {
         try {
           // 2. Parseamos el JSON de contadores
-          const datos = JSON.parse(rev.contadores);
+          // 2. Parseamos el JSON de contadores (normalizado para soportar formato viejo y nuevo)
+          const datos = normalizarContadores(rev.contadores);
 
           const val = (k: string) => Number(datos[k]) || 0;
 

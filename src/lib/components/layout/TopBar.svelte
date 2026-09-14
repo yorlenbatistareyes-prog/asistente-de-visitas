@@ -42,7 +42,6 @@
     <div class="info-area">
       <div class="text-group">
         <h1>Asistente de Visitas</h1>
-        <p>Documenta todas tus visitas</p>
       </div>
 
       <div class="right-actions">
