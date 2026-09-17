@@ -11,6 +11,7 @@ pub mod visitas;
 pub mod analisis;
 pub mod revision;
 pub mod reportes;
+pub mod sync_carpeta;
 
 use serde::{Deserialize, Serialize};
 use std::process::Command; // Necesario para abrir Word/Excel
@@ -321,6 +322,13 @@ pub fn run() {
             // --- COMANDOS DE REPORTES / HISTORIAL ---
             reportes::obtener_historial_revisiones_rust,
             reportes::obtener_ultimas_revisiones_por_circuito_rust,
+
+            // --- NUEVOS COMANDOS DE SINCRONIZACIÓN ---
+            sync_carpeta::exportar_db_encriptada_global,
+            sync_carpeta::importar_db_encriptada_global,
+            sync_carpeta::guardar_ruta_sync,
+            sync_carpeta::obtener_ruta_sync,
+            sync_carpeta::generar_llave_invisible,
 
         ])
         .run(tauri::generate_context!())

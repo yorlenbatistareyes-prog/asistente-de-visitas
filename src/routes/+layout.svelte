@@ -2,7 +2,7 @@
   import TopBar from '$lib/components/layout/TopBar.svelte';
   import BarraDeEstado from '$lib/components/layout/BarraDeEstado.svelte';
   import '../app.css';
-  import { exists, BaseDirectory } from '@tauri-apps/plugin-fs';
+  import { exists, BaseDirectory, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
   import { invoke } from '@tauri-apps/api/core';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
@@ -16,9 +16,12 @@
   // 📡 NUEVAS IMPORTACIONES PARA EL RADAR Y EL MODAL GLOBAL
   import { get } from 'svelte/store';
   import { sesionApp } from '$lib/stores/authStore';
-  import { estadoSincronizacion, comprobarNubeAlAbrir } from '$lib/stores/autoSyncStore';
+  import { estadoSincronizacion, comprobarNubeAlAbrir, dispararSincronizacionLocal } from '$lib/stores/autoSyncStore';
   import { descargarRespaldo, subirRespaldo } from '$lib/services/syncService';
   import { prepararDatosParaSubir, restaurarDatosDeDescarga } from '$lib/services/dbSyncHelper';
+
+  import { stat } from '@tauri-apps/plugin-fs'; // <-- Asegúrate de importar stat arriba
+  import { pausarRadarTemporalmente } from '$lib/stores/autoSyncStore'; // <-- Importa la nueva función
 
   // Importamos los iconos que usaremos (Añadí ServerCrash y UploadCloud para el modal)
   import { 
@@ -62,8 +65,8 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "2.0.3": [
-      { texto: "Se corrigieron otros errores menores", tipo: "Zap" },
+    "2.0.4": [
+      { texto: "Se corrigieron errores de sincronización", tipo: "Zap" },
       
     ]
   };
@@ -82,6 +85,38 @@
     estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Descargando datos...' }));
 
     try {
+      const estadoActual = get(estadoSincronizacion);
+
+      // 📂 REGLA 4: LÓGICA INTELIGENTE LOCAL (Ignora HTTP)
+      if (estadoActual.mensaje.includes('carpeta')) {
+        const rutaCarpeta = await invoke<string>('obtener_ruta_sync');
+        if (!rutaCarpeta) return;
+
+        const separador = rutaCarpeta.includes('/') ? '/' : '\\';
+        const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
+
+        const paqueteCifrado = await readTextFile(rutaArchivoFinal);
+        const llave = await cargarConfig('llave_carpeta_sync');
+
+        // Rust desencriptará e importará la DB
+        await invoke('importar_db_encriptada_global', {
+          paqueteBase64: paqueteCifrado,
+          llaveBase64: llave
+        });
+
+        // 🔥 REGLA 3: EMPAREJAMIENTO DE FECHAS TRAS LA RESTAURACIÓN
+        const infoArchivo = await stat(rutaArchivoFinal);
+        if (infoArchivo && infoArchivo.mtime) {
+            const nuevaFechaIso = new Date(infoArchivo.mtime.getTime()).toISOString();
+            await guardarConfig('last_synced_at', nuevaFechaIso);
+        }
+
+        estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Datos restaurados!' }));
+        setTimeout(() => window.location.reload(), 1500);
+        return; 
+      }
+
+      // 🌐 REGLA 4: LÓGICA INTELIGENTE WEB
       const sesion = get(sesionApp);
       const datosNube = await descargarRespaldo(sesion.token);
       
@@ -92,11 +127,10 @@
       await guardarConfig('last_synced_at', datosNube.backup.last_synced_at); 
       
       estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Datos actualizados!' }));
-      
-      // Recargamos la página actual para que la UI refleje los datos nuevos
       setTimeout(() => window.location.reload(), 1500);
 
     } catch (e) {
+      console.error(e);
       estadoSincronizacion.update(s => ({ ...s, estado: 'error', mensaje: 'Fallo al descargar' }));
       procesandoConflicto = false;
     }
@@ -107,17 +141,39 @@
     estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Forzando subida...' }));
 
     try {
-      const sesion = get(sesionApp);
-      const jsonDatos = await prepararDatosParaSubir();
+      const estadoActual = get(estadoSincronizacion);
       const fechaActual = new Date().toISOString();
-      
-      await subirRespaldo(sesion.token, jsonDatos, fechaActual);
-      await guardarConfig('last_synced_at', fechaActual);
-      
+
+      // 📂 SI EL AVISO VINO DE LA CARPETA COMPARTIDA
+      if (estadoActual.mensaje.includes('carpeta')) {
+        // 🔥 Corrección TS: Indicamos que devuelve un <string>
+        const rutaCarpeta = await invoke<string>('obtener_ruta_sync');
+        if (!rutaCarpeta) return;
+
+        const llave = await cargarConfig('llave_carpeta_sync');
+        
+        // 🔥 Corrección TS: Indicamos que devuelve un <string>
+        const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
+
+        const separador = rutaCarpeta.includes('/') ? '/' : '\\';
+        const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
+
+        await writeTextFile(rutaArchivoFinal, paqueteCifrado);
+        await guardarConfig('last_synced_at', fechaActual);
+        
+      } else {
+        // 🌐 SI EL AVISO VINO DEL SERVIDOR WEB
+        const sesion = get(sesionApp);
+        const jsonDatos = await prepararDatosParaSubir();
+        await subirRespaldo(sesion.token, jsonDatos, fechaActual);
+        await guardarConfig('last_synced_at', fechaActual);
+      }
+
       estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Nube sobrescrita!' }));
       setTimeout(() => estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' })), 3000);
 
     } catch (e) {
+      console.error(e);
       estadoSincronizacion.update(s => ({ ...s, estado: 'error', mensaje: 'Fallo al subir' }));
     } finally {
       procesandoConflicto = false;
@@ -170,6 +226,12 @@
         }
       } catch (e) {}
     }, 3000); 
+
+    // 🛡️ LISTENER PRINCIPAL: Anclado al layout para garantizar que siempre exista
+    // (SvelteKit garantiza que el layout se monta una sola vez por sesión en producción)
+    window.addEventListener('db_local_cambiada', () => {
+      dispararSincronizacionLocal();
+    });
 
     // 5. 📡 EL RADAR DE LA NUBE (Espera uniforme de 3 segundos)
     let ultimaComprobacion = 0;
@@ -290,6 +352,13 @@
           <UploadCloud size={20} />
           <span>Ignorar la nube y forzar la subida de mis datos locales</span>
         </button>
+
+        <!-- 🔥 REGLA 5: BOTÓN NO BLOQUEANTE -->
+        <button class="btn-ignorar-sutil" on:click={pausarRadarTemporalmente} disabled={procesandoConflicto}>
+           <X size={16} />
+           <span>Ignorar por ahora (Pausar alertas)</span>
+        </button>
+
       </div>
     </div>
   </div>
@@ -361,4 +430,22 @@
   .btn-forzar-subida { background: transparent; color: #ef4444; border: 1px solid #ef4444; display: flex; justify-content: flex-start; gap: 15px; padding: 16px; font-weight: 700; text-align: left; border-radius: 8px; cursor: pointer; }
   .btn-forzar-subida:hover:not(:disabled) { background: rgba(239, 68, 68, 0.1); }
   @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+  .btn-ignorar-sutil {
+   background: transparent;
+   color: #94a3b8; /* Gris suave */
+   border: none;
+   display: flex;
+   justify-content: center;
+   gap: 8px;
+   padding: 10px;
+   font-size: 0.85rem;
+   cursor: pointer;
+   margin-top: 5px;
+}
+.btn-ignorar-sutil:hover {
+   color: #64748b;
+   text-decoration: underline;
+}
+
 </style>

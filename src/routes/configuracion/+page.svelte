@@ -15,6 +15,7 @@
   // IMPORTAMOS TUS FUNCIONES DESDE db.ts
   import Sincronizacion from '$lib/components/Sincronizacion.svelte';
 
+  import SincronizacionCarpeta from '$lib/components/SincronizacionCarpeta.svelte';
   import { verificarActualizacion, irA_Descarga } from '$lib/services/updater';
 
   // --- VARIABLES DE ESTADO GLOBALES ---
@@ -341,16 +342,20 @@ function handleModalKeydown(event: KeyboardEvent) {
 
     <section class="card-global config-section">
       <div class="section-icon">
-        <div class="section-icon">
           <CloudSync size={28} />
-        </div>
       </div>
 
       <div class="section-content">
         <h3>Sincronización Cloud Segura</h3>
-        <p>Respalda tu información en el servidor de forma automática e inteligente, sin usar contraseñas.</p>
+        <p>Elige el método que prefieras para respaldar y compartir tu información entre dispositivos.</p>
         
+        <!-- 1. Sincronización por Servidor Web (La que ya tenías) -->
         <Sincronizacion />
+
+        <br>
+        
+        <!-- 2. Sincronización por Carpeta de Google Drive / OneDrive (La Nueva) -->
+        <SincronizacionCarpeta />
       </div>
     </section>
 

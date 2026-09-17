@@ -4,73 +4,72 @@ import { writable, get } from 'svelte/store';
 import { sesionApp } from '$lib/stores/authStore';
 import { chequearEstadoNube, subirRespaldo } from '$lib/services/syncService';
 import { prepararDatosParaSubir } from '$lib/services/dbSyncHelper';
-// Mantenemos a db.ts como nuestro único Manager de base de datos
 import { cargarConfig, guardarConfig } from '$lib/services/db';
 
-// Definimos todos los posibles estados que verá el usuario
+// 🔥 NUEVAS IMPORTACIONES PARA LA CARPETA COMPARTIDA
+import { invoke } from '@tauri-apps/api/core';
+import { writeTextFile, stat } from '@tauri-apps/plugin-fs';
+
 export type SyncState = 'inactivo' | 'esperando' | 'sincronizando' | 'al_dia' | 'conflicto' | 'error';
 
 export const estadoSincronizacion = writable({
     estado: 'inactivo' as SyncState,
     mensaje: '',
-    nubeDispositivo: '', // Guardaremos quién hizo los cambios recientes
-    nubeFecha: ''        // Guardaremos cuándo se hicieron
+    nubeDispositivo: '',
+    nubeFecha: ''       
 });
 
-// Esta variable es nuestro "cronómetro". Al dejarla afuera, vive en la memoria global.
-let temporizadorSync: ReturnType<typeof setTimeout> | null = null;
+// 🔒 CANDADO ANTI-ECO: Evita que la app reaccione cuando ella misma guarda
+export let guardandoMetadatosInternos = false;
+
+// 🛑 PAUSA DE RADAR: Para la Regla 5 (Ignorar conflicto)
+export let radarPausado = false;
+
+export function pausarRadarTemporalmente() {
+    radarPausado = true;
+    estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
+    // El radar se pausa por 10 minutos (o hasta reiniciar la app)
+    setTimeout(() => { radarPausado = false; }, 600000); 
+}
+
+// ⏱️ TEMPORIZADORES INDEPENDIENTES
+let temporizadorSync: ReturnType<typeof setTimeout> | null = null; // Para el Servidor
+let temporizadorCarpeta: ReturnType<typeof setTimeout> | null = null; // Para la Carpeta
 let hayCambiosPendientesDuranteSubida = false;
 
-/**
- * Función principal: Ocurre cuando el store detecta un cambio en la base de datos.
- */
+// =======================================================
+// --- 1. LÓGICA DEL SERVIDOR WEB (INTACTA Y MEJORADA) ---
+// =======================================================
+
 export async function dispararSincronizacionLocal() {
     let sesion = get(sesionApp);
 
-    // 🛠️ RESCATE DE MEMORIA: Si Svelte perdió la sesión, la sacamos de la BD
     if (!sesion.isLoggedIn || !sesion.token) {
         const tokenGuardado = await cargarConfig('user_token'); 
         if (!tokenGuardado) return;
-        
         sesion = { isLoggedIn: true, token: tokenGuardado, correo: sesion.correo || '', verificando: sesion.verificando || false };
-        
-        // 🌟 Actualizamos el store real para que TopBar y otros componentes se enteren
         sesionApp.set(sesion);
     }
 
-    // 🛡️ CANDADO: Si ya estamos subiendo datos, esperamos a que termine
     if (get(estadoSincronizacion).estado === 'sincronizando') {
         hayCambiosPendientesDuranteSubida = true;
         return;
     }
 
-    // EL DEBOUNCE: Reiniciamos el reloj
-    if (temporizadorSync) {
-        clearTimeout(temporizadorSync);
-    }
+    if (temporizadorSync) clearTimeout(temporizadorSync);
 
-    // Avisamos a la UI que estamos esperando
-    estadoSincronizacion.set({
-        estado: 'esperando',
-        mensaje: 'Esperando para subir cambios...',
-        nubeDispositivo: '',
-        nubeFecha: ''
-    });
+    estadoSincronizacion.set({ estado: 'esperando', mensaje: 'Esperando para subir cambios...', nubeDispositivo: '', nubeFecha: '' });
 
-    // ⚡ TURBO: 5 segundos de espera (agrupando múltiples cambios)
     temporizadorSync = setTimeout(async () => {
         await procesarSubidaAutomatica(sesion.token);
     }, 5000);
 }
-/**
- * Función interna: Ocurre cuando el cronómetro llega a 0.
- */
+
 async function procesarSubidaAutomatica(token: string) {
-    estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Sincronizando...' }));
+    estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Sincronizando con servidor...' }));
     hayCambiosPendientesDuranteSubida = false;
 
     try {
-        // --- PREVENCIÓN DE CONFLICTOS ---
         let localUltimaSync = await cargarConfig('last_synced_at');
         if (!localUltimaSync) localUltimaSync = "1970-01-01T00:00:00.000Z";
 
@@ -83,9 +82,7 @@ async function procesarSubidaAutomatica(token: string) {
             if (fechaNube > fechaLocal) {
                 console.warn("⚠️ CONFLICTO DETECTADO: La nube tiene datos más nuevos.");
                 estadoSincronizacion.update(s => ({
-                    ...s,
-                    estado: 'conflicto',
-                    mensaje: 'Hay datos nuevos en la nube.',
+                    ...s, estado: 'conflicto', mensaje: 'Hay datos nuevos en la nube.',
                     nubeDispositivo: estadoNube.last_device || 'Dispositivo desconocido',
                     nubeFecha: estadoNube.last_synced_at
                 }));
@@ -93,13 +90,15 @@ async function procesarSubidaAutomatica(token: string) {
             }
         }
 
-        // --- ZONA SEGURA (LÓGICA DE MILISEGUNDOS DEL AMIGO) ---
         const fechaOriginalMilisegundos = new Date().toISOString();
         const jsonDatos = await prepararDatosParaSubir();
         await subirRespaldo(token, jsonDatos, fechaOriginalMilisegundos);
+        
+        // 🔒 ENCENDEMOS EL CANDADO ANTES DE GUARDAR LA FECHA (Evita bucle infinito)
+        guardandoMetadatosInternos = true;
         await guardarConfig('last_synced_at', fechaOriginalMilisegundos);
+        setTimeout(() => { guardandoMetadatosInternos = false; }, 2000);
 
-        // Éxito
         estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: 'Sincronizado con éxito' }));
 
         setTimeout(() => {
@@ -109,11 +108,9 @@ async function procesarSubidaAutomatica(token: string) {
         }, 3000);
 
     } catch (error) {
-        console.error("❌ Error en auto-sync:", error);
+        console.error("❌ Error en auto-sync web:", error);
         estadoSincronizacion.update(s => ({
-            ...s,
-            estado: 'error',
-            mensaje: 'Error de conexión. Se reintentará en el próximo cambio.'
+            ...s, estado: 'error', mensaje: 'Error de conexión. Se reintentará en el próximo cambio.'
         }));
         
         setTimeout(() => {
@@ -129,16 +126,150 @@ async function procesarSubidaAutomatica(token: string) {
     }
 }
 
+// =======================================================
+// --- 2. NUEVA LÓGICA DE CARPETA COMPARTIDA (LOCAL) ---
+// =======================================================
+
+// Genera o recupera la llave de seguridad para la carpeta
+async function obtenerOCrearLlave(): Promise<string> {
+    let llave = await cargarConfig('llave_carpeta_sync');
+    if (!llave) {
+        llave = await invoke<string>('generar_llave_invisible');
+        // 🔒 Usamos el candado para que no se dispare un evento de sync extra
+        guardandoMetadatosInternos = true;
+        await guardarConfig('llave_carpeta_sync', llave);
+        setTimeout(() => { guardandoMetadatosInternos = false; }, 2000);
+    }
+    return llave;
+}
+
+function dispararSincronizacionCarpeta() {
+    if (temporizadorCarpeta) clearTimeout(temporizadorCarpeta);
+    
+    estadoSincronizacion.update(s => ({ ...s, estado: 'esperando', mensaje: 'Preparando carpeta...' }));
+
+    temporizadorCarpeta = setTimeout(async () => {
+        await ejecutarSincronizacionCarpetaLocal();
+    }, 5000);
+}
+
+async function ejecutarSincronizacionCarpetaLocal() {
+    try {
+        const rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
+        if (!rutaCarpeta) return;
+
+        estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Guardando en carpeta...' }));
+
+        const llave = await obtenerOCrearLlave();
+        const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
+
+        const separador = rutaCarpeta.includes('/') ? '/' : '\\';
+        // Usamos la extensión .avisits
+        const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
+
+        await writeTextFile(rutaArchivoFinal, paqueteCifrado);
+        console.log("✅ [CarpetaSync] Archivo cifrado guardado en:", rutaArchivoFinal);
+
+        estadoSincronizacion.set({ estado: 'al_dia', mensaje: '¡Carpeta sincronizada!', nubeDispositivo: '', nubeFecha: '' });
+        
+        setTimeout(() => {
+            if (get(estadoSincronizacion).estado === 'al_dia') {
+                estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
+            }
+        }, 3000);
+
+    } catch (error) {
+        console.error("❌ [CarpetaSync] Error al sincronizar en la carpeta local:", error);
+        estadoSincronizacion.update(s => ({ ...s, estado: 'error', mensaje: 'Error en carpeta local' }));
+        setTimeout(() => {
+            if (get(estadoSincronizacion).estado === 'error') {
+                estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
+            }
+        }, 4000);
+    }
+}
+
+// =======================================================
+// --- 3. EL RADAR (ESCUCHA LOS CAMBIOS Y DECIDE) ---
+// =======================================================
+
+if (typeof window !== 'undefined') {
+    let filtroAntiBucle: ReturnType<typeof setTimeout>;
+
+    window.addEventListener('db_local_cambiada', () => {
+        if (guardandoMetadatosInternos) {
+            console.log("🤫 [SyncStore] Ignorando eco interno.");
+            return;
+        }
+
+        clearTimeout(filtroAntiBucle);
+
+        filtroAntiBucle = setTimeout(async () => {
+            let rutaCarpeta: string | null = null;
+            try {
+                rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
+            } catch (e) { rutaCarpeta = null; }
+
+            const sesion = get(sesionApp);
+            const sesionActiva = !!(sesion?.isLoggedIn && sesion?.token);
+
+            if (!rutaCarpeta && !sesionActiva) return; // Nada activo, no hacemos nada
+
+            console.log("👂 [SyncStore] Cambio detectado. Disparando métodos activos...");
+            
+            // Disparamos independientemente los métodos que el usuario configuró
+            if (sesionActiva) dispararSincronizacionLocal();
+            if (rutaCarpeta) dispararSincronizacionCarpeta();
+
+        }, 1000);
+    });
+
+    // Radar pasivo: Revisa la carpeta cada 15 segundos para detectar si OTRO DISPOSITIVO actualizó el archivo
+    setInterval(async () => {
+        try {
+           if (guardandoMetadatosInternos || get(estadoSincronizacion).estado === 'sincronizando' || radarPausado) return;
+
+            const rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
+            if (!rutaCarpeta) return;
+
+            const separador = rutaCarpeta.includes('/') ? '/' : '\\';
+            const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
+
+            const infoArchivo = await stat(rutaArchivoFinal);
+            if (infoArchivo && infoArchivo.mtime) {
+                let localUltimaSync = await cargarConfig('last_synced_at') || "1970-01-01T00:00:00.000Z";
+                const tiempoLocal = new Date(localUltimaSync).getTime();
+                const tiempoCarpeta = infoArchivo.mtime.getTime();
+
+                if (tiempoCarpeta > (tiempoLocal + 3000)) {
+                    estadoSincronizacion.set({
+                        estado: 'conflicto',
+                        mensaje: 'Hay una actualización disponible en la carpeta compartida.',
+                        nubeDispositivo: 'Otro dispositivo',
+                        nubeFecha: new Date(tiempoCarpeta).toISOString()
+                    });
+                }
+            }
+        } catch (e) {}
+    }, 15000);
+}
+
+// =======================================================
+// --- FUNCIONES AUXILIARES (INTACTAS) ---
+// =======================================================
+
 export function resetearEstadoSincronizacion() {
     estadoSincronizacion.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '' });
 }
 
 export async function registrarSubidaManualExitosa(fechaExacta?: string) {
     const fechaActual = fechaExacta || new Date().toISOString();
+    
+    guardandoMetadatosInternos = true;
     await guardarConfig('last_synced_at', fechaActual);
+    setTimeout(() => { guardandoMetadatosInternos = false; }, 2000);
     
     estadoSincronizacion.set({ estado: 'al_dia', mensaje: 'Sincronizado con éxito', nubeDispositivo: '', nubeFecha: '' });
-    
     setTimeout(() => {
         if (get(estadoSincronizacion).estado === 'al_dia') {
             estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
@@ -146,59 +277,26 @@ export async function registrarSubidaManualExitosa(fechaExacta?: string) {
     }, 3000);
 }
 
-// 👇 LA MAGIA DE LOS EVENTOS: Esto rompe la dependencia circular.
-// Escuchamos cuando db.ts "grita" que hubo un cambio, sin necesidad de que nos importe directamente.
-if (typeof window !== 'undefined') {
-    window.addEventListener('db_local_cambiada', () => {
-        dispararSincronizacionLocal();
-    });
-}
-
-/**
- * NUEVO: Función para ejecutar SOLO al abrir la app. 
- * Revisa si hay datos nuevos en la nube para avisar inmediatamente.
- */
 export async function comprobarNubeAlAbrir() {
     let sesion = get(sesionApp);
-
-       // 🛠️ RESCATE DE MEMORIA: Si Svelte perdió la sesión, la sacamos de la BD
     if (!sesion.isLoggedIn || !sesion.token) {
-        console.log('⚠️ [SYNC] No hay sesión activa. Intentando rescatar token de BD...');
         const tokenGuardado = await cargarConfig('user_token'); 
-        console.log('🔍 [SYNC] Token en BD:', tokenGuardado ? 'ENCONTRADO' : 'NO ENCONTRADO');
-        
-        if (!tokenGuardado) {
-            console.log('🛑 [SYNC] Abortando: no hay token guardado');
-            return; // Si no hay token, abortamos
-        }
-        
+        if (!tokenGuardado) return;
         sesion = { isLoggedIn: true, token: tokenGuardado, correo: sesion.correo || '', verificando: sesion.verificando || false };
-        
-        // 🌟 LÍNEA NUEVA: Actualizamos el store real para que TopBar y otros componentes se enteren
         sesionApp.set(sesion);
-        
-        console.log('✅ [SYNC] Sesión rescatada desde BD Y actualizada en sesionApp');
     }
-
     try {
         let localUltimaSync = await cargarConfig('last_synced_at');
         if (!localUltimaSync) localUltimaSync = "1970-01-01T00:00:00.000Z";
 
         const estadoNube = await chequearEstadoNube(sesion.token);
-
         if (estadoNube && estadoNube.last_synced_at) {
             const fechaLocal = new Date(localUltimaSync).getTime();
             const fechaNube = new Date(estadoNube.last_synced_at).getTime();
 
-            console.log("Radar -> Fecha Local:", localUltimaSync);
-            console.log("Radar -> Fecha Nube:", estadoNube.last_synced_at);
-
             if (fechaNube > fechaLocal) {
-                console.log("Radar: ¡Datos nuevos detectados en la nube!");
                 estadoSincronizacion.update(s => ({
-                    ...s,
-                    estado: 'conflicto',
-                    mensaje: 'Hay una actualización disponible en la nube.',
+                    ...s, estado: 'conflicto', mensaje: 'Hay una actualización disponible en la nube.',
                     nubeDispositivo: estadoNube.last_device || 'Dispositivo desconocido',
                     nubeFecha: estadoNube.last_synced_at
                 }));

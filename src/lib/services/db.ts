@@ -7,10 +7,23 @@ import { invoke } from '@tauri-apps/api/core';
 
 let dbInstance: Database | null = null;
 
-// 👇 NUEVO: Esta función "grita" al sistema que hubo un cambio, sin depender de nadie
+// 🛡️ EL SEMÁFORO (Evita bucles al restaurar desde la nube)
+let estaRestaurando = false;
+
+export function iniciarRestauracion() { estaRestaurando = true; }
+export function terminarRestauracion() { estaRestaurando = false; }
+export function isRestaurando() { return estaRestaurando; }
+
+// 📢 EL AVISADOR
 function notificarCambioLocal() {
+  if (estaRestaurando) {
+      console.log("🔄 Restauración en curso, ignorando cambios locales.");
+      return;
+  }
+  
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('db_local_cambiada'));
+      console.log("📢 [DB] Cambio detectado. Emitiendo señal para sincronizar...");
+      window.dispatchEvent(new CustomEvent('db_local_cambiada'));
   }
 }
 
@@ -609,5 +622,20 @@ export async function obtenerUltimasRevisionesPorCircuito(circuitoId: number): P
   } catch (error) {
     console.error("Error obteniendo últimas revisiones del circuito:", error);
     return [];
+  }
+}
+
+// ==================================================
+// --- GESTIÓN DE RUTA DE SINCRONIZACIÓN (CARPETA) --
+// ==================================================
+
+export async function guardarRutaSync(ruta: string | null) {
+  try {
+    const resultado = await invoke('guardar_ruta_sync', { ruta });
+    notificarCambioLocal(); // 📢 Grita al sistema que la carpeta cambió
+    return resultado;
+  } catch (error) {
+    console.error("Error guardando ruta de sincronización en Rust:", error);
+    throw error;
   }
 }

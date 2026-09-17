@@ -1,6 +1,6 @@
 [package]
 name = "asistente-de-visitas"
-version = "2.0.3"
+version = "2.0.6"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -47,3 +47,7 @@ argon2 = "0.5.3"
 tauri-plugin-http = "2"
 
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+aes-gcm = "0.10.3"
+base64 = "0.22.1"
+rand = "0.8.5"
