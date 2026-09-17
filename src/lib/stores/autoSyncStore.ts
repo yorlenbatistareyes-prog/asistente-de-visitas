@@ -164,11 +164,16 @@ async function ejecutarSincronizacionCarpetaLocal() {
         const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
 
         const separador = rutaCarpeta.includes('/') ? '/' : '\\';
-        // Usamos la extensión .avisits
         const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
 
         await writeTextFile(rutaArchivoFinal, paqueteCifrado);
         console.log("✅ [CarpetaSync] Archivo cifrado guardado en:", rutaArchivoFinal);
+
+        // 🔥 NUEVO: Actualizamos la fecha local para que el radar sepa que este cambio fue nuestro
+        const fechaActual = new Date().toISOString();
+        guardandoMetadatosInternos = true;
+        await guardarConfig('last_synced_at', fechaActual);
+        setTimeout(() => { guardandoMetadatosInternos = false; }, 2000);
 
         estadoSincronizacion.set({ estado: 'al_dia', mensaje: '¡Carpeta sincronizada!', nubeDispositivo: '', nubeFecha: '' });
         
@@ -194,64 +199,69 @@ async function ejecutarSincronizacionCarpetaLocal() {
 // =======================================================
 
 if (typeof window !== 'undefined') {
-    let filtroAntiBucle: ReturnType<typeof setTimeout>;
+    // 🔥 NUEVO: Previene la creación de radares múltiples ("fantasmas") durante el modo desarrollo (HMR)
+    if (!(window as any).__radarAVisitsIniciado) {
+        (window as any).__radarAVisitsIniciado = true;
 
-    window.addEventListener('db_local_cambiada', () => {
-        if (guardandoMetadatosInternos) {
-            console.log("🤫 [SyncStore] Ignorando eco interno.");
-            return;
-        }
+        let filtroAntiBucle: ReturnType<typeof setTimeout>;
 
-        clearTimeout(filtroAntiBucle);
-
-        filtroAntiBucle = setTimeout(async () => {
-            let rutaCarpeta: string | null = null;
-            try {
-                rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
-            } catch (e) { rutaCarpeta = null; }
-
-            const sesion = get(sesionApp);
-            const sesionActiva = !!(sesion?.isLoggedIn && sesion?.token);
-
-            if (!rutaCarpeta && !sesionActiva) return; // Nada activo, no hacemos nada
-
-            console.log("👂 [SyncStore] Cambio detectado. Disparando métodos activos...");
-            
-            // Disparamos independientemente los métodos que el usuario configuró
-            if (sesionActiva) dispararSincronizacionLocal();
-            if (rutaCarpeta) dispararSincronizacionCarpeta();
-
-        }, 1000);
-    });
-
-    // Radar pasivo: Revisa la carpeta cada 15 segundos para detectar si OTRO DISPOSITIVO actualizó el archivo
-    setInterval(async () => {
-        try {
-           if (guardandoMetadatosInternos || get(estadoSincronizacion).estado === 'sincronizando' || radarPausado) return;
-
-            const rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
-            if (!rutaCarpeta) return;
-
-            const separador = rutaCarpeta.includes('/') ? '/' : '\\';
-            const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
-
-            const infoArchivo = await stat(rutaArchivoFinal);
-            if (infoArchivo && infoArchivo.mtime) {
-                let localUltimaSync = await cargarConfig('last_synced_at') || "1970-01-01T00:00:00.000Z";
-                const tiempoLocal = new Date(localUltimaSync).getTime();
-                const tiempoCarpeta = infoArchivo.mtime.getTime();
-
-                if (tiempoCarpeta > (tiempoLocal + 3000)) {
-                    estadoSincronizacion.set({
-                        estado: 'conflicto',
-                        mensaje: 'Hay una actualización disponible en la carpeta compartida.',
-                        nubeDispositivo: 'Otro dispositivo',
-                        nubeFecha: new Date(tiempoCarpeta).toISOString()
-                    });
-                }
+        window.addEventListener('db_local_cambiada', () => {
+            if (guardandoMetadatosInternos) {
+                console.log("🤫 [SyncStore] Ignorando eco interno.");
+                return;
             }
-        } catch (e) {}
-    }, 15000);
+
+            clearTimeout(filtroAntiBucle);
+
+            filtroAntiBucle = setTimeout(async () => {
+                let rutaCarpeta: string | null = null;
+                try {
+                    rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
+                } catch (e) { rutaCarpeta = null; }
+
+                const sesion = get(sesionApp);
+                const sesionActiva = !!(sesion?.isLoggedIn && sesion?.token);
+
+                if (!rutaCarpeta && !sesionActiva) return; // Nada activo, no hacemos nada
+
+                console.log("👂 [SyncStore] Cambio detectado. Disparando métodos activos...");
+                
+                if (sesionActiva) dispararSincronizacionLocal();
+                if (rutaCarpeta) dispararSincronizacionCarpeta();
+
+            }, 1000);
+        });
+
+        // Radar pasivo: Revisa la carpeta cada 15 segundos
+        setInterval(async () => {
+            try {
+                if (guardandoMetadatosInternos || get(estadoSincronizacion).estado === 'sincronizando' || radarPausado) return;
+
+                const rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
+                if (!rutaCarpeta) return;
+
+                const separador = rutaCarpeta.includes('/') ? '/' : '\\';
+                const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
+
+                const infoArchivo = await stat(rutaArchivoFinal);
+                if (infoArchivo && infoArchivo.mtime) {
+                    let localUltimaSync = await cargarConfig('last_synced_at') || "1970-01-01T00:00:00.000Z";
+                    const tiempoLocal = new Date(localUltimaSync).getTime();
+                    const tiempoCarpeta = infoArchivo.mtime.getTime();
+
+                    // 🔥 NUEVO: Aumentamos la tolerancia a 15 segundos para evitar falsos positivos por retrasos de disco o red
+                    if (tiempoCarpeta > (tiempoLocal + 15000)) {
+                        estadoSincronizacion.set({
+                            estado: 'conflicto',
+                            mensaje: 'Hay una actualización disponible en la carpeta compartida.',
+                            nubeDispositivo: 'Otro dispositivo',
+                            nubeFecha: new Date(tiempoCarpeta).toISOString()
+                        });
+                    }
+                }
+            } catch (e) {}
+        }, 15000);
+    }
 }
 
 // =======================================================
@@ -278,31 +288,65 @@ export async function registrarSubidaManualExitosa(fechaExacta?: string) {
 }
 
 export async function comprobarNubeAlAbrir() {
+    // 🛑 1. Respetamos si el usuario le dio a "Ignorar" (Pausa de 10 min)
+    if (radarPausado) return;
+
+    let localUltimaSync = await cargarConfig('last_synced_at') || "1970-01-01T00:00:00.000Z";
+    const tiempoLocal = new Date(localUltimaSync).getTime();
+
+    // 🌐 2. REVISIÓN INTELIGENTE 1: Servidor Web
     let sesion = get(sesionApp);
     if (!sesion.isLoggedIn || !sesion.token) {
         const tokenGuardado = await cargarConfig('user_token'); 
-        if (!tokenGuardado) return;
-        sesion = { isLoggedIn: true, token: tokenGuardado, correo: sesion.correo || '', verificando: sesion.verificando || false };
-        sesionApp.set(sesion);
+        if (tokenGuardado) { // 🔥 FÍJATE AQUÍ: Ya no hay "return", solo asignamos si existe
+            sesion = { isLoggedIn: true, token: tokenGuardado, correo: sesion.correo || '', verificando: sesion.verificando || false };
+            sesionApp.set(sesion);
+        }
     }
+
+    if (sesion.isLoggedIn && sesion.token) {
+        try {
+            const estadoNube = await chequearEstadoNube(sesion.token);
+            if (estadoNube && estadoNube.last_synced_at) {
+                const fechaNube = new Date(estadoNube.last_synced_at).getTime();
+
+                if (fechaNube > tiempoLocal) {
+                    estadoSincronizacion.update(s => ({
+                        ...s, estado: 'conflicto', mensaje: 'Hay una actualización disponible en la nube.',
+                        nubeDispositivo: estadoNube.last_device || 'Dispositivo desconocido',
+                        nubeFecha: estadoNube.last_synced_at
+                    }));
+                    return; // Si ya detectó conflicto en web, paramos aquí para mostrar el modal
+                }
+            }
+        } catch (error) {
+            console.error("Error al comprobar la nube web en el arranque:", error);
+        }
+    }
+
+    // 📂 3. REVISIÓN INTELIGENTE 2: Carpeta Compartida (Drive/OneDrive)
     try {
-        let localUltimaSync = await cargarConfig('last_synced_at');
-        if (!localUltimaSync) localUltimaSync = "1970-01-01T00:00:00.000Z";
+        const rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
+        if (rutaCarpeta) {
+            const separador = rutaCarpeta.includes('/') ? '/' : '\\';
+            const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
 
-        const estadoNube = await chequearEstadoNube(sesion.token);
-        if (estadoNube && estadoNube.last_synced_at) {
-            const fechaLocal = new Date(localUltimaSync).getTime();
-            const fechaNube = new Date(estadoNube.last_synced_at).getTime();
+            const infoArchivo = await stat(rutaArchivoFinal);
+            if (infoArchivo && infoArchivo.mtime) {
+                const tiempoCarpeta = infoArchivo.mtime.getTime();
 
-            if (fechaNube > fechaLocal) {
-                estadoSincronizacion.update(s => ({
-                    ...s, estado: 'conflicto', mensaje: 'Hay una actualización disponible en la nube.',
-                    nubeDispositivo: estadoNube.last_device || 'Dispositivo desconocido',
-                    nubeFecha: estadoNube.last_synced_at
-                }));
+                // Usamos la tolerancia de 15s para evitar falsos positivos por retraso de disco
+                if (tiempoCarpeta > (tiempoLocal + 15000)) {
+                    estadoSincronizacion.set({
+                        estado: 'conflicto',
+                        mensaje: 'Hay una actualización disponible en la carpeta compartida.',
+                        nubeDispositivo: 'Otro dispositivo',
+                        nubeFecha: new Date(tiempoCarpeta).toISOString()
+                    });
+                }
             }
         }
-    } catch (error) {
-        console.error("Error al comprobar la nube en el arranque:", error);
+    } catch (e) {
+        // Ignoramos silenciosamente si la carpeta no está configurada o el archivo aún no existe
     }
 }

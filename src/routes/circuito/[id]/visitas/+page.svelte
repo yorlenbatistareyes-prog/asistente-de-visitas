@@ -185,7 +185,7 @@
     display: flex;
     gap: 10px;
     margin-bottom: 15px;
-    border-bottom: 2px solid var(--bg-subtle, #f1f5f9);
+    border-bottom: 2px solid var(--border-color);
     padding-bottom: 15px;
     overflow-x: auto;
   }
@@ -209,7 +209,7 @@
   .tab-btn:hover {
     color: var(--primary);
     border-color: var(--primary);
-    background: var(--bg-subtle, #f8fafc);
+    background: var(--bg-app);
   }
 
   .tab-btn.active {
@@ -252,7 +252,7 @@
     border-color: var(--primary);
   }
 
-  /* LISTA DE VISITAS */
+  /* LISTA DE VISITAS - MODO OSCURO CORREGIDO */
   .lista-visitas { display: flex; flex-direction: column; gap: 12px; }
 
   .visita-item {
@@ -262,7 +262,8 @@
     padding: 14px 16px;
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    background: #ffffff;
+    background: var(--bg-panel) !important; /* 🔥 MODO OSCURO */
+    color: var(--text-main) !important;
     transition: all 0.2s;
     box-sizing: border-box;
   }
@@ -271,7 +272,7 @@
   .visita-info { display: flex; align-items: center; gap: 15px; flex: 1; min-width: 0; }
 
   .fecha-bloque {
-    background: var(--bg-subtle, #f1f5f9);
+    background: var(--bg-app) !important; /* 🔥 ADAPTATIVO */
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 6px 12px;
@@ -285,9 +286,10 @@
   .fecha-bloque .mes { font-size: 0.7rem; font-weight: 700; color: var(--primary); margin-top: 2px; }
 
   .detalles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-  .detalles h5 { margin: 0; font-size: 1.05rem; color: var(--text-main); font-weight: 800; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-  .sub-texto { margin: 0; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .detalles h5 { margin: 0; font-size: 1.05rem; color: var(--text-main) !important; font-weight: 800; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .sub-texto { margin: 0; font-size: 0.8rem; color: var(--text-muted) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 
+  /* INSIGNIAS DE ESTADO ADAPTADAS */
   .estado-badge {
     display: inline-flex;
     align-items: center;
@@ -299,9 +301,9 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
-  .estado-badge.pendiente { background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; }
-  .estado-badge.en_progreso { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
-  .estado-badge.completada { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+  .estado-badge.pendiente { background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); }
+  .estado-badge.en_progreso { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+  .estado-badge.completada { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
 
   /* BOTONES DE ACCIÓN */
   .acciones-visita { 
@@ -348,7 +350,6 @@
     }
     .visita-info { width: 100%; align-items: flex-start; }
     
-    /* Grid para evitar deformaciones entre Documentar y Borrar */
     .acciones-visita { 
       width: 100%; 
       display: grid; 

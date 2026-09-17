@@ -1,7 +1,7 @@
 <script lang="ts">
 
   import { 
-     CloudSync, FolderInput, User, Database, Globe, Save, ArrowLeft,  AlertTriangle, X, ArchiveRestore, DownloadCloud
+     CloudSync, FolderSync, FolderInput, User, Database, Globe, Save, ArrowLeft,  AlertTriangle, X, ArchiveRestore, DownloadCloud
   } from 'lucide-svelte';
   import { onMount } from 'svelte';
 
@@ -340,25 +340,41 @@ function handleModalKeydown(event: KeyboardEvent) {
       </div>
     </section>
 
+   <!-- ========================================== -->
+    <!-- 1. PANEL: Sincronización Servidor Web      -->
+    <!-- ========================================== -->
     <section class="card-global config-section">
       <div class="section-icon">
           <CloudSync size={28} />
       </div>
 
       <div class="section-content">
-        <h3>Sincronización Cloud Segura</h3>
-        <p>Elige el método que prefieras para respaldar y compartir tu información entre dispositivos.</p>
+        <h3>Sincronización Cloud cifrada</h3>
+        <p>Sincroniza tus datos de forma online a través de nuestro servidor dedicado.</p>
         
-        <!-- 1. Sincronización por Servidor Web (La que ya tenías) -->
         <Sincronizacion />
+      </div>
+    </section>
 
-        <br>
+    <!-- ========================================== -->
+    <!-- 2. PANEL: Sincronización Carpeta Local     -->
+    <!-- ========================================== -->
+    <section class="card-global config-section">
+      <div class="section-icon">
+          <FolderSync size={28} />
+      </div>
+
+      <div class="section-content">
+        <h3>Sincronización por Carpeta Local</h3>
+        <p>Utiliza una carpeta física (Drive / OneDrive) para mantener tus dispositivos al día automáticamente.</p>
         
-        <!-- 2. Sincronización por Carpeta de Google Drive / OneDrive (La Nueva) -->
         <SincronizacionCarpeta />
       </div>
     </section>
 
+    <!-- ========================================== -->
+    <!-- 3. PANEL: Base de Datos y Respaldo         -->
+    <!-- ========================================== -->
     <section class="card-global config-section">
       <div class="section-icon"><Database size={24} /></div>
       <div class="section-content">

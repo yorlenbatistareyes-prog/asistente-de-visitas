@@ -4,12 +4,12 @@
   import { invoke } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
   import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'; 
-  import { FolderSync, CheckCircle, AlertCircle, Info } from 'lucide-svelte';
+  import { CheckCircle, AlertCircle, Info } from 'lucide-svelte';
   
   // Importamos de la base de datos de AVisits
   import { guardarRutaSync, cargarConfig, guardarConfig, iniciarRestauracion, terminarRestauracion } from '$lib/services/db';
   
-  // Importamos el estado visual del radar que acabamos de crear
+  // Importamos el estado visual del radar
   import { estadoSincronizacion } from '$lib/stores/autoSyncStore';
 
   let rutaCarpeta: string | null = null;
@@ -73,7 +73,6 @@
       const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
 
       const separador = rutaCarpeta.includes('/') ? '/' : '\\';
-      // 🔥 Usamos la extensión .avisits
       const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
 
       await writeTextFile(rutaArchivoFinal, paqueteCifrado);
@@ -102,7 +101,7 @@
     
     try {
       guardando = true;
-      iniciarRestauracion(); // 🛡️ Encendemos el semáforo para que no haya ecos
+      iniciarRestauracion(); 
       
       const separador = rutaCarpeta.includes('/') ? '/' : '\\';
       const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
@@ -110,7 +109,6 @@
       const paqueteCifrado = await readTextFile(rutaArchivoFinal);
       const llave = await obtenerOCrearLlave();
 
-      // Esto sobrescribirá la BD y reiniciará la app
       await invoke('importar_db_encriptada_global', {
         paqueteBase64: paqueteCifrado,
         llaveBase64: llave
@@ -119,27 +117,20 @@
     } catch (error) {
       console.error("Error al importar la sincronización:", error);
       alert("Hubo un error al leer o restaurar el archivo. Asegúrate de que exista y no esté corrupto.");
-      terminarRestauracion(); // Si falla, apagamos el semáforo
+      terminarRestauracion(); 
     } finally {
       guardando = false;
     }
   }
 </script>
 
-<div class="panel-sync shadow-sm">
-    <div class="header-sync">
-        <div class="icono-morado"><FolderSync size={24} /></div>
-        <div class="info-sync">
-            <div class="titulo-badge">
-                <h3>Carpeta Compartida (Drive / OneDrive)</h3>
-                {#if rutaCarpeta}
-                    <span class="badge conectado"><CheckCircle size={12}/> Vinculado</span>
-                {:else}
-                    <span class="badge desconectado"><AlertCircle size={12}/> Sin vincular</span>
-                {/if}
-            </div>
-            <p>Directorio raíz para sincronizar tus visitas de forma rápida y segura.</p>
-        </div>
+<div class="sync-carpeta-wrapper">
+    <div class="estado-badge-container">
+        {#if rutaCarpeta}
+            <span class="badge conectado"><CheckCircle size={12}/> Vinculado</span>
+        {:else}
+            <span class="badge desconectado"><AlertCircle size={12}/> Sin vincular</span>
+        {/if}
     </div>
 
     <div class="contenido-sync">
@@ -160,7 +151,7 @@
         </div>
         
         <div class="aviso">
-            <Info size={14}/> Esta carpeta servirá como puente seguro entre tu computadora y tu móvil/tableta. Los datos se guardarán encriptados.
+            <Info size={14}/> <span>Esta carpeta servirá como puente seguro entre tus dispositivos. Los datos se guardarán encriptados.</span>
         </div>
 
         <div class="acciones">
@@ -168,7 +159,7 @@
                  {guardando ? 'Sincronizando...' : '🔄 Forzar Subida'}
              </button>
 
-             <button class="btn-moderno btn-outline" on:click={importarSincronizacion} disabled={!rutaCarpeta || guardando}>
+             <button class="btn-moderno btn-restaurar-manual" on:click={importarSincronizacion} disabled={!rutaCarpeta || guardando}>
                  📥 Restaurar Manual
              </button>
         </div>
@@ -176,72 +167,82 @@
 </div>
 
 <style>
-    .panel-sync {
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
-        border: 1px solid #e2e8f0;
-        margin-bottom: 20px;
+    .sync-carpeta-wrapper {
         width: 100%;
-        max-width: 800px;
-    }
-    .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
-    
-    .header-sync {
         display: flex;
+        flex-direction: column;
         gap: 15px;
-        margin-bottom: 20px;
-        align-items: flex-start;
+        box-sizing: border-box;
     }
-    .icono-morado {
-        background: #f3e8ff;
-        color: #9333ea;
-        padding: 10px;
-        border-radius: 10px;
-        display: flex;
-    }
-    .info-sync h3 { margin: 0; font-size: 16px; color: #1e293b; }
-    .info-sync p { margin: 4px 0 0 0; font-size: 13px; color: #64748b; }
     
-    .titulo-badge {
+    .estado-badge-container {
         display: flex;
         align-items: center;
-        gap: 12px;
     }
-    .badge { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
     .conectado { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
     .desconectado { background: rgba(100, 116, 139, 0.1); color: #64748b; border: 1px solid rgba(100, 116, 139, 0.2); }
 
-    .grupo-input { display: flex; gap: 15px; margin-bottom: 12px; align-items: center; }
+    .grupo-input { display: flex; gap: 15px; align-items: center; width: 100%; }
+    
     .ruta-input { 
         flex: 1; display: flex; align-items: center; padding: 12px 15px; 
-        background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; 
+        background: var(--bg-app); 
+        border: 1px solid var(--border-color); 
+        border-radius: 8px; 
         font-family: monospace; font-size: 13px; overflow: hidden; 
     }
-    .texto-ruta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #334155; }
-    .ruta-input.vacio .texto-ruta { color: #94a3b8; }
+    .texto-ruta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-main); }
+    .ruta-input.vacio .texto-ruta { color: var(--text-muted); }
 
-    .btn-primario { background: #4f46e5; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
-    .btn-primario:hover:not(:disabled) { background: #4338ca; transform: translateY(-1px); }
+    .btn-primario { background: var(--primary, #4f46e5); color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+    .btn-primario:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
     .btn-primario:disabled { opacity: 0.6; cursor: not-allowed; }
     
     .btn-peligro-outline { background: transparent; color: #ef4444; border: 1px solid #fecaca; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
-    .btn-peligro-outline:hover { background: #fee2e2; }
+    .btn-peligro-outline:hover { background: rgba(239, 68, 68, 0.1); }
 
-    .aviso { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: #64748b; background: #f1f5f9; padding: 10px 15px; border-radius: 6px; }
+    .aviso { 
+        display: flex; gap: 8px; align-items: center; font-size: 12.5px; 
+        color: var(--text-muted); 
+        background: var(--bg-app); 
+        border: 1px dashed var(--border-color);
+        padding: 10px 15px; border-radius: 6px; 
+    }
 
-    .acciones { margin-top: 20px; display: flex; justify-content: flex-end; gap: 12px; }
+   .acciones { 
+        margin-top: 15px; 
+        display: flex; 
+        justify-content: flex-start; /* Los alinea a la izquierda de forma ordenada */
+        gap: 12px; 
+        flex-wrap: wrap; /* Permite que bajen de línea si la pantalla es estrecha */
+    }
+
     .btn-moderno { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
     .btn-moderno:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-outline { background: transparent; color: #475569; border-color: #cbd5e1; }
-    .btn-outline:hover:not(:disabled) { background: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+    
+    .btn-outline { background: transparent; color: var(--text-main); border-color: var(--border-color); }
+    .btn-outline:hover:not(:disabled) { background: var(--bg-app); border-color: var(--text-muted); }
 
     @media (max-width: 600px) {
-        .titulo-badge { flex-direction: column; align-items: flex-start; gap: 5px; }
         .grupo-input { flex-direction: column; gap: 10px; }
         .ruta-input { width: 100%; box-sizing: border-box; }
         .btn-primario, .btn-peligro-outline { width: 100%; }
         .acciones { flex-direction: column; }
         .btn-moderno { width: 100%; justify-content: center; }
+    }
+
+    /* 🔴 Borde rojo directo y sin escape */
+    button.btn-moderno.btn-restaurar-manual {
+        background: transparent !important;
+        border: 1px solid #ef4444 !important;
+        color: #ef4444 !important;
+    }
+
+    button.btn-moderno.btn-restaurar-manual:hover:not(:disabled) {
+        background: rgba(239, 68, 68, 0.1) !important;
+        border-color: #dc2626 !important;
+        color: #dc2626 !important;
     }
 </style>

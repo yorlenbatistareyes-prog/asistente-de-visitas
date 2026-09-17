@@ -6,7 +6,9 @@
   import { solicitarCodigoOtp, verificarCodigoOtp, subirRespaldo, descargarRespaldo } from '$lib/services/syncService';
   import { notificarCambioHistorial } from '$lib/stores/appStore';
 
-  import { registrarSubidaManualExitosa } from '$lib/stores/autoSyncStore';
+  import { registrarSubidaManualExitosa, estadoSincronizacion } from '$lib/stores/autoSyncStore';
+
+  import { guardarConfig } from '$lib/services/db'; // 🔥 Añadida importación de DB
 
   // Importamos la STORE REACTIVA y sus funciones
   import { sesionApp, arrancarAplicacion, guardarSesion, cerrarSesionSegura } from '$lib/stores/authStore';
@@ -172,6 +174,13 @@
       
       // Intentamos borrar la bóveda
       await cerrarSesionSegura(); 
+
+      // 🔥 LA ESTACA AL ZOMBI: Borramos explícitamente el token de SQLite
+      await guardarConfig('user_token', '');
+
+      // 🔥 APAGAMOS EL RADAR WEB: Para que olvide la alarma de inmediato
+      estadoSincronizacion.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '' });
+
     } catch (error) {
       console.error("Error al borrar la bóveda:", error);
     } finally {

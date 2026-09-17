@@ -138,38 +138,32 @@
 
   async function resolverForzandoSubida() {
     procesandoConflicto = true;
-    estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Forzando subida...' }));
+    estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Forzando subida global...' }));
 
     try {
-      const estadoActual = get(estadoSincronizacion);
       const fechaActual = new Date().toISOString();
 
-      // 📂 SI EL AVISO VINO DE LA CARPETA COMPARTIDA
-      if (estadoActual.mensaje.includes('carpeta')) {
-        // 🔥 Corrección TS: Indicamos que devuelve un <string>
-        const rutaCarpeta = await invoke<string>('obtener_ruta_sync');
-        if (!rutaCarpeta) return;
-
-        const llave = await cargarConfig('llave_carpeta_sync');
-        
-        // 🔥 Corrección TS: Indicamos que devuelve un <string>
-        const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
-
-        const separador = rutaCarpeta.includes('/') ? '/' : '\\';
-        const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
-
-        await writeTextFile(rutaArchivoFinal, paqueteCifrado);
-        await guardarConfig('last_synced_at', fechaActual);
-        
-      } else {
-        // 🌐 SI EL AVISO VINO DEL SERVIDOR WEB
-        const sesion = get(sesionApp);
+      // 🌐 1. FORZAR SUBIDA AL SERVIDOR WEB (Si hay sesión activa)
+      const sesion = get(sesionApp);
+      if (sesion && sesion.isLoggedIn && sesion.token) {
         const jsonDatos = await prepararDatosParaSubir();
         await subirRespaldo(sesion.token, jsonDatos, fechaActual);
-        await guardarConfig('last_synced_at', fechaActual);
       }
 
-      estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Nube sobrescrita!' }));
+      // 📂 2. FORZAR SUBIDA A LA CARPETA COMPARTIDA (Si hay ruta configurada)
+      const rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
+      if (rutaCarpeta) {
+        const llave = await cargarConfig('llave_carpeta_sync');
+        const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
+        const separador = rutaCarpeta.includes('/') ? '/' : '\\';
+        const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
+        await writeTextFile(rutaArchivoFinal, paqueteCifrado);
+      }
+
+      // 🕒 3. EMPAREJAMOS EL RELOJ INTERNO PARA QUE EL RADAR CALLE
+      await guardarConfig('last_synced_at', fechaActual);
+
+      estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Nube y Carpeta sobrescritas!' }));
       setTimeout(() => estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' })), 3000);
 
     } catch (e) {
@@ -180,41 +174,48 @@
     }
   }
 
-  onMount(async () => {
-    // 1. 💻 LÓGICA DE WINDOWS
-    try {
-      const hayArchivo = await invoke<boolean>('hay_archivo_pendiente');
-      if (hayArchivo) {
-        const archivo = await invoke<string | null>('verificar_archivo_pendiente');
-        if (archivo) {
-          sessionStorage.setItem('archivoPendiente', archivo);
+ onMount(() => { // 🔥 ELIMINAMOS EL 'async' DE AQUÍ
+    
+    // 🔥 ENVOLVEMOS TODA LA LÓGICA ASÍNCRONA EN ESTA FUNCIÓN
+    async function inicializarAsincrono() {
+      // 1. 💻 LÓGICA DE WINDOWS
+      try {
+        const hayArchivo = await invoke<boolean>('hay_archivo_pendiente');
+        if (hayArchivo) {
+          const archivo = await invoke<string | null>('verificar_archivo_pendiente');
+          if (archivo) {
+            sessionStorage.setItem('archivoPendiente', archivo);
+            goto('/configuracion');
+            return;
+          }
+        }
+      } catch (e) {}
+
+      // 2. 🕵️ VIGILANTE DEL BUZÓN DE ANDROID
+      try {
+        const existeBuzon = await exists('importacion_pendiente.avisits', { baseDir: BaseDirectory.AppCache });
+        if (existeBuzon) {
+          sessionStorage.setItem('archivoPendiente', 'BUZON_ANDROID');
           goto('/configuracion');
           return;
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
 
-    // 2. 🕵️ VIGILANTE DEL BUZÓN DE ANDROID
-    try {
-      const existeBuzon = await exists('importacion_pendiente.avisits', { baseDir: BaseDirectory.AppCache });
-      if (existeBuzon) {
-        sessionStorage.setItem('archivoPendiente', 'BUZON_ANDROID');
-        goto('/configuracion');
-        return;
-      }
-    } catch (e) {}
+      // 3. Detección de nueva versión
+      try {
+        versionActual = await getVersion();
+        const ultimaVista = await cargarConfig('ultima_version_vista') || "1.0.41";
+        if (versionActual !== ultimaVista) {
+          cambiosRecientes = historialCambios[versionActual] || [
+            { texto: "Mejoras de estabilidad en sincronización y corrección de errores.", tipo: "info" }
+          ];
+          mostrarNovedades = true;
+        }
+      } catch (e) { console.error("Error en versión:", e); }
+    }
 
-    // 3. Detección de nueva versión
-    try {
-      versionActual = await getVersion();
-      const ultimaVista = await cargarConfig('ultima_version_vista') || "1.0.41";
-      if (versionActual !== ultimaVista) {
-        cambiosRecientes = historialCambios[versionActual] || [
-          { texto: "Mejoras de estabilidad en sincronización y corrección de errores.", tipo: "info" }
-        ];
-        mostrarNovedades = true;
-      }
-    } catch (e) { console.error("Error en versión:", e); }
+    // 🚀 EJECUTAMOS LA FUNCIÓN (esto evita el error de TypeScript)
+    inicializarAsincrono();
 
     // 4. 🚀 VIGILANTE SILENCIOSO DE ACTUALIZACIONES
     setTimeout(async () => {
@@ -226,12 +227,6 @@
         }
       } catch (e) {}
     }, 3000); 
-
-    // 🛡️ LISTENER PRINCIPAL: Anclado al layout para garantizar que siempre exista
-    // (SvelteKit garantiza que el layout se monta una sola vez por sesión en producción)
-    window.addEventListener('db_local_cambiada', () => {
-      dispararSincronizacionLocal();
-    });
 
     // 5. 📡 EL RADAR DE LA NUBE (Espera uniforme de 3 segundos)
     let ultimaComprobacion = 0;
@@ -253,17 +248,38 @@
       ejecutarComprobacion(); // Hacemos la primera comprobación real
     }, 3000);
 
-    // 2. Eventos condicionados: Solo funcionan si el motor ya arrancó
-    window.addEventListener('focus', () => {
-      if (motorListo) ejecutarComprobacion();
-    });
+    // =========================================================================
+    // 🔥 EVENTOS NOMBRADOS (Para poder destruirlos en modo DEV y evitar clones)
+    // =========================================================================
     
-    window.addEventListener('visibilitychange', () => {
+    const onDbLocalCambiada = () => {
+      dispararSincronizacionLocal();
+    };
+
+    const onFocus = () => {
+      if (motorListo) ejecutarComprobacion();
+    };
+    
+    const onVisibility = () => {
       if (motorListo && document.visibilityState === 'visible') {
         ejecutarComprobacion();
       }
-    });
-  });
+    };
+
+    // Activamos los escuchadores
+    window.addEventListener('db_local_cambiada', onDbLocalCambiada);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('visibilitychange', onVisibility);
+
+    // 🔥 LIMPIEZA VITAL PARA MODO DEV (HMR)
+    // Ahora TypeScript está feliz porque el onMount es síncrono y puede devolver esto
+    return () => {
+      window.removeEventListener('db_local_cambiada', onDbLocalCambiada);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('visibilitychange', onVisibility);
+    };
+  }); // <-- Fin del onMount
+  
 </script>
 
 <div class="app-container">
@@ -331,9 +347,10 @@
         <h2>¡Nuevos datos detectados!</h2>
       </div>
       
-      <p class="alerta-texto">
-        Se ha detectado una copia de seguridad de tus datos más reciente en la nube. ¿Deseas descargarla y reemplazar tus datos actuales? Si continúas usando la app sin actualizar, podrías sobrescribir el trabajo de otro dispositivo.
-      </p>
+     <p class="alerta-texto">
+        <strong>{$estadoSincronizacion.mensaje}</strong><br>
+        ¿Deseas descargar esta copia y reemplazar tus datos actuales? Si continúas sin actualizar, podrías sobrescribir el trabajo de otro dispositivo.
+     </p>
       
       <div class="info-nube-box">
         <p><strong>Subido por:</strong> {$estadoSincronizacion.nubeDispositivo}</p>
