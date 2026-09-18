@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
-  import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'; 
+  import { writeTextFile, readTextFile, stat } from '@tauri-apps/plugin-fs';
   import { CheckCircle, AlertCircle, Info } from 'lucide-svelte';
   
   // Importamos de la base de datos de AVisits
@@ -65,7 +65,7 @@
     if (!rutaCarpeta) return;
     try {
       guardando = true;
-      estadoSincronizacion.set({ estado: 'sincronizando', mensaje: 'Guardando manual...', nubeDispositivo: '', nubeFecha: '' });
+      estadoSincronizacion.set({ estado: 'sincronizando', mensaje: 'Guardando manual...', nubeDispositivo: '', nubeFecha: '', origenConflicto: '' });
 
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -77,7 +77,11 @@
 
       await writeTextFile(rutaArchivoFinal, paqueteCifrado);
       
-      estadoSincronizacion.set({ estado: 'al_dia', mensaje: '¡Carpeta sincronizada!', nubeDispositivo: '', nubeFecha: '' });
+      // 🔥 BLINDAJE MANUAL: Guardamos en la variable exclusiva de la carpeta
+      const fechaBlinda = new Date(Date.now() + 2000).toISOString();
+      await guardarConfig('last_synced_folder', fechaBlinda);
+      
+      estadoSincronizacion.set({ estado: 'al_dia', mensaje: '¡Carpeta sincronizada!', nubeDispositivo: '', nubeFecha: '', origenConflicto: '' });
 
       setTimeout(() => {
           estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
@@ -85,7 +89,7 @@
 
     } catch (error) {
       console.error("Error al sincronizar y guardar:", error);
-      estadoSincronizacion.set({ estado: 'error', mensaje: 'Error al guardar', nubeDispositivo: '', nubeFecha: '' });
+     estadoSincronizacion.set({ estado: 'error', mensaje: 'Error al guardar', nubeDispositivo: '', nubeFecha: '', origenConflicto: '' });
       setTimeout(() => {
           estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
       }, 4000);
@@ -113,6 +117,13 @@
         paqueteBase64: paqueteCifrado,
         llaveBase64: llave
       });
+
+      // 🔥 BLINDAJE RESTAURACIÓN MANUAL: Emparejamos la fecha con la de la carpeta
+      const infoArchivo = await stat(rutaArchivoFinal);
+      const tiempoBase = infoArchivo && infoArchivo.mtime ? infoArchivo.mtime.getTime() : Date.now();
+      await guardarConfig('last_synced_folder', new Date(tiempoBase + 5000).toISOString());
+      
+      await new Promise(resolve => setTimeout(resolve, 500)); // Pausa para SQLite
 
     } catch (error) {
       console.error("Error al importar la sincronización:", error);

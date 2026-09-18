@@ -179,7 +179,7 @@
       await guardarConfig('user_token', '');
 
       // 🔥 APAGAMOS EL RADAR WEB: Para que olvide la alarma de inmediato
-      estadoSincronizacion.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '' });
+      estadoSincronizacion.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '', origenConflicto: '' });
 
     } catch (error) {
       console.error("Error al borrar la bóveda:", error);

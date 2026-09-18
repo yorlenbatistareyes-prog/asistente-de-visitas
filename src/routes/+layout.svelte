@@ -16,12 +16,10 @@
   // 📡 NUEVAS IMPORTACIONES PARA EL RADAR Y EL MODAL GLOBAL
   import { get } from 'svelte/store';
   import { sesionApp } from '$lib/stores/authStore';
-  import { estadoSincronizacion, comprobarNubeAlAbrir, dispararSincronizacionLocal } from '$lib/stores/autoSyncStore';
+  import { estadoSincronizacion, comprobarNubeAlAbrir, pausarRadarTemporalmente } from '$lib/stores/autoSyncStore';
   import { descargarRespaldo, subirRespaldo } from '$lib/services/syncService';
   import { prepararDatosParaSubir, restaurarDatosDeDescarga } from '$lib/services/dbSyncHelper';
-
-  import { stat } from '@tauri-apps/plugin-fs'; // <-- Asegúrate de importar stat arriba
-  import { pausarRadarTemporalmente } from '$lib/stores/autoSyncStore'; // <-- Importa la nueva función
+  import { stat } from '@tauri-apps/plugin-fs';
 
   // Importamos los iconos que usaremos (Añadí ServerCrash y UploadCloud para el modal)
   import { 
@@ -79,55 +77,47 @@
     await guardarConfig('ultima_version_vista', versionActual);
   }
 
-  // 🛡️ FUNCIONES PARA RESOLVER EL CONFLICTO DESDE CUALQUIER PANTALLA
+// 🛡️ RESOLUCIÓN INTELIGENTE (Detecta si el conflicto es Web o Carpeta)
   async function resolverDescargando() {
     procesandoConflicto = true;
+    const estadoActual = get(estadoSincronizacion);
     estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Descargando datos...' }));
 
     try {
-      const estadoActual = get(estadoSincronizacion);
-
-      // 📂 REGLA 4: LÓGICA INTELIGENTE LOCAL (Ignora HTTP)
-      if (estadoActual.mensaje.includes('carpeta')) {
+      if (estadoActual.origenConflicto === 'carpeta') {
+        // --- 📂 RESOLVER CARPETA LOCAL ---
         const rutaCarpeta = await invoke<string>('obtener_ruta_sync');
-        if (!rutaCarpeta) return;
-
+        if (!rutaCarpeta) throw new Error("No hay ruta de carpeta configurada.");
         const separador = rutaCarpeta.includes('/') ? '/' : '\\';
         const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
 
         const paqueteCifrado = await readTextFile(rutaArchivoFinal);
         const llave = await cargarConfig('llave_carpeta_sync');
 
-        // Rust desencriptará e importará la DB
-        await invoke('importar_db_encriptada_global', {
-          paqueteBase64: paqueteCifrado,
-          llaveBase64: llave
-        });
+        await invoke('importar_db_encriptada_global', { paqueteBase64: paqueteCifrado, llaveBase64: llave });
 
-        // 🔥 REGLA 3: EMPAREJAMIENTO DE FECHAS TRAS LA RESTAURACIÓN
+        // Guardamos en SU variable independiente (last_synced_folder) con margen
         const infoArchivo = await stat(rutaArchivoFinal);
-        if (infoArchivo && infoArchivo.mtime) {
-            const nuevaFechaIso = new Date(infoArchivo.mtime.getTime()).toISOString();
-            await guardarConfig('last_synced_at', nuevaFechaIso);
-        }
+        const tiempoBase = infoArchivo && infoArchivo.mtime ? infoArchivo.mtime.getTime() : Date.now();
+        await guardarConfig('last_synced_folder', new Date(tiempoBase + 5000).toISOString());
 
-        estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Datos restaurados!' }));
-        setTimeout(() => window.location.reload(), 1500);
-        return; 
+      } else if (estadoActual.origenConflicto === 'web') {
+        // --- 🌐 RESOLVER SERVIDOR WEB ---
+        const sesion = get(sesionApp);
+        const datosNube = await descargarRespaldo(sesion.token);
+        const datosParseados = typeof datosNube.backup.backup_data === 'string' 
+            ? JSON.parse(datosNube.backup.backup_data) : datosNube.backup.backup_data;
+
+        await restaurarDatosDeDescarga(datosParseados);
+
+        // Guardamos en SU variable independiente (last_synced_web) con margen
+        const tiempoNube = new Date(datosNube.backup.last_synced_at).getTime();
+        await guardarConfig('last_synced_web', new Date(tiempoNube + 5000).toISOString());
       }
 
-      // 🌐 REGLA 4: LÓGICA INTELIGENTE WEB
-      const sesion = get(sesionApp);
-      const datosNube = await descargarRespaldo(sesion.token);
-      
-      const datosParseados = typeof datosNube.backup.backup_data === 'string' 
-        ? JSON.parse(datosNube.backup.backup_data) : datosNube.backup.backup_data;
-
-      await restaurarDatosDeDescarga(datosParseados);
-      await guardarConfig('last_synced_at', datosNube.backup.last_synced_at); 
-      
-      estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Datos actualizados!' }));
-      setTimeout(() => window.location.reload(), 1500);
+      await new Promise(resolve => setTimeout(resolve, 500)); 
+      estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Datos restaurados!' }));
+      setTimeout(() => window.location.reload(), 2000);
 
     } catch (e) {
       console.error(e);
@@ -138,32 +128,31 @@
 
   async function resolverForzandoSubida() {
     procesandoConflicto = true;
-    estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Forzando subida global...' }));
+    estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Forzando subida...' }));
 
     try {
       const fechaActual = new Date().toISOString();
+      const estadoActual = get(estadoSincronizacion);
 
-      // 🌐 1. FORZAR SUBIDA AL SERVIDOR WEB (Si hay sesión activa)
-      const sesion = get(sesionApp);
-      if (sesion && sesion.isLoggedIn && sesion.token) {
-        const jsonDatos = await prepararDatosParaSubir();
-        await subirRespaldo(sesion.token, jsonDatos, fechaActual);
+      if (estadoActual.origenConflicto === 'web') {
+        const sesion = get(sesionApp);
+        if (sesion && sesion.isLoggedIn && sesion.token) {
+          const jsonDatos = await prepararDatosParaSubir();
+          await subirRespaldo(sesion.token, jsonDatos, fechaActual);
+          await guardarConfig('last_synced_web', fechaActual);
+        }
+      } else if (estadoActual.origenConflicto === 'carpeta') {
+        const rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
+        if (rutaCarpeta) {
+          const llave = await cargarConfig('llave_carpeta_sync');
+          const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
+          const separador = rutaCarpeta.includes('/') ? '/' : '\\';
+          await writeTextFile(`${rutaCarpeta}${separador}sincronizacion_global.avisits`, paqueteCifrado);
+          await guardarConfig('last_synced_folder', fechaActual);
+        }
       }
 
-      // 📂 2. FORZAR SUBIDA A LA CARPETA COMPARTIDA (Si hay ruta configurada)
-      const rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
-      if (rutaCarpeta) {
-        const llave = await cargarConfig('llave_carpeta_sync');
-        const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
-        const separador = rutaCarpeta.includes('/') ? '/' : '\\';
-        const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
-        await writeTextFile(rutaArchivoFinal, paqueteCifrado);
-      }
-
-      // 🕒 3. EMPAREJAMOS EL RELOJ INTERNO PARA QUE EL RADAR CALLE
-      await guardarConfig('last_synced_at', fechaActual);
-
-      estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Nube y Carpeta sobrescritas!' }));
+      estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Datos sobrescritos con éxito!' }));
       setTimeout(() => estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' })), 3000);
 
     } catch (e) {
@@ -248,14 +237,6 @@
       ejecutarComprobacion(); // Hacemos la primera comprobación real
     }, 3000);
 
-    // =========================================================================
-    // 🔥 EVENTOS NOMBRADOS (Para poder destruirlos en modo DEV y evitar clones)
-    // =========================================================================
-    
-    const onDbLocalCambiada = () => {
-      dispararSincronizacionLocal();
-    };
-
     const onFocus = () => {
       if (motorListo) ejecutarComprobacion();
     };
@@ -266,20 +247,17 @@
       }
     };
 
-    // Activamos los escuchadores
-    window.addEventListener('db_local_cambiada', onDbLocalCambiada);
+    // Activamos los escuchadores (ELIMINADA LA DB)
     window.addEventListener('focus', onFocus);
     window.addEventListener('visibilitychange', onVisibility);
 
     // 🔥 LIMPIEZA VITAL PARA MODO DEV (HMR)
-    // Ahora TypeScript está feliz porque el onMount es síncrono y puede devolver esto
     return () => {
-      window.removeEventListener('db_local_cambiada', onDbLocalCambiada);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('visibilitychange', onVisibility);
     };
   }); // <-- Fin del onMount
-  
+
 </script>
 
 <div class="app-container">
