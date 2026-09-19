@@ -96,7 +96,7 @@ fn abrir_archivo_nativo(ruta: String) -> Result<(), String> {
     Ok(())
 }
 
-// FUNCIONES ANTERIORES (Las mantenemos para no romper nada)
+// FUNCIONES ANTERIORES (Corregidas sin punto y coma en los retornos)
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
