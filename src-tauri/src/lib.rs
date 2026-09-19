@@ -159,12 +159,16 @@ fn restaurar_bd(app_handle: tauri::AppHandle, ruta_origen: String) -> Result<(),
         .app_data_dir()
         .map_err(|e| e.to_string())?;
 
-    // Guardamos la copia con un nombre temporal para que Windows no moleste
+    // Guardamos la copia con un nombre temporal
     let restore_path = app_data_dir.join("av_database_restore.db");
     std::fs::copy(&ruta_origen, &restore_path).map_err(|e| format!("Error al copiar: {}", e))?;
 
-    // Reiniciamos la app inmediatamente
-    tauri::process::restart(&app_handle.env());
+    // 🌟 MISMO TRUCO: Retrasamos el reinicio 1.5 segundos
+    let env = app_handle.env();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        tauri::process::restart(&env);
+    });
 
     Ok(())
 }

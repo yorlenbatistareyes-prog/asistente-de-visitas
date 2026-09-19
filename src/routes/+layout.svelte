@@ -77,7 +77,7 @@
     await guardarConfig('ultima_version_vista', versionActual);
   }
 
-// 🛡️ RESOLUCIÓN INTELIGENTE (Detecta si el conflicto es Web o Carpeta)
+// 🛡️ RESOLUCIÓN INTELIGENTE CON PUENTE DE MEMORIA
   async function resolverDescargando() {
     procesandoConflicto = true;
     const estadoActual = get(estadoSincronizacion);
@@ -94,12 +94,14 @@
         const paqueteCifrado = await readTextFile(rutaArchivoFinal);
         const llave = await cargarConfig('llave_carpeta_sync');
 
+        // AQUÍ OCURRE EL REEMPLAZO FÍSICO DE LA DB
         await invoke('importar_db_encriptada_global', { paqueteBase64: paqueteCifrado, llaveBase64: llave });
 
-        // Guardamos en SU variable independiente (last_synced_folder) con margen
         const infoArchivo = await stat(rutaArchivoFinal);
         const tiempoBase = infoArchivo && infoArchivo.mtime ? infoArchivo.mtime.getTime() : Date.now();
-        await guardarConfig('last_synced_folder', new Date(tiempoBase + 5000).toISOString());
+        
+        // 🔥 Guardamos en memoria temporal para que sobreviva al reinicio
+        localStorage.setItem('post_update_folder', new Date(tiempoBase + 5000).toISOString());
 
       } else if (estadoActual.origenConflicto === 'web') {
         // --- 🌐 RESOLVER SERVIDOR WEB ---
@@ -110,9 +112,8 @@
 
         await restaurarDatosDeDescarga(datosParseados);
 
-        // Guardamos en SU variable independiente (last_synced_web) con margen
         const tiempoNube = new Date(datosNube.backup.last_synced_at).getTime();
-        await guardarConfig('last_synced_web', new Date(tiempoNube + 5000).toISOString());
+        localStorage.setItem('post_update_web', new Date(tiempoNube + 5000).toISOString());
       }
 
       await new Promise(resolve => setTimeout(resolve, 500)); 
@@ -167,6 +168,19 @@
     
     // 🔥 ENVOLVEMOS TODA LA LÓGICA ASÍNCRONA EN ESTA FUNCIÓN
     async function inicializarAsincrono() {
+     // 🔥 LA CURA DEL BUCLE: Revisamos si venimos de un reinicio por descarga
+      const fechaCarpetaPendiente = localStorage.getItem('post_update_folder');
+      if (fechaCarpetaPendiente) {
+        await guardarConfig('last_synced_folder', fechaCarpetaPendiente);
+        localStorage.removeItem('post_update_folder');
+      }
+
+      const fechaWebPendiente = localStorage.getItem('post_update_web');
+      if (fechaWebPendiente) {
+        await guardarConfig('last_synced_web', fechaWebPendiente);
+        localStorage.removeItem('post_update_web');
+      }
+      
       // 1. 💻 LÓGICA DE WINDOWS
       try {
         const hayArchivo = await invoke<boolean>('hay_archivo_pendiente');

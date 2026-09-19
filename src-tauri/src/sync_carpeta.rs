@@ -55,12 +55,17 @@ pub fn importar_db_encriptada_global(paquete_base64: String, llave_base64: Strin
 
     let app_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     
-    // Guardamos la nueva BD en el archivo de restauración temporal (igual que en tu función restaurar_bd)
+    // Guardamos la nueva BD en el archivo de restauración temporal
     let restore_path = app_dir.join("av_database_restore.db");
     fs::write(&restore_path, db_bytes).map_err(|e| format!("Error al sobrescribir: {}", e))?;
 
-    // Reiniciamos la app para que el cambalache (el TRUCO de tu setup) haga efecto
-    tauri::process::restart(&app_handle.env());
+    // 🌟 EL TRUCO MAESTRO: Hilo en segundo plano para retrasar el reinicio
+    // Esto permite devolver el 'Ok' a Svelte para que guarde el localStorage ANTES de morir
+    let env = app_handle.env();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        tauri::process::restart(&env);
+    });
 
     Ok(())
 }
