@@ -6,7 +6,7 @@
   import { solicitarCodigoOtp, verificarCodigoOtp, subirRespaldo, descargarRespaldo } from '$lib/services/syncService';
   import { notificarCambioHistorial } from '$lib/stores/appStore';
 
-  import { registrarSubidaManualExitosa, estadoSincronizacion } from '$lib/stores/autoSyncStore';
+  import { registrarSubidaManualExitosa, estadoSyncWeb } from '$lib/stores/autoSyncStore';
 
   import { guardarConfig } from '$lib/services/db'; // 🔥 Añadida importación de DB
 
@@ -179,8 +179,8 @@
       await guardarConfig('user_token', '');
 
       // 🔥 APAGAMOS EL RADAR WEB: Para que olvide la alarma de inmediato
-      estadoSincronizacion.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '', origenConflicto: '' });
-
+      estadoSyncWeb.set({ estado: 'inactivo', mensaje: '', nubeDispositivo: '', nubeFecha: '', origenConflicto: 'web' });
+    
     } catch (error) {
       console.error("Error al borrar la bóveda:", error);
     } finally {

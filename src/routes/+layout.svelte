@@ -12,11 +12,11 @@
   import { cargarConfig, guardarConfig } from '$lib/services/db';
 
   import { verificarActualizacion, irA_Descarga } from '$lib/services/updater';
-
+  
   // 📡 NUEVAS IMPORTACIONES PARA EL RADAR Y EL MODAL GLOBAL
   import { get } from 'svelte/store';
   import { sesionApp } from '$lib/stores/authStore';
-  import { estadoSincronizacion, comprobarNubeAlAbrir, pausarRadarTemporalmente } from '$lib/stores/autoSyncStore';
+  import { estadoSyncWeb, estadoSyncCarpeta, comprobarNubeAlAbrir, pausarRadarTemporalmente } from '$lib/stores/autoSyncStore';
   import { descargarRespaldo, subirRespaldo } from '$lib/services/syncService';
   import { prepararDatosParaSubir, restaurarDatosDeDescarga } from '$lib/services/dbSyncHelper';
   import { stat } from '@tauri-apps/plugin-fs';
@@ -27,6 +27,9 @@
     Database, Download, Save, Palette, ShieldCheck, Bug,
     DownloadCloud, X, ServerCrash, UploadCloud
   } from "lucide-svelte";
+
+  // 🔥 NUEVO: Detecta automáticamente cuál de los dos carriles tiene un conflicto
+  $: conflictoActivo = $estadoSyncWeb.estado === 'conflicto' ? $estadoSyncWeb : ($estadoSyncCarpeta.estado === 'conflicto' ? $estadoSyncCarpeta : null);
 
    let mostrarNovedades = false; 
   // Variables para la actualización automática
@@ -79,12 +82,14 @@
 
 // 🛡️ RESOLUCIÓN INTELIGENTE CON PUENTE DE MEMORIA
   async function resolverDescargando() {
+    if (!conflictoActivo) return;
     procesandoConflicto = true;
-    const estadoActual = get(estadoSincronizacion);
-    estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Descargando datos...' }));
+    
+    const storeActual = conflictoActivo.origenConflicto === 'web' ? estadoSyncWeb : estadoSyncCarpeta;
+    storeActual.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Descargando datos...' }));
 
     try {
-      if (estadoActual.origenConflicto === 'carpeta') {
+      if (conflictoActivo.origenConflicto === 'carpeta') {
         // --- 📂 RESOLVER CARPETA LOCAL ---
         const rutaCarpeta = await invoke<string>('obtener_ruta_sync');
         if (!rutaCarpeta) throw new Error("No hay ruta de carpeta configurada.");
@@ -94,16 +99,13 @@
         const paqueteCifrado = await readTextFile(rutaArchivoFinal);
         const llave = await cargarConfig('llave_carpeta_sync');
 
-        // AQUÍ OCURRE EL REEMPLAZO FÍSICO DE LA DB
         await invoke('importar_db_encriptada_global', { paqueteBase64: paqueteCifrado, llaveBase64: llave });
 
         const infoArchivo = await stat(rutaArchivoFinal);
         const tiempoBase = infoArchivo && infoArchivo.mtime ? infoArchivo.mtime.getTime() : Date.now();
-        
-        // 🔥 Guardamos en memoria temporal para que sobreviva al reinicio
         localStorage.setItem('post_update_folder', new Date(tiempoBase + 5000).toISOString());
 
-      } else if (estadoActual.origenConflicto === 'web') {
+      } else if (conflictoActivo.origenConflicto === 'web') {
         // --- 🌐 RESOLVER SERVIDOR WEB ---
         const sesion = get(sesionApp);
         const datosNube = await descargarRespaldo(sesion.token);
@@ -117,32 +119,34 @@
       }
 
       await new Promise(resolve => setTimeout(resolve, 500)); 
-      estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Datos restaurados!' }));
+      storeActual.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Datos restaurados!' }));
       setTimeout(() => window.location.reload(), 2000);
 
     } catch (e) {
       console.error(e);
-      estadoSincronizacion.update(s => ({ ...s, estado: 'error', mensaje: 'Fallo al descargar' }));
+      storeActual.update(s => ({ ...s, estado: 'error', mensaje: 'Fallo al descargar' }));
       procesandoConflicto = false;
     }
   }
 
   async function resolverForzandoSubida() {
+    if (!conflictoActivo) return;
     procesandoConflicto = true;
-    estadoSincronizacion.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Forzando subida...' }));
+    
+    const storeActual = conflictoActivo.origenConflicto === 'web' ? estadoSyncWeb : estadoSyncCarpeta;
+    storeActual.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Forzando subida...' }));
 
     try {
       const fechaActual = new Date().toISOString();
-      const estadoActual = get(estadoSincronizacion);
 
-      if (estadoActual.origenConflicto === 'web') {
+      if (conflictoActivo.origenConflicto === 'web') {
         const sesion = get(sesionApp);
         if (sesion && sesion.isLoggedIn && sesion.token) {
           const jsonDatos = await prepararDatosParaSubir();
           await subirRespaldo(sesion.token, jsonDatos, fechaActual);
           await guardarConfig('last_synced_web', fechaActual);
         }
-      } else if (estadoActual.origenConflicto === 'carpeta') {
+      } else if (conflictoActivo.origenConflicto === 'carpeta') {
         const rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
         if (rutaCarpeta) {
           const llave = await cargarConfig('llave_carpeta_sync');
@@ -153,12 +157,12 @@
         }
       }
 
-      estadoSincronizacion.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Datos sobrescritos con éxito!' }));
-      setTimeout(() => estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' })), 3000);
+      storeActual.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Datos sobrescritos con éxito!' }));
+      setTimeout(() => storeActual.update(s => ({ ...s, estado: 'inactivo', mensaje: '' })), 3000);
 
     } catch (e) {
       console.error(e);
-      estadoSincronizacion.update(s => ({ ...s, estado: 'error', mensaje: 'Fallo al subir' }));
+      storeActual.update(s => ({ ...s, estado: 'error', mensaje: 'Fallo al subir' }));
     } finally {
       procesandoConflicto = false;
     }
@@ -331,22 +335,22 @@
   </div>
 {/if}
 
-{#if $estadoSincronizacion.estado === 'conflicto'}
+{#if conflictoActivo}
   <div class="modal-backdrop-global">
     <div class="card-global modal-content conflicto-modal">
       <div class="modal-header-alerta">
         <ServerCrash size={28} color="#ef4444" />
-        <h2>¡Nuevos datos detectados!</h2>
+        <h2>¡Nuevos datos detectados ({conflictoActivo.origenConflicto === 'web' ? 'Nube' : 'Carpeta'})!</h2>
       </div>
       
-     <p class="alerta-texto">
-        <strong>{$estadoSincronizacion.mensaje}</strong><br>
+      <p class="alerta-texto">
+        <strong>{conflictoActivo.mensaje}</strong><br>
         ¿Deseas descargar esta copia y reemplazar tus datos actuales? Si continúas sin actualizar, podrías sobrescribir el trabajo de otro dispositivo.
-     </p>
+      </p>
       
       <div class="info-nube-box">
-        <p><strong>Subido por:</strong> {$estadoSincronizacion.nubeDispositivo}</p>
-        <p><strong>Fecha:</strong> {new Date($estadoSincronizacion.nubeFecha).toLocaleString()}</p>
+        <p><strong>Subido por:</strong> {conflictoActivo.nubeDispositivo}</p>
+        <p><strong>Fecha:</strong> {new Date(conflictoActivo.nubeFecha).toLocaleString()}</p>
       </div>
 
       <p class="alerta-pregunta">¿Qué deseas hacer?</p>
@@ -359,15 +363,13 @@
         
         <button class="btn-global btn-forzar-subida" on:click={resolverForzandoSubida} disabled={procesandoConflicto}>
           <UploadCloud size={20} />
-          <span>Ignorar la nube y forzar la subida de mis datos locales</span>
+          <span>Ignorar y forzar la subida de mis datos locales</span>
         </button>
 
-        <!-- 🔥 REGLA 5: BOTÓN NO BLOQUEANTE -->
         <button class="btn-ignorar-sutil" on:click={pausarRadarTemporalmente} disabled={procesandoConflicto}>
            <X size={16} />
            <span>Ignorar por ahora (Pausar alertas)</span>
         </button>
-
       </div>
     </div>
   </div>

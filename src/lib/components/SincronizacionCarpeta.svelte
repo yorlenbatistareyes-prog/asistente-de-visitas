@@ -9,8 +9,9 @@
   // Importamos de la base de datos de AVisits
   import { guardarRutaSync, cargarConfig, guardarConfig, iniciarRestauracion, terminarRestauracion } from '$lib/services/db';
   
-  // Importamos el estado visual del radar
-  import { estadoSincronizacion } from '$lib/stores/autoSyncStore';
+  // Importamos el estado visual del radar de la carpeta
+  // Importamos el estado visual y el registro seguro
+  import { estadoSyncCarpeta, registrarSubidaCarpetaExitosa } from '$lib/stores/autoSyncStore';
 
   let rutaCarpeta: string | null = null;
   let guardando = false;
@@ -60,12 +61,12 @@
     }
   }
   
-  // Botón MANUAL de subir
+ // Botón MANUAL de subir
   async function sincronizarAhora() {
     if (!rutaCarpeta) return;
     try {
       guardando = true;
-      estadoSincronizacion.set({ estado: 'sincronizando', mensaje: 'Guardando manual...', nubeDispositivo: '', nubeFecha: '', origenConflicto: '' });
+      estadoSyncCarpeta.set({ estado: 'sincronizando', mensaje: 'Sincronizando', nubeDispositivo: '', nubeFecha: '', origenConflicto: 'carpeta' });
 
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -77,21 +78,14 @@
 
       await writeTextFile(rutaArchivoFinal, paqueteCifrado);
       
-      // 🔥 BLINDAJE MANUAL: Guardamos en la variable exclusiva de la carpeta
-      const fechaBlinda = new Date(Date.now() + 2000).toISOString();
-      await guardarConfig('last_synced_folder', fechaBlinda);
-      
-      estadoSincronizacion.set({ estado: 'al_dia', mensaje: '¡Carpeta sincronizada!', nubeDispositivo: '', nubeFecha: '', origenConflicto: '' });
-
-      setTimeout(() => {
-          estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
-      }, 3000);
+      // 🔥 Usamos el registro seguro que bloquea el eco del radar
+      await registrarSubidaCarpetaExitosa();
 
     } catch (error) {
       console.error("Error al sincronizar y guardar:", error);
-     estadoSincronizacion.set({ estado: 'error', mensaje: 'Error al guardar', nubeDispositivo: '', nubeFecha: '', origenConflicto: '' });
+      estadoSyncCarpeta.set({ estado: 'error', mensaje: 'Error al guardar', nubeDispositivo: '', nubeFecha: '', origenConflicto: 'carpeta' });
       setTimeout(() => {
-          estadoSincronizacion.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
+          estadoSyncCarpeta.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
       }, 4000);
     } finally {
       guardando = false;

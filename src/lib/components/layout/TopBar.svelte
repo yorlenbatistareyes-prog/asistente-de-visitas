@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { Settings, Home, Monitor, Sun, Moon, HelpCircle, Clock, Loader2, CheckCircle, AlertTriangle, CloudOff } from "lucide-svelte";
+  import { Settings, Home, Monitor, Sun, Moon, HelpCircle, Clock, Loader2, CheckCircle, AlertTriangle, CloudOff, Cloud, FolderSync } from "lucide-svelte";
   import { onMount } from 'svelte';
   import { currentTheme, applyTheme, type Theme } from '$lib/stores/themeStore';
   import { goto } from '$app/navigation';
 
   // 🌟 NUEVO: Importamos la sesión y el cerebro automático
   import { sesionApp } from '$lib/stores/authStore';
-  import { estadoSincronizacion } from '$lib/stores/autoSyncStore';
+  import { estadoSyncWeb, estadoSyncCarpeta } from '$lib/stores/autoSyncStore';
 
   // Función para rotar entre los 3 estados: Sistema -> Claro -> Oscuro
   function cambiarTema() {
@@ -18,8 +18,10 @@
   }
 
   // Si hay un conflicto, este botón lleva al usuario directo a la configuración para resolverlo
-  function manejarClickEstado() {
-    if ($estadoSincronizacion.estado === 'conflicto') {
+  function manejarClickEstado(origen: string) {
+    if (origen === 'web' && $estadoSyncWeb.estado === 'conflicto') {
+      goto('/configuracion');
+    } else if (origen === 'carpeta' && $estadoSyncCarpeta.estado === 'conflicto') {
       goto('/configuracion');
     }
   }
@@ -46,32 +48,47 @@
 
       <div class="right-actions">
         
-        {#if $sesionApp.isLoggedIn && $estadoSincronizacion.estado !== 'inactivo'}
+        <!-- 🌐 PÍLDORA WEB -->
+        {#if $estadoSyncWeb.estado !== 'inactivo'}
           <div 
-            class="sync-badge state-{$estadoSincronizacion.estado}" 
-            title={$estadoSincronizacion.mensaje}
-            on:click={manejarClickEstado}
+            class="sync-badge state-{$estadoSyncWeb.estado}" 
+            title={$estadoSyncWeb.mensaje}
+            on:click={() => manejarClickEstado('web')}
           >
-            {#if $estadoSincronizacion.estado === 'esperando'}
+            {#if $estadoSyncWeb.estado === 'esperando'}
               <Clock size={16} class="pulse-icon" />
-              <span class="badge-text">{$estadoSincronizacion.mensaje}</span>
-            
-            {:else if $estadoSincronizacion.estado === 'sincronizando'}
+            {:else if $estadoSyncWeb.estado === 'sincronizando'}
               <Loader2 size={16} class="spin-icon" />
-              <span class="badge-text">{$estadoSincronizacion.mensaje}</span>
-            
-            {:else if $estadoSincronizacion.estado === 'al_dia'}
+            {:else if $estadoSyncWeb.estado === 'al_dia'}
               <CheckCircle size={16} />
-              <span class="badge-text">{$estadoSincronizacion.mensaje}</span>
-            
-            {:else if $estadoSincronizacion.estado === 'conflicto'}
+            {:else if $estadoSyncWeb.estado === 'conflicto'}
               <AlertTriangle size={16} />
-              <span class="badge-text">{$estadoSincronizacion.mensaje}</span>
-            
-            {:else if $estadoSincronizacion.estado === 'error'}
+            {:else if $estadoSyncWeb.estado === 'error'}
               <CloudOff size={16} />
-              <span class="badge-text">{$estadoSincronizacion.mensaje}</span>
             {/if}
+            <span class="badge-text">Web: {$estadoSyncWeb.mensaje}</span>
+          </div>
+        {/if}
+
+        <!-- 📂 PÍLDORA CARPETA -->
+        {#if $estadoSyncCarpeta.estado !== 'inactivo'}
+          <div 
+            class="sync-badge state-{$estadoSyncCarpeta.estado}" 
+            title={$estadoSyncCarpeta.mensaje}
+            on:click={() => manejarClickEstado('carpeta')}
+          >
+            {#if $estadoSyncCarpeta.estado === 'esperando'}
+              <Clock size={16} class="pulse-icon" />
+            {:else if $estadoSyncCarpeta.estado === 'sincronizando'}
+              <Loader2 size={16} class="spin-icon" />
+            {:else if $estadoSyncCarpeta.estado === 'al_dia'}
+              <CheckCircle size={16} />
+            {:else if $estadoSyncCarpeta.estado === 'conflicto'}
+              <AlertTriangle size={16} />
+            {:else if $estadoSyncCarpeta.estado === 'error'}
+              <AlertTriangle size={16} />
+            {/if}
+            <span class="badge-text">Carpeta: {$estadoSyncCarpeta.mensaje}</span>
           </div>
         {/if}
 
