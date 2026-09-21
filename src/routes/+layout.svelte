@@ -12,14 +12,14 @@
   import { cargarConfig, guardarConfig } from '$lib/services/db';
 
   import { verificarActualizacion, irA_Descarga } from '$lib/services/updater';
-  
+
   // 📡 NUEVAS IMPORTACIONES PARA EL RADAR Y EL MODAL GLOBAL
   import { get } from 'svelte/store';
   import { sesionApp } from '$lib/stores/authStore';
-  import { estadoSyncWeb, estadoSyncCarpeta, comprobarNubeAlAbrir, pausarRadarTemporalmente } from '$lib/stores/autoSyncStore';
+  import { estadoSyncWeb, estadoSyncCarpeta, comprobarNubeAlAbrir, pausarRadarTemporalmente, } from '$lib/stores/autoSyncStore';
   import { descargarRespaldo, subirRespaldo } from '$lib/services/syncService';
   import { prepararDatosParaSubir, restaurarDatosDeDescarga } from '$lib/services/dbSyncHelper';
-  import { stat } from '@tauri-apps/plugin-fs';
+  import { leerPaqueteSync, escribirPaqueteSync } from '$lib/services/folderSyncPath';
 
   // Importamos los iconos que usaremos (Añadí ServerCrash y UploadCloud para el modal)
   import { 
@@ -66,8 +66,8 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "2.0.4": [
-      { texto: "Se corrigieron errores de sincronización", tipo: "Zap" },
+    "2.0.8": [
+      { texto: "Se mejoró la opción de seleccionar la carpeta de sincronización en Google Drive / OneDrive desde android.", tipo: "Zap" },
       
     ]
   };
@@ -81,31 +81,60 @@
   }
 
 // 🛡️ RESOLUCIÓN INTELIGENTE CON PUENTE DE MEMORIA
-  async function resolverDescargando() {
-    if (!conflictoActivo) return;
+   async function resolverDescargando() {
+    console.log("🚀🚀🚀 [RESOLVER] FUNCIÓN EJECUTADA 🚀🚀🚀");
+    
+    if (!conflictoActivo) {
+      console.log("🚫 [RESOLVER] No hay conflicto activo, saliendo");
+      return;
+    }
     procesandoConflicto = true;
+    
+    console.log("🔍 [RESOLVER] conflictoActivo.origen:", conflictoActivo.origenConflicto);
     
     const storeActual = conflictoActivo.origenConflicto === 'web' ? estadoSyncWeb : estadoSyncCarpeta;
     storeActual.update(s => ({ ...s, estado: 'sincronizando', mensaje: 'Descargando datos...' }));
 
     try {
-      if (conflictoActivo.origenConflicto === 'carpeta') {
+               if (conflictoActivo.origenConflicto === 'carpeta') {
         // --- 📂 RESOLVER CARPETA LOCAL ---
+        console.log("📂 [DESCARGA] Iniciando descarga de carpeta...");
+        
         const rutaCarpeta = await invoke<string>('obtener_ruta_sync');
         if (!rutaCarpeta) throw new Error("No hay ruta de carpeta configurada.");
-        const separador = rutaCarpeta.includes('/') ? '/' : '\\';
-        const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
-
-        const paqueteCifrado = await readTextFile(rutaArchivoFinal);
+        const paquete = await leerPaqueteSync(rutaCarpeta);
+        const paqueteCifrado = paquete.content;
         const llave = await cargarConfig('llave_carpeta_sync');
 
-        await invoke('importar_db_encriptada_global', { paqueteBase64: paqueteCifrado, llaveBase64: llave });
+        // 🛡️ Usar la HORA ACTUAL (no el mtime del archivo, que puede estar desfasado o en el futuro)
+        const fechaCarpeta = new Date().toISOString();
+        console.log("📂 [DESCARGA] Importando BD desde carpeta...");
+        await invoke('importar_db_encriptada_global', {
+          paqueteBase64: paqueteCifrado,
+          llaveBase64: llave,
+          lastSyncedFolder: fechaCarpeta
+        });
 
-        const infoArchivo = await stat(rutaArchivoFinal);
-        const tiempoBase = infoArchivo && infoArchivo.mtime ? infoArchivo.mtime.getTime() : Date.now();
-        localStorage.setItem('post_update_folder', new Date(tiempoBase + 5000).toISOString());
+        console.log("📂 [DESCARGA] Guardando last_synced_folder =", fechaCarpeta);
+        
+        await guardarConfig('last_synced_folder', fechaCarpeta);
+        console.log("📂 [DESCARGA] last_synced_folder guardado OK");
+        
+        localStorage.setItem('post_update_folder', fechaCarpeta);
+        console.log("📂 [DESCARGA] localStorage post_update_folder guardado");
 
-      } else if (conflictoActivo.origenConflicto === 'web') {
+        // 🛡️ RESETEAR EL MTIME DEL ARCHIVO A "AHORA"
+        try {
+          console.log("📂 [DESCARGA] Reescribiendo archivo para resetear mtime...");
+          await escribirPaqueteSync(rutaCarpeta, paqueteCifrado);
+          console.log("📂 [DESCARGA] Archivo reescrito OK");
+        } catch (e) {
+          console.warn('📂 [DESCARGA] No se pudo resetear el mtime del archivo:', e);
+        }
+
+        console.log("📂 [DESCARGA] Descarga de carpeta completada");
+
+              } else if (conflictoActivo.origenConflicto === 'web') {
         // --- 🌐 RESOLVER SERVIDOR WEB ---
         const sesion = get(sesionApp);
         const datosNube = await descargarRespaldo(sesion.token);
@@ -114,13 +143,18 @@
 
         await restaurarDatosDeDescarga(datosParseados);
 
-        const tiempoNube = new Date(datosNube.backup.last_synced_at).getTime();
-        localStorage.setItem('post_update_web', new Date(tiempoNube + 5000).toISOString());
+        // 🛡️ GUARDAR LA FECHA DIRECTAMENTE EN SQLITE (sin depender del onMount)
+        // Esto evita que el radar detecte un desfase falso tras la recarga
+        const fechaNube = datosNube.backup.last_synced_at;
+        await guardarConfig('last_synced_web', fechaNube);
+        
+        // También por si acaso, lo dejamos en localStorage para el onMount
+        localStorage.setItem('post_update_web', fechaNube);
       }
 
-      await new Promise(resolve => setTimeout(resolve, 500)); 
+      await new Promise(resolve => setTimeout(resolve, 1500)); 
       storeActual.update(s => ({ ...s, estado: 'al_dia', mensaje: '¡Datos restaurados!' }));
-      setTimeout(() => window.location.reload(), 2000);
+      setTimeout(() => window.location.reload(), 5000);
 
     } catch (e) {
       console.error(e);
@@ -151,8 +185,7 @@
         if (rutaCarpeta) {
           const llave = await cargarConfig('llave_carpeta_sync');
           const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
-          const separador = rutaCarpeta.includes('/') ? '/' : '\\';
-          await writeTextFile(`${rutaCarpeta}${separador}sincronizacion_global.avisits`, paqueteCifrado);
+          await escribirPaqueteSync(rutaCarpeta, paqueteCifrado);
           await guardarConfig('last_synced_folder', fechaActual);
         }
       }
@@ -171,19 +204,12 @@
  onMount(() => { // 🔥 ELIMINAMOS EL 'async' DE AQUÍ
     
     // 🔥 ENVOLVEMOS TODA LA LÓGICA ASÍNCRONA EN ESTA FUNCIÓN
-    async function inicializarAsincrono() {
-     // 🔥 LA CURA DEL BUCLE: Revisamos si venimos de un reinicio por descarga
-      const fechaCarpetaPendiente = localStorage.getItem('post_update_folder');
-      if (fechaCarpetaPendiente) {
-        await guardarConfig('last_synced_folder', fechaCarpetaPendiente);
-        localStorage.removeItem('post_update_folder');
-      }
-
-      const fechaWebPendiente = localStorage.getItem('post_update_web');
-      if (fechaWebPendiente) {
-        await guardarConfig('last_synced_web', fechaWebPendiente);
-        localStorage.removeItem('post_update_web');
-      }
+        async function inicializarAsincrono() {
+      // 🔥 LIMPIEZA: Solo limpiamos las marcas pendientes.
+      // La fecha ya se guardó directamente en resolverDescargando, así que no
+      // necesitamos volver a guardarla aquí (eso generaría un evento espurio).
+      localStorage.removeItem('post_update_folder');
+      localStorage.removeItem('post_update_web');
       
       // 1. 💻 LÓGICA DE WINDOWS
       try {

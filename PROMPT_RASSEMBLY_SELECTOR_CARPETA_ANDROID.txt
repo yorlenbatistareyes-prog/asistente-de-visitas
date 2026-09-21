@@ -1,0 +1,464 @@
+PROMPT PARA IMPLEMENTAR SELECCION DE CARPETA ANDROID Y SINCRONIZACION AUTOMATICA POR GOOGLE DRIVE / ONEDRIVE EN RASSEMBLY
+
+Actua como arquitecto senior de Tauri 2, SvelteKit, Rust, Kotlin y Android Storage Access Framework. Necesito implementar en RAssembly una sincronizacion automatica mediante una carpeta compartida de Google Drive, OneDrive o cualquier proveedor de documentos compatible con Android.
+
+OBJETIVO REAL
+
+El usuario debe poder seleccionar una carpeta completa desde Android. No debe tener que buscar manualmente el archivo de sincronizacion cada vez que Windows cambie datos.
+
+El flujo esperado es:
+
+1. En Android, el usuario pulsa "Elegir carpeta".
+2. Android abre el selector real de carpetas mediante ACTION_OPEN_DOCUMENT_TREE.
+3. El usuario selecciona una carpeta de Google Drive, OneDrive o almacenamiento local sincronizado.
+4. La app obtiene una URI persistente de tipo content://.
+5. La app solicita y conserva los permisos de lectura y escritura de esa carpeta.
+6. La app guarda esa URI en la configuracion local.
+7. Dentro de esa carpeta se usa siempre el archivo fijo sincronizacion_global.rassembly.
+8. Las subidas automaticas escriben ese archivo sin intervencion manual.
+9. Las comprobaciones de inicio, foco y regreso a primer plano leen automaticamente ese mismo archivo.
+10. Si otro dispositivo modifica el archivo, RAssembly detecta el cambio y muestra el conflicto.
+11. El usuario puede descargar/restaurar la version compartida o forzar la subida local.
+
+NO ACEPTAR COMO SOLUCION
+
+No implementar ninguna de estas soluciones como sustituto:
+
+- Seleccionar directamente el archivo .rassembly.
+- Pedir al usuario que busque el archivo cada vez.
+- Usar solamente ACTION_GET_CONTENT.
+- Usar solamente el plugin generico de dialog de Tauri con directory: true en Android.
+- Convertir una URI content:// en una ruta de archivo normal.
+- Usar rutas como /storage/emulated/0 sin permisos SAF.
+- Depender de permisos amplios de almacenamiento que Android moderno no concede de forma fiable.
+- Copiar el archivo a la cache y tratar la cache como carpeta sincronizada.
+
+CAUSA TECNICA IMPORTANTE
+
+El plugin dialog de Tauri puede exponer la opcion directory en TypeScript, pero en algunas versiones su implementacion Android usa ACTION_GET_CONTENT y no implementa ACTION_OPEN_DOCUMENT_TREE. Por eso hay que crear un plugin Tauri Android propio o una integracion nativa equivalente.
+
+No asumir que una API de escritorio funciona igual en Android. Antes de implementar, inspeccionar el codigo Android real de la version instalada del plugin dialog.
+
+ARQUITECTURA OBLIGATORIA
+
+Windows y Android deben compartir el mismo contrato logico, pero no necesariamente la misma API de archivos:
+
+- Windows: seleccionar una carpeta con el dialogo de Tauri y construir una ruta normal.
+- Android: seleccionar una carpeta con SAF y guardar una URI content://.
+- Windows: usar plugin-fs para leer, escribir y consultar metadata.
+- Android: usar ContentResolver y DocumentFile desde Kotlin.
+- El servicio TypeScript debe ocultar esa diferencia mediante helpers unificados.
+
+La logica de sincronizacion automatica no debe saber si la ruta es Windows o Android. Solo debe llamar a leerPaqueteSync, escribirPaqueteSync y seleccionarRutaCarpeta.
+
+ESTRUCTURA RECOMENDADA
+
+Crear un plugin local:
+
+src-tauri/folder-tree-plugin/Cargo.toml
+src-tauri/folder-tree-plugin/build.rs
+src-tauri/folder-tree-plugin/src/lib.rs
+src-tauri/folder-tree-plugin/android/build.gradle.kts
+src-tauri/folder-tree-plugin/android/src/main/java/com/tuempresa/rassembly/foldertree/FolderTreePlugin.kt
+src-tauri/folder-tree-plugin/permissions/
+
+El nombre del paquete debe usar el identificador real de RAssembly. No copiar literalmente el namespace de otra aplicacion.
+
+PLUGIN RUST
+
+En folder-tree-plugin/Cargo.toml:
+
+- Crear un crate de tipo cdylib y rlib si lo requiere el proyecto.
+- Incluir tauri como dependencia.
+- Configurar links unico para el plugin.
+
+En build.rs:
+
+- Ejecutar tauri_plugin::Builder::new("folder-tree").build() o el mecanismo equivalente de la version Tauri usada.
+- Generar los permisos del plugin.
+
+En src/lib.rs:
+
+- Registrar el plugin con Builder::new("folder-tree").
+- Bajo cfg(mobile), registrar el plugin Android con register_android_plugin.
+- Usar el mismo nombre completo de paquete que Kotlin:
+  com.tuempresa.rassembly.foldertree
+- Usar el mismo nombre de clase:
+  FolderTreePlugin
+- Bajo cfg(desktop), registrar una implementacion vacia para que Windows compile sin depender de Android.
+
+El plugin debe exponerse desde el crate principal:
+
+- Agregar dependencia local en src-tauri/Cargo.toml.
+- Importar tauri_plugin_folder_tree.
+- Registrar .plugin(tauri_plugin_folder_tree::init()) en el Builder principal.
+- No editar codigo generado de target.
+
+COMANDOS DEL PLUGIN
+
+Implementar como minimo estos comandos Tauri:
+
+1. pickDirectory
+
+- Abrir ACTION_OPEN_DOCUMENT_TREE.
+- Añadir FLAG_GRANT_READ_URI_PERMISSION.
+- Añadir FLAG_GRANT_WRITE_URI_PERMISSION.
+- Añadir FLAG_GRANT_PERSISTABLE_URI_PERMISSION.
+- Añadir FLAG_GRANT_PREFIX_URI_PERMISSION.
+- Devolver la URI content:// seleccionada.
+
+2. readSyncFile
+
+Entrada:
+
+- treeUri: String.
+
+Comportamiento:
+
+- Convertir treeUri a Uri.
+- Crear DocumentFile.fromTreeUri(activity, uri).
+- Buscar el archivo sincronizacion_global.rassembly dentro de esa carpeta.
+- Abrirlo con ContentResolver.openInputStream.
+- Leer sus bytes completos.
+- Devolver el contenido codificado en Base64 para transportarlo sin problemas por IPC.
+- Devolver tambien modifiedAt o lastModified si el proveedor lo permite.
+- Rechazar con un mensaje claro si la carpeta ya no esta disponible, el permiso fue revocado o el archivo no existe.
+
+3. writeSyncFile
+
+Entrada:
+
+- treeUri: String.
+- content: String en Base64.
+
+Comportamiento:
+
+- Obtener DocumentFile.fromTreeUri.
+- Buscar sincronizacion_global.rassembly.
+- Si no existe, crearlo con createFile.
+- Decodificar Base64 a bytes.
+- Abrir ContentResolver.openOutputStream.
+- Escribir completamente el contenido.
+- Cerrar el stream usando use.
+- Rechazar si el proveedor es de solo lectura o si el permiso ya no existe.
+
+4. opcionalmente validateDirectory
+
+- Confirmar que la URI sigue concediendo acceso.
+- Confirmar que se puede listar la carpeta.
+- Devolver nombre, URI y capacidades de lectura/escritura.
+
+IMPLEMENTACION KOTLIN
+
+Usar imports equivalentes a:
+
+- android.app.Activity.
+- android.content.Intent.
+- android.net.Uri.
+- androidx.documentfile.provider.DocumentFile.
+- app.tauri.annotation.ActivityCallback.
+- app.tauri.annotation.Command.
+- app.tauri.annotation.InvokeArg.
+- app.tauri.annotation.TauriPlugin.
+- app.tauri.plugin.ActivityResult.
+- app.tauri.plugin.Invoke.
+- app.tauri.plugin.JSObject.
+- app.tauri.plugin.Plugin.
+
+Crear clases de argumentos con @InvokeArg:
+
+- FolderArgs con treeUri.
+- WriteArgs con treeUri y content.
+
+Al recibir el resultado de ACTION_OPEN_DOCUMENT_TREE:
+
+1. Verificar RESULT_OK.
+2. Verificar que data y data.data no son null.
+3. Obtener los flags de lectura y escritura devueltos por Android.
+4. Llamar a takePersistableUriPermission(uri, flags).
+5. Si falla SecurityException, rechazar la llamada.
+6. Devolver uri.toString().
+
+No ignorar excepciones importantes. Los mensajes deben indicar si fallo:
+
+- La seleccion.
+- La persistencia del permiso.
+- La lectura.
+- La escritura.
+- La busqueda del archivo.
+- La creacion del archivo.
+
+DEPENDENCIA ANDROID
+
+En el modulo Android del plugin incluir:
+
+implementation("androidx.documentfile:documentfile:1.0.1")
+implementation(project(":tauri-android"))
+
+Usar namespace propio de RAssembly y mantener compileSdk/minSdk compatibles con el proyecto.
+
+No hay que pedir MANAGE_EXTERNAL_STORAGE para este enfoque. El permiso lo entrega el usuario mediante SAF.
+
+GESTION DE PERMISOS
+
+El permiso SAF es persistente, pero debe validarse en cada arranque o antes de usarlo:
+
+- Guardar la URI en SQLite o almacenamiento seguro.
+- Al iniciar, comprobar que la URI no esta vacia.
+- Intentar resolver DocumentFile.fromTreeUri.
+- Si falla, marcar la carpeta como no disponible y pedir seleccionar otra.
+- No borrar la URI solo porque el archivo sincronizado aun no exista.
+- Si el usuario revoca el permiso desde Android, mostrar una accion para volver a seleccionar carpeta.
+- Mantener el permiso entre reinicios y actualizaciones normales de la app.
+
+NOMBRE DEL ARCHIVO
+
+Usar una constante unica y versionada:
+
+const SYNC_FILE_NAME = "sincronizacion_global.rassembly";
+
+La carpeta elegida es el directorio. El archivo se busca o crea dentro de ese directorio. Nunca guardar como ruta absoluta en Android.
+
+SERVICIO TYPESCRIPT UNIFICADOR
+
+Crear un archivo como:
+
+src/lib/services/folderSyncPath.ts
+
+Debe exportar:
+
+- esAndroid().
+- esUriAndroid(value).
+- seleccionarRutaCarpeta().
+- obtenerRutaArchivoSync(path).
+- leerPaqueteSync(path).
+- escribirPaqueteSync(path, content).
+
+Comportamiento:
+
+seleccionarRutaCarpeta():
+
+- Si es Android, invocar plugin:folder-tree|pickDirectory.
+- Si es escritorio, usar plugin-dialog open con directory: true y multiple: false.
+- Devolver null si el usuario cancela, o propagar un error contextualizado.
+
+obtenerRutaArchivoSync(path):
+
+- Si path empieza por content://, devolverlo sin modificar; el plugin Android ya sabe que representa una carpeta.
+- En Windows, añadir separador y sincronizacion_global.rassembly.
+- No concatenar nunca una URI content:// con una ruta Windows.
+
+leerPaqueteSync(path):
+
+- Android: invocar plugin:folder-tree|readSyncFile con treeUri.
+- Decodificar Base64 a texto.
+- Devolver content y modifiedAt.
+- Windows: usar stat y readTextFile sobre la ruta final.
+
+escribirPaqueteSync(path, content):
+
+- Android: codificar el texto en Base64 y llamar plugin:folder-tree|writeSyncFile.
+- Windows: usar writeTextFile sobre la ruta final.
+- Propagar el error real.
+
+IMPORTANTE SOBRE BASE64
+
+El paquete cifrado debe ser texto ASCII/Base64. Si el contenido pudiera contener Unicode arbitrario, no usar btoa directamente; usar una codificacion UTF-8 segura antes de Base64. Para un paquete ya codificado en Base64, btoa/atob es suficiente porque el texto ya es ASCII.
+
+INTEGRACION CON LA UI
+
+En el componente de configuracion o sincronizacion:
+
+- El boton debe llamar seleccionarRutaCarpeta.
+- En Windows mostrar "Carpeta vinculada" y la ruta normal.
+- En Android mostrar "Carpeta vinculada" y, si se desea, el nombre de la carpeta extraido de DocumentFile o una etiqueta amigable, no toda la URI content://.
+- Mostrar errores visibles, nunca tragarlos en un catch vacio.
+- Deshabilitar el boton mientras se esta abriendo el selector o guardando la URI.
+- Mostrar una accion "Volver a seleccionar carpeta" si el permiso fue revocado.
+
+Ejemplo de flujo frontend:
+
+async function seleccionarCarpeta() {
+  try {
+    guardando = true;
+    const seleccion = await seleccionarRutaCarpeta();
+    if (!seleccion) return;
+    await guardarRutaSync(seleccion);
+    rutaCarpeta = seleccion;
+  } catch (error) {
+    console.error('Error seleccionando carpeta:', error);
+    mostrarError(error);
+  } finally {
+    guardando = false;
+  }
+}
+
+INTEGRACION CON LA SINCRONIZACION AUTOMATICA
+
+Todos los puntos que actualmente construyen manualmente:
+
+ruta + separador + sincronizacion_global.rassembly
+
+deben cambiar a leerPaqueteSync/escribirPaqueteSync.
+
+Actualizar como minimo:
+
+- Subida manual.
+- Subida automatica despues de cambios locales.
+- Radar al arrancar.
+- Radar al recuperar foco.
+- Radar al volver a foreground.
+- Resolucion de conflicto descargando.
+- Resolucion de conflicto forzando subida.
+- Restauracion manual.
+
+No dejar ningun readTextFile, writeTextFile o stat directo para el paquete compartido fuera del helper, salvo la implementacion interna de escritorio del helper.
+
+La logica automatica no debe saber si rutaCarpeta es una ruta normal o una URI SAF.
+
+COMPORTAMIENTO DE GOOGLE DRIVE Y ONEDRIVE
+
+- El usuario debe seleccionar desde el selector SAF la carpeta que realmente esta disponible en el proveedor.
+- La carpeta elegida debe ser una carpeta sincronizada y con permiso de escritura.
+- La app no controla cuando Google Drive u OneDrive terminan de sincronizar entre dispositivos.
+- El radar debe tolerar que el archivo no exista temporalmente o este cambiando.
+- Si el proveedor tarda en materializar el archivo, reintentar con backoff.
+- No interpretar inmediatamente un archivo incompleto como conflicto.
+- Antes de restaurar, leer y validar el paquete completo y su autenticacion.
+- Si hay dos dispositivos escribiendo a la vez, aplicar la politica de conflicto de la app; no sobrescribir silenciosamente.
+
+ALMACENAMIENTO DE LA URI
+
+Usar una clave propia, por ejemplo:
+
+folder_sync_location
+
+Guardar:
+
+- En Android: URI content:// completa.
+- En Windows: ruta normal de carpeta.
+
+No convertir la URI a JSON de una forma que pierda caracteres especiales.
+
+Al cambiar de carpeta:
+
+- Opcionalmente liberar el permiso antiguo con releasePersistableUriPermission.
+- Guardar la nueva URI solo despues de confirmar que se puede listar.
+- No borrar la configuracion anterior si la nueva seleccion fue cancelada.
+
+PERMISOS TAURI
+
+Añadir al capability activo los permisos del plugin:
+
+- folder-tree:allow-pickDirectory.
+- folder-tree:allow-readSyncFile.
+- folder-tree:allow-writeSyncFile.
+
+Mantener tambien los permisos existentes de dialog, fs y sql para escritorio. No otorgar permisos globales innecesarios al plugin Android.
+
+BUILD Y ARCHIVOS GENERADOS
+
+- Registrar el plugin local en src-tauri/Cargo.toml.
+- Registrar el plugin en src-tauri/src/lib.rs.
+- Mantener el codigo fuente del plugin fuera de target.
+- Si Tauri genera archivos en src-tauri/gen/android, verificar que el plugin local quede incluido en el build.
+- No editar archivos dentro de src-tauri/target.
+- Regenerar la plataforma Android solo si es necesario y revisar que no se borren los archivos fuente del plugin.
+
+PRUEBAS OBLIGATORIAS EN ANDROID
+
+Probar en un dispositivo real, no solo en emulador:
+
+1. Abrir el selector desde Configuracion.
+2. Seleccionar una carpeta local.
+3. Seleccionar una carpeta de Google Drive.
+4. Seleccionar una carpeta de OneDrive.
+5. Cancelar el selector.
+6. Reiniciar la app y comprobar que conserva la carpeta.
+7. Cerrar completamente y volver a abrir.
+8. Crear datos locales y comprobar subida automatica.
+9. Comprobar que aparece sincronizacion_global.rassembly dentro de la carpeta.
+10. Modificar el archivo desde Windows y esperar a que Drive/OneDrive lo sincronice.
+11. Abrir o enfocar RAssembly en Android y comprobar que el radar detecta el cambio.
+12. Descargar/restaurar el cambio sin volver a elegir carpeta.
+13. Forzar subida desde Android.
+14. Revocar el permiso SAF desde ajustes de Android y comprobar el mensaje de recuperacion.
+15. Probar una carpeta de solo lectura.
+16. Probar archivo inexistente.
+17. Probar archivo corrupto.
+18. Probar proveedor que devuelve modifiedAt igual a cero.
+19. Probar que la app no queda en blanco despues de F5 o reinicio.
+20. Probar que no se pide seleccionar el archivo manualmente en cada sincronizacion.
+
+PRUEBAS EN WINDOWS
+
+1. Elegir carpeta normal.
+2. Crear el archivo de sincronizacion.
+3. Subir automaticamente.
+4. Leer automaticamente.
+5. Cambiar datos desde Android.
+6. Detectar conflicto.
+7. Restaurar.
+8. Confirmar que Windows sigue usando rutas normales y plugin-fs.
+9. Confirmar que el carril web no fue afectado.
+
+VALIDACIONES DE CODIGO
+
+Despues de implementar:
+
+- Ejecutar pnpm check.
+- Ejecutar cargo check desde src-tauri.
+- Ejecutar el build Android solo despues de que el usuario confirme la version.
+- Revisar que el capability activo incluya los comandos del plugin.
+- Revisar que no haya imports del carril web en el plugin de carpeta.
+- Revisar que ninguna ruta content:// se concatene con separadores.
+- Revisar que todos los errores del plugin lleguen a la interfaz.
+
+CRITERIOS DE ACEPTACION
+
+La implementacion solo esta terminada cuando:
+
+- Android selecciona una carpeta real, no un archivo.
+- El permiso de la carpeta sobrevive al reinicio.
+- La app encuentra o crea automaticamente sincronizacion_global.rassembly dentro de esa carpeta.
+- Las subidas automaticas funcionan sin que el usuario vuelva a seleccionar nada.
+- Las lecturas automaticas funcionan cuando Windows actualiza la carpeta compartida.
+- Google Drive y OneDrive pueden ser seleccionados mediante el selector SAF.
+- El flujo funciona despues de cerrar y volver a abrir la app.
+- Los conflictos se detectan y resuelven sin volver a pedir la carpeta.
+- Windows sigue funcionando con rutas normales.
+- La sincronizacion web permanece independiente.
+- No se implemento un selector manual de archivo como sustituto.
+- No se uso una ruta absoluta ficticia para Android.
+- No se ignoraron errores criticos.
+
+ORDEN RECOMENDADO DE IMPLEMENTACION
+
+1. Inspeccionar la version exacta de Tauri y los plugins instalados.
+2. Confirmar si el plugin dialog Android soporta ACTION_OPEN_DOCUMENT_TREE; si no, no intentar forzarlo desde Svelte.
+3. Crear el plugin local folder-tree.
+4. Implementar pickDirectory y permisos persistentes.
+5. Implementar readSyncFile y writeSyncFile con DocumentFile.
+6. Registrar Rust, Kotlin, Gradle y capabilities.
+7. Crear folderSyncPath.ts.
+8. Sustituir accesos directos al archivo en la UI, radar, subida y restauracion.
+9. Ejecutar pnpm check y cargo check.
+10. Cambiar manualmente la version de la app.
+11. Ejecutar el build Android.
+12. Probar en un dispositivo real con Google Drive y OneDrive.
+
+ENTREGA ESPERADA
+
+Entrega una lista de:
+
+- Archivos creados.
+- Archivos modificados.
+- Comandos Tauri registrados.
+- Permisos añadidos.
+- Flujo Android SAF.
+- Flujo Windows.
+- Integracion con la sincronizacion automatica.
+- Pruebas ejecutadas.
+- Limitaciones conocidas del proveedor de nube.
+
+No declares que funciona solo porque el APK compila. La prueba decisiva es que, tras seleccionar una carpeta una sola vez en Android, Windows pueda modificar el archivo compartido y Android lo detecte automaticamente sin que el usuario tenga que buscar el archivo manualmente.

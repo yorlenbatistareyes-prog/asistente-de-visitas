@@ -15,9 +15,26 @@ const NOMBRE_DB: &str = "av_database.db";
 pub fn exportar_db_encriptada_global(llave_base64: String, app_handle: AppHandle) -> Result<String, String> {
     let app_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     let db_path = app_dir.join(NOMBRE_DB);
+    let snapshot_path = app_dir.join("av_database_export_snapshot.db");
     
-    // Leemos el archivo de tu base de datos
-    let db_bytes = fs::read(&db_path).map_err(|e| format!("Error al leer la base de datos local: {}", e))?;
+    // SQLite puede tener cambios pendientes en -wal; leer el archivo directamente
+    // produciría un respaldo incompleto. VACUUM INTO crea una instantánea válida.
+    let _ = fs::remove_file(&snapshot_path);
+    let conn = rusqlite::Connection::open(&db_path)
+        .map_err(|e| format!("Error al abrir la base de datos local: {}", e))?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| format!("Error configurando SQLite: {}", e))?;
+    let snapshot_sql = format!(
+        "VACUUM INTO '{}'",
+        snapshot_path.to_string_lossy().replace('\'', "''")
+    );
+    conn.execute_batch(&snapshot_sql)
+        .map_err(|e| format!("Error creando una copia consistente de la base de datos: {}", e))?;
+    drop(conn);
+
+    let db_bytes = fs::read(&snapshot_path)
+        .map_err(|e| format!("Error al leer la copia de la base de datos: {}", e))?;
+    let _ = fs::remove_file(&snapshot_path);
 
     let key_bytes = general_purpose::STANDARD.decode(llave_base64).map_err(|e| e.to_string())?;
     let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_bytes);
@@ -37,7 +54,12 @@ pub fn exportar_db_encriptada_global(llave_base64: String, app_handle: AppHandle
 
 // 2. Descifrar e Importar (Sobrescribir la Base de Datos local)
 #[tauri::command]
-pub fn importar_db_encriptada_global(paquete_base64: String, llave_base64: String, app_handle: AppHandle) -> Result<(), String> {
+pub fn importar_db_encriptada_global(
+    paquete_base64: String,
+    llave_base64: String,
+    last_synced_folder: String,
+    app_handle: AppHandle,
+) -> Result<(), String> {
     let key_bytes = general_purpose::STANDARD.decode(llave_base64).map_err(|e| e.to_string())?;
     let paquete_bytes = general_purpose::STANDARD.decode(paquete_base64).map_err(|e| e.to_string())?;
 
@@ -58,6 +80,22 @@ pub fn importar_db_encriptada_global(paquete_base64: String, llave_base64: Strin
     // Guardamos la nueva BD en el archivo de restauración temporal
     let restore_path = app_dir.join("av_database_restore.db");
     fs::write(&restore_path, db_bytes).map_err(|e| format!("Error al sobrescribir: {}", e))?;
+
+    // La BD restaurada reemplazará a la actual después del reinicio; guarda aquí
+    // la marca para que el radar no vuelva a detectar el mismo archivo.
+    let conn = rusqlite::Connection::open(&restore_path)
+        .map_err(|e| format!("Error al abrir la BD restaurada: {}", e))?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS configuracion (clave TEXT PRIMARY KEY, valor TEXT)",
+        [],
+    )
+    .map_err(|e| format!("Error al preparar la configuración restaurada: {}", e))?;
+    conn.execute(
+        "INSERT INTO configuracion (clave, valor) VALUES (?1, ?2)
+         ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+        rusqlite::params!["last_synced_folder", last_synced_folder],
+    )
+    .map_err(|e| format!("Error al guardar la fecha de sincronización: {}", e))?;
 
     // 🌟 EL TRUCO MAESTRO: Hilo en segundo plano para retrasar el reinicio
     // Esto permite devolver el 'Ok' a Svelte para que guarde el localStorage ANTES de morir

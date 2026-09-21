@@ -144,7 +144,7 @@ dependencies = [
 
 [[package]]
 name = "asistente-de-visitas"
-version = "2.0.6"
+version = "2.0.8"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -160,6 +160,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "tauri-plugin-folder-tree",
  "tauri-plugin-fs",
  "tauri-plugin-http",
  "tauri-plugin-opener",
@@ -5285,6 +5286,15 @@ dependencies = [
  "tauri-plugin-fs",
  "thiserror 2.0.17",
  "url 2.5.7",
+]
+
+[[package]]
+name = "tauri-plugin-folder-tree"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

@@ -1,0 +1,561 @@
+PROMPT PARA CONSTRUIR LA SINCRONIZACION AUTOMATICA DE RASSEMBLY
+
+Actua como arquitecto senior de una aplicacion Tauri + SvelteKit. Necesito implementar en RAssembly dos metodos de sincronizacion automatica completamente independientes:
+
+1. Sincronizacion web mediante un servidor HTTP/HTTPS.
+2. Sincronizacion mediante una carpeta compartida de Google Drive, OneDrive o cualquier carpeta local sincronizada.
+
+REGLA PRINCIPAL E INNEGOCIABLE
+
+Los dos metodos deben funcionar de manera independiente. No deben compartir servicios, funciones de subida, funciones de descarga, estados, temporizadores, banderas, claves de cifrado ni logica de deteccion de conflictos.
+
+Solo pueden compartir:
+
+- Tipos de datos generales y constantes puramente neutrales.
+- Funciones de acceso a la base de datos que no sepan nada de sincronizacion.
+- Una interfaz visual generica para mostrar estados, si esa interfaz recibe datos ya preparados.
+
+No crees un mega-store combinado ni una funcion generica que decida entre web y carpeta. Cada carril debe poder probarse, depurarse, activarse o desactivarse sin afectar al otro.
+
+CONTEXTO TECNICO
+
+La aplicacion es una app de escritorio/movil con Tauri y SvelteKit. La base de datos local es SQLite. El frontend usa TypeScript y Svelte. El backend Tauri usa Rust.
+
+La base de datos debe seguir siendo la fuente local de verdad. La sincronizacion no debe escribir archivos SQLite directamente desde el frontend mientras la base de datos esta abierta.
+
+OBJETIVOS FUNCIONALES
+
+- El usuario puede elegir un unico metodo activo: web, carpeta o ninguno.
+- Si el metodo elegido es web, solo funciona el carril web.
+- Si el metodo elegido es carpeta, solo funciona el carril de carpeta.
+- El carril no elegido no debe hacer peticiones, leer rutas, abrir archivos, generar claves ni modificar su estado.
+- Los cambios locales deben programar una subida con debounce.
+- Al arrancar, volver del segundo plano o recuperar el foco, debe ejecutarse una comprobacion ligera.
+- Si el remoto tiene una version mas nueva, debe mostrarse un conflicto antes de sobrescribir datos.
+- Descargar debe reemplazar o restaurar los datos de forma atomica y conservar la marca de sincronizacion.
+- Forzar subida debe sobrescribir el remoto solo despues de confirmacion explicita del usuario.
+- Los errores deben mostrar el mensaje tecnico util en consola y un mensaje seguro y comprensible en la interfaz.
+- Ninguna restauracion debe dejar la app en blanco ni abrir un bucle infinito de conflictos.
+
+ESTRUCTURA DE ARCHIVOS QUE DEBES CREAR
+
+Usa nombres equivalentes si el proyecto tiene otra convencion, pero conserva la separacion:
+
+FRONTEND
+
+src/lib/sync/types.ts
+
+Crear exclusivamente tipos y constantes neutrales:
+
+- SyncMethod = 'none' | 'web' | 'folder'.
+- SyncState = 'idle' | 'waiting' | 'syncing' | 'up_to_date' | 'conflict' | 'error' | 'paused'.
+- SyncConflict.
+- SyncStatus.
+- SyncMetadata.
+- BackupEnvelope.
+- RestoreResult.
+
+No importar servicios ni stores desde este archivo.
+
+src/lib/sync/web/webApi.ts
+
+Crear solo la comunicacion HTTP del carril web:
+
+- requestWebOtp(email).
+- verifyWebOtp(email, code).
+- getWebBackupStatus(authToken).
+- uploadWebBackup(authToken, envelope).
+- downloadWebBackup(authToken).
+
+Requisitos:
+
+- Usar una URL configurable.
+- Validar status HTTP y cuerpo JSON.
+- Diferenciar 401, 403, 404, 409, 429, 5xx y errores de red.
+- No guardar secretos globales en el frontend.
+- No hardcodear tokens administrativos en el cliente.
+- Usar timeout y AbortController.
+- No importar nada del carril de carpeta.
+
+src/lib/sync/web/webBackupSerializer.ts
+
+Crear funciones exclusivas para el formato web:
+
+- buildWebEnvelope(data, metadata).
+- parseWebEnvelope(value).
+- validateWebEnvelope(value).
+- calculateWebContentHash(data).
+
+El formato debe incluir:
+
+- app_id.
+- schema_version.
+- backup_id.
+- device_id.
+- created_at UTC.
+- updated_at UTC.
+- content_hash.
+- payload.
+
+src/lib/sync/web/webSyncService.ts
+
+Crear el servicio exclusivo del carril web:
+
+- scheduleWebUpload().
+- cancelWebUpload().
+- runWebUpload().
+- checkWebConflict().
+- downloadWebVersion().
+- forceWebUpload().
+- restoreWebVersion().
+- pauseWebSync().
+- resetWebSyncState().
+
+Este archivo solo puede importar webApi, webBackupSerializer, la sesion web y helpers neutrales de base de datos.
+
+Debe tener:
+
+- Un temporizador propio del carril web.
+- Un mutex o promesa de exclusividad para impedir dos subidas simultaneas.
+- Una cola de cambios pendientes si ocurre una modificacion durante una subida.
+- Un estado propio, nunca compartido con el carril de carpeta.
+- Deteccion de conflicto comparando revision_id o updated_at remoto con last_web_revision local.
+- Registro de last_web_revision solo despues de una operacion confirmada.
+
+src/lib/sync/web/webSyncStore.ts
+
+Crear un store Svelte exclusivo:
+
+- webSyncStatus.
+- webSyncConflict.
+- webSyncBusy.
+- webSyncError.
+- webSyncPaused.
+
+No incluir estado de carpeta ni campos llamados genericos que puedan confundirse entre ambos carriles.
+
+src/lib/sync/folder/folderCrypto.ts
+
+Crear solo cifrado y descifrado del carril de carpeta:
+
+- generateFolderKey().
+- encryptFolderBackup(bytes, metadata, key).
+- decryptFolderBackup(text, key).
+- validateFolderPackage(value).
+
+Usar un formato versionado y autenticado. El paquete debe contener:
+
+- magic.
+- format_version.
+- app_id.
+- schema_version.
+- device_id.
+- backup_id.
+- created_at UTC.
+- updated_at UTC.
+- content_hash.
+- nonce.
+- ciphertext.
+- authentication tag, si la biblioteca lo maneja separadamente.
+
+Nunca confiar solo en el mtime del archivo para saber si hay datos nuevos. El mtime puede usarse como optimizacion, pero la decision debe basarse en los metadatos autenticados del paquete.
+
+src/lib/sync/folder/folderFileService.ts
+
+Crear solo operaciones de archivos del carril de carpeta:
+
+- getConfiguredFolder().
+- setConfiguredFolder(path).
+- removeConfiguredFolder().
+- getFolderPackagePath(path).
+- readFolderPackage(path).
+- writeFolderPackageAtomically(path, content).
+- getFolderPackageMetadata(path).
+- folderPackageExists(path).
+
+Requisitos:
+
+- Validar que la ruta exista y sea una carpeta.
+- No escribir directamente sobre el archivo final.
+- Escribir primero un archivo temporal unico.
+- Cerrar y vaciar los datos antes de reemplazar.
+- Reemplazar usando rename atomico cuando la plataforma lo permita.
+- No borrar el archivo final hasta tener preparado el temporal.
+- Limpiar temporales abandonados de forma segura.
+- Devolver errores con ruta y operacion, sin ocultarlos.
+
+src/lib/sync/folder/folderDatabaseSnapshot.ts
+
+Crear funciones exclusivas para SQLite y carpeta:
+
+- createConsistentDatabaseSnapshot().
+- validateDatabaseSnapshot().
+- prepareDatabaseForRestore().
+- restoreDatabaseAtomically().
+- cleanupDatabaseArtifacts().
+
+Reglas importantes:
+
+- Nunca leer av_database.db con fs.read mientras SQLite esta abierta esperando que sea un respaldo valido.
+- Usar una instantanea SQLite consistente, por ejemplo VACUUM INTO o una API equivalente.
+- Configurar busy_timeout.
+- Comprobar cada resultado de SQLite.
+- Validar que la instantanea se pueda abrir y que contenga las tablas esperadas.
+- Para restaurar, cerrar todas las conexiones activas antes de reemplazar.
+- Borrar -wal y -shm solo cuando sea seguro hacerlo.
+- Usar un archivo pending_restore con nombre unico o un protocolo equivalente.
+- No dejar un archivo pending_restore si la restauracion fallo.
+- Si se usa reinicio, el arranque debe aplicar el archivo pendiente una sola vez y comprobar el resultado.
+
+src/lib/sync/folder/folderSyncService.ts
+
+Crear el servicio exclusivo del carril de carpeta:
+
+- scheduleFolderUpload().
+- cancelFolderUpload().
+- runFolderUpload().
+- checkFolderConflict().
+- downloadFolderVersion().
+- forceFolderUpload().
+- restoreFolderVersion().
+- pauseFolderSync().
+- resetFolderSyncState().
+
+Este servicio solo puede importar folderCrypto, folderFileService, folderDatabaseSnapshot y helpers neutrales de BD.
+
+Debe tener:
+
+- Temporizador propio.
+- Mutex propio.
+- Estado propio.
+- Clave propia guardada de forma segura.
+- Metadatos propios: last_folder_revision, last_folder_content_hash y last_folder_updated_at.
+- Deteccion de conflicto basada en revision/content_hash/updated_at del paquete, no solamente en fecha del sistema.
+- Escritura atomica.
+- Nunca llamar funciones de web.
+- Nunca modificar last_web_revision.
+
+src/lib/sync/folder/folderSyncStore.ts
+
+Crear un store Svelte exclusivo:
+
+- folderSyncStatus.
+- folderSyncConflict.
+- folderSyncBusy.
+- folderSyncError.
+- folderSyncPaused.
+
+No importar webSyncStore ni webSyncService.
+
+src/lib/sync/syncCoordinator.ts
+
+Solo debe encargarse de activar el metodo elegido y escuchar cambios locales. No debe contener la implementacion interna de ningun carril.
+
+Funciones:
+
+- initializeSyncCoordinator().
+- disposeSyncCoordinator().
+- setActiveSyncMethod(method).
+- getActiveSyncMethod().
+- handleLocalDatabaseChanged().
+- checkActiveMethodOnStartup().
+- handleWindowFocus().
+- handleVisibilityChange().
+
+Reglas:
+
+- Leer metodo_sync una sola vez por operacion y validar el valor.
+- Si es web, llamar solo a webSyncService.
+- Si es folder, llamar solo a folderSyncService.
+- Si es none, cancelar ambos temporizadores y no hacer nada.
+- No mezclar estados ni compartir banderas internas.
+- Registrar y retirar todos los listeners al desmontar para evitar duplicados en HMR.
+- Usar un guard de inicializacion para que el chequeo de arranque se ejecute una sola vez.
+- Esperar a que SQLite este lista antes del primer chequeo.
+
+src/lib/services/db.ts
+
+Mantener este archivo neutral. Anadir solo persistencia generica:
+
+- getSyncSetting(key).
+- setSyncSetting(key, value).
+- getDeviceId().
+- getDatabaseSchemaVersion().
+- acquireLocalSyncLock(method).
+- releaseLocalSyncLock(method).
+
+No poner aqui llamadas HTTP, cifrado, lectura de carpetas ni decisiones de conflictos.
+
+Usar claves separadas:
+
+- active_sync_method.
+- web_device_id.
+- web_last_revision.
+- web_last_content_hash.
+- web_last_updated_at.
+- folder_device_id.
+- folder_key.
+- folder_last_revision.
+- folder_last_content_hash.
+- folder_last_updated_at.
+
+No usar una unica clave last_synced_at para ambos carriles.
+
+src/lib/components/SyncStatusPanel.svelte
+
+Componente puramente visual para mostrar un estado que reciba por props. No debe importar servicios de sincronizacion.
+
+src/lib/components/WebSyncPanel.svelte
+
+UI exclusiva del servidor web:
+
+- Login o estado de sesion.
+- Subir ahora.
+- Descargar cuando haya conflicto.
+- Forzar subida con confirmacion.
+- Pausar temporalmente.
+- Mostrar error tecnico resumido.
+
+src/lib/components/FolderSyncPanel.svelte
+
+UI exclusiva de carpeta:
+
+- Elegir carpeta.
+- Validar carpeta.
+- Mostrar ruta.
+- Generar o recuperar la clave.
+- Subir ahora.
+- Restaurar paquete.
+- Forzar subida con confirmacion.
+- Pausar temporalmente.
+- Mostrar errores de lectura, escritura, cifrado y SQLite.
+
+src/routes/+layout.svelte o componente equivalente
+
+Solo montar SyncCoordinator una vez y mostrar los dos modales de conflicto si corresponde. No poner aqui la implementacion de subir, descargar o restaurar.
+
+BACKEND TAURI / RUST
+
+src-tauri/src/sync_web.rs
+
+Crear los comandos Rust exclusivos del carril web solo si realmente se necesita acceso nativo. No mezclar con el modulo de carpeta.
+
+src-tauri/src/sync_folder.rs
+
+Crear comandos Rust exclusivos del carril de carpeta:
+
+- folder_generate_key.
+- folder_get_configured_path.
+- folder_set_configured_path.
+- folder_remove_configured_path.
+- folder_create_consistent_snapshot.
+- folder_validate_snapshot.
+- folder_prepare_restore.
+- folder_apply_pending_restore.
+- folder_encrypt_package.
+- folder_decrypt_package.
+- folder_atomic_write.
+
+Los nombres de los comandos deben llevar prefijo folder_ para impedir confusiones.
+
+src-tauri/src/database.rs
+
+Mantener solo conexion, inicializacion y migraciones de SQLite. Anadir:
+
+- configurar busy_timeout.
+- activar foreign_keys si corresponde.
+- funciones de conexion claramente documentadas.
+- validacion de esquema.
+- cierre ordenado de conexiones antes de restaurar.
+
+No meter logica HTTP ni logica de Google Drive.
+
+src-tauri/src/lib.rs
+
+En setup:
+
+1. Resolver app_data_dir.
+2. Aplicar un pending restore solo si existe y esta validado.
+3. Comprobar que el rename o reemplazo termino correctamente.
+4. Borrar el pending restore solo despues de aplicar con exito.
+5. Si falla, conservar evidencia y devolver un error controlado; no arrancar con una BD parcialmente reemplazada.
+6. Inicializar SQLite despues de aplicar la restauracion.
+7. Registrar claramente cada paso.
+
+No ignorar resultados con let _ = cuando el resultado sea critico. Usar mensajes de error con contexto.
+
+CONTRATO DEL SERVIDOR WEB
+
+Implementar endpoints equivalentes a:
+
+- POST /api/auth/request-code.
+- POST /api/auth/verify-code.
+- GET /api/apps/{appId}/backup/status.
+- GET /api/apps/{appId}/backup.
+- PUT o POST /api/apps/{appId}/backup.
+
+El servidor debe devolver y validar:
+
+- app_id.
+- schema_version.
+- revision_id monotonicamente creciente.
+- backup_id.
+- device_id.
+- updated_at UTC generado en servidor.
+- content_hash.
+- payload.
+
+La subida debe usar control de concurrencia. Rechazar una subida si el cliente envia una revision base antigua, salvo que el usuario haya escogido forzar la subida.
+
+Nunca incrustar en el frontend un token administrativo del servidor. Usar autenticacion del usuario y variables de entorno en el backend.
+
+ALGORITMO DE SINCRONIZACION WEB
+
+1. Un cambio local dispara un debounce de varios segundos.
+2. Comprobar sesion y token.
+3. Leer last_web_revision local.
+4. Consultar el estado remoto.
+5. Si remoto.revision_id es mayor que local, crear conflicto y no subir.
+6. Si no hay conflicto, preparar datos desde SQLite.
+7. Generar content_hash.
+8. Subir con la revision base esperada.
+9. Si el servidor confirma, guardar last_web_revision y metadatos web.
+10. Si ocurre un cambio durante la subida, ejecutar una nueva subida despues de terminar.
+11. Si falla, conservar el estado de error y permitir reintento.
+
+ALGORITMO DE SINCRONIZACION POR CARPETA
+
+1. Un cambio local dispara un debounce independiente.
+2. Validar que existe una carpeta configurada.
+3. Obtener o crear la clave exclusiva de carpeta.
+4. Crear una instantanea SQLite consistente.
+5. Validar la instantanea.
+6. Crear metadata con revision, hash, dispositivo y hora UTC.
+7. Cifrar un paquete autenticado.
+8. Escribir a un archivo temporal dentro de la misma carpeta.
+9. Cerrar el archivo, comprobar tamano y hash.
+10. Reemplazar atomicamente sincronizacion_global.rassembly.
+11. Guardar last_folder_revision y demas metadatos solo despues de que la escritura termine.
+12. Si ocurre un cambio durante la subida, programar otra operacion despues de terminar.
+
+ALGORITMO DE DETECCION DE CONFLICTO DE CARPETA
+
+1. Leer el paquete compartido y sus metadatos, sin restaurarlo todavia.
+2. Validar autenticidad y app_id.
+3. Leer last_folder_revision y last_folder_content_hash locales.
+4. Si el hash o revision remoto son nuevos, mostrar conflicto.
+5. No depender unicamente del mtime, porque Google Drive y OneDrive pueden alterar fechas o tardar en sincronizar.
+6. Si el archivo aun se esta sincronizando o esta incompleto, reintentar con backoff y no sobrescribir la base local.
+7. Solo despues de la decision del usuario ejecutar restauracion.
+
+RESTAURACION SEGURA
+
+Para web:
+
+- Descargar y validar el envelope.
+- Restaurar dentro de una transaccion o mediante tablas temporales.
+- Validar relaciones y esquema.
+- Guardar last_web_revision en la misma operacion logica.
+- Reactivar el radar despues de terminar.
+
+Para carpeta:
+
+- Descargar y descifrar a un archivo temporal.
+- Validar que SQLite puede abrirlo y que contiene el esquema esperado.
+- Guardar last_folder_revision dentro de la BD restaurada o en metadatos persistentes fuera de la BD.
+- Cerrar conexiones de la BD actual.
+- Aplicar el archivo pendiente una sola vez.
+- Eliminar -wal y -shm de la BD antigua solo cuando corresponda.
+- Renombrar de forma comprobada.
+- Si hay reinicio, no guardar la marca solo en memoria ni en una BD que despues sera reemplazada.
+- Tras iniciar, verificar que la version restaurada es la esperada antes de activar el radar.
+
+ERRORES QUE DEBES EVITAR
+
+- Leer SQLite directamente con fs.read mientras puede existir -wal.
+- Escribir av_database.db desde el frontend mientras el plugin SQLite la tiene abierta.
+- Usar el mismo last_synced_at para dos metodos independientes.
+- Usar un unico temporizador o una unica bandera de sincronizacion.
+- Comparar solamente fechas de archivos.
+- Ignorar errores con let _ = en operaciones de reemplazo.
+- Reiniciar antes de terminar de guardar metadatos.
+- Guardar metadatos en la BD vieja y luego reemplazarla con otra BD.
+- Dejar pending_restore despues de un fallo parcial.
+- Ocultar el error real y mostrar solamente Error 500.
+- Mantener un listener global que se registre varias veces con HMR.
+- Permitir que el radar lance una subida mientras se esta restaurando.
+- Hardcodear tokens privados en el cliente.
+- Hacer que el metodo web importe codigo del metodo carpeta o viceversa.
+
+PRUEBAS OBLIGATORIAS
+
+Crear pruebas unitarias y de integracion para:
+
+- Estado inicial sin metodo.
+- Activacion web sin carpeta configurada.
+- Activacion carpeta sin sesion web.
+- Dos cambios locales durante una subida web.
+- Dos cambios locales durante una subida de carpeta.
+- Conflicto web detectado.
+- Conflicto carpeta detectado.
+- Paquete de carpeta corrupto.
+- Clave de carpeta incorrecta.
+- Archivo de carpeta parcialmente sincronizado.
+- Fallo de escritura atomica.
+- Existencia de -wal y -shm.
+- Restauracion con reinicio.
+- Reinicio con pending_restore valido.
+- Reinicio con pending_restore corrupto.
+- Fallo de rename.
+- Repeticion del radar despues de restaurar.
+- Cambio local emitido durante una restauracion.
+- F5 o recarga de la interfaz despues de una subida.
+- HMR sin listeners duplicados.
+
+CRITERIO DE ACEPTACION
+
+No des por terminada la implementacion solo porque compila. Debes demostrar:
+
+1. El metodo web funciona si el carril de carpeta esta roto o sin configurar.
+2. El metodo carpeta funciona si el servidor web esta caido o no hay sesion.
+3. Un conflicto se muestra una sola vez y desaparece al resolverlo.
+4. La restauracion no vuelve a generar el mismo conflicto despues de reiniciar.
+5. La configuracion abre despues de subir, descargar y pulsar F5.
+6. Los datos SQLite restaurados se pueden leer inmediatamente.
+7. Los errores contienen una causa identificable.
+8. cargo check, pnpm check y las pruebas automatizadas pasan.
+9. No existen dependencias de importacion entre webSyncService y folderSyncService.
+10. Cada metodo puede desactivarse sin modificar la logica interna del otro.
+
+FORMA DE TRABAJAR
+
+Antes de editar:
+
+- Inspecciona la estructura real del proyecto.
+- Identifica como se inicializa SQLite.
+- Identifica como se registra y se cierra la sesion.
+- Identifica todos los listeners de cambios locales.
+- No inventes nombres de tablas ni APIs que no existan.
+
+Despues de cada cambio:
+
+- Ejecuta la comprobacion mas cercana al archivo modificado.
+- Ejecuta cargo check si cambia Rust.
+- Ejecuta pnpm check si cambia Svelte o TypeScript.
+- Ejecuta pruebas del carril afectado.
+- Revisa que no hayas creado una dependencia entre carriles.
+- No ocultes errores ni declares que esta terminado sin una prueba reproducible.
+
+ENTREGA ESPERADA
+
+Entrega:
+
+- Lista de archivos creados o modificados.
+- Diagrama breve de dependencias entre coordinador, carril web y carril carpeta.
+- Maquina de estados de cada carril.
+- Contrato del envelope web y del paquete de carpeta.
+- Pruebas ejecutadas y resultado.
+- Instrucciones de configuracion del servidor.
+- Riesgos pendientes.
+
+Implementa primero la separacion de responsabilidades y los contratos de datos. Despues implementa el carril web y pruebalo de forma aislada. Luego implementa el carril de carpeta y pruebalo de forma aislada. Solo al final conecta ambos al coordinador de metodo activo.

@@ -44,6 +44,14 @@ export async function restaurarDatosDeDescarga(jsonData: any) {
   try {
     const db = await initDB();
 
+    // 🛡️ ACTIVAR SEMÁFORO: Bloquea el radar durante toda la restauración
+    const { iniciarRestauracion, terminarRestauracion } = await import('$lib/services/db');
+    iniciarRestauracion();
+
+    if (!jsonData || !jsonData.tablas) {
+      throw new Error("El archivo de respaldo está corrupto o vacío.");
+    }
+
     if (!jsonData || !jsonData.tablas) {
       throw new Error("El archivo de respaldo está corrupto o vacío.");
     }
@@ -90,6 +98,9 @@ export async function restaurarDatosDeDescarga(jsonData: any) {
     await insertarDinamico('analisis_visitas', analisis_visitas);
     await insertarDinamico('revision_visitas', revision_visitas);
     if (borradores) await insertarDinamico('configuracion', borradores);
+
+     // 🛡️ DESACTIVAR SEMÁFORO: Reactivamos el radar tras un pequeño delay
+    setTimeout(() => terminarRestauracion(), 3000);
 
     return true; 
 

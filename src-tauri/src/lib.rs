@@ -99,12 +99,12 @@ fn abrir_archivo_nativo(ruta: String) -> Result<(), String> {
 // FUNCIONES ANTERIORES (Corregidas sin punto y coma en los retornos)
 #[tauri::command]
 fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+    return format!("Hello, {}! You've been greeted from Rust!", name);
 }
 
 #[tauri::command]
 fn get_personal_agenda() -> Vec<PersonalTask> {
-    vec![]
+    return vec![];
 }
 
 #[tauri::command]
@@ -130,27 +130,23 @@ fn generar_nombre_respaldo() -> String {
     let fecha_hora = Local::now().format("%Y-%m-%d_%I-%M-%p").to_string();
 
     // Intentamos obtener el nombre (esto funciona bien en Windows)
-    let mut dispositivo = whoami::devicename().unwrap_or("Unknown".to_string());
+    let dispositivo = whoami::devicename().unwrap_or("Unknown".to_string());
 
     // Si estamos en Android, intentamos sacar la marca y el modelo real
     #[cfg(target_os = "android")]
-    {
-        if dispositivo == "Unknown" || dispositivo == "Desconocido" {
-            // Le pedimos a Android la marca y el modelo (ej: Samsung_SM-G991B)
-            // Estas variables suelen estar disponibles en el entorno de ejecución de Tauri en Android
-            let marca =
-                std::env::var("RO_PRODUCT_MANUFACTURER").unwrap_or_else(|_| "Movil".to_string());
-            let modelo =
-                std::env::var("RO_PRODUCT_MODEL").unwrap_or_else(|_| "Android".to_string());
-            dispositivo = format!("{}_{}", marca, modelo);
-        }
-    }
+    let dispositivo = if dispositivo == "Unknown" || dispositivo == "Desconocido" {
+        // Le pedimos a Android la marca y el modelo real (ej: Samsung_SM-G991B)
+        let marca =
+            std::env::var("RO_PRODUCT_MANUFACTURER").unwrap_or_else(|_| "Movil".to_string());
+        let modelo =
+            std::env::var("RO_PRODUCT_MODEL").unwrap_or_else(|_| "Android".to_string());
+        format!("{}_{}", marca, modelo)
+    } else {
+        dispositivo
+    };
 
-    format!("Respaldo_{}_{}.avisits", fecha_hora, dispositivo)
+    return format!("Respaldo_{}_{}.avisits", fecha_hora, dispositivo);
 }
-
-use std::fs;
-use tauri::process::restart; // Importamos la función de reinicio de Tauri
 
 #[tauri::command]
 fn restaurar_bd(app_handle: tauri::AppHandle, ruta_origen: String) -> Result<(), String> {
@@ -220,6 +216,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_folder_tree::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
@@ -239,7 +236,8 @@ pub fn run() {
                 let _ = std::fs::remove_file(&db_path_buf); // Borramos la BD actual
 
                 // Renombramos el archivo temporal para que sea la nueva BD oficial
-                let _ = std::fs::rename(&restore_path, &db_path_buf);
+                std::fs::rename(&restore_path, &db_path_buf)
+                    .expect("No se pudo aplicar la BD restaurada");
             }
             // ----------------------------------------------------------
 

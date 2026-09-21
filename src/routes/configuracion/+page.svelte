@@ -24,6 +24,9 @@
   let nombreCircuito = "";
   let piePagina = "Informe generado por Asistente de Visitas";
   let idioma = "Español";
+    // 🔥 SELECTOR DE MÉTODO DE SINCRONIZACIÓN
+  type MetodoSync = 'web' | 'carpeta' | 'ninguno';
+  let metodoSyncSeleccionado: MetodoSync = 'ninguno';
   
   let mostrarModalReset = false;
   let palabraConfirmacion = "";
@@ -49,6 +52,14 @@
         nombreCircuito = await cargarConfig('nombreCircuito') || "";
         piePagina = await cargarConfig('piePagina') || "Informe generado por Asistente de Visitas";
         idioma = await cargarConfig('idioma') || "Español";
+
+                // 🔥 Cargar el método de sincronización elegido
+        const metodoGuardado = await cargarConfig('metodo_sync');
+        if (metodoGuardado === 'web' || metodoGuardado === 'carpeta') {
+          metodoSyncSeleccionado = metodoGuardado;
+        } else {
+          metodoSyncSeleccionado = 'ninguno';
+        }
 
       } catch (error) {
         console.error("No se pudo cargar la configuración de SQLite:", error);
@@ -132,6 +143,7 @@
       await guardarConfig('nombreCircuito', nombreCircuito);
       await guardarConfig('piePagina', piePagina);
       await guardarConfig('idioma', idioma);
+      await guardarConfig('metodo_sync', metodoSyncSeleccionado);
       // Las variables de sincronización ya se guardan solas al tocarlas
       
       alert("✅ Configuración guardada en SQLite correctamente.");
@@ -336,6 +348,57 @@ function handleModalKeydown(event: KeyboardEvent) {
         <div class="form-group">
           <label for="pie">Pie de Página (Impresión)</label>
           <input id="pie" type="text" class="input-global" bind:value={piePagina} />
+        </div>
+      </div>
+    </section>
+
+        <!-- ========================================== -->
+    <!-- SELECTOR DE MÉTODO DE SINCRONIZACIÓN       -->
+    <!-- ========================================== -->
+    <section class="card-global config-section selector-sync">
+      <div class="section-icon">
+        <Globe size={24} />
+      </div>
+      <div class="section-content">
+        <h3>Método de Sincronización Automática</h3>
+        <p>Elige cómo quieres mantener tus dispositivos sincronizados. Solo el método seleccionado estará activo.</p>
+        
+        <div class="selector-metodo">
+          <button 
+            type="button"
+            class="metodo-btn {metodoSyncSeleccionado === 'web' ? 'activo' : ''}"
+            on:click={() => metodoSyncSeleccionado = 'web'}
+          >
+            <div class="metodo-icono"><CloudSync size={24} /></div>
+            <div class="metodo-info">
+              <strong>Servidor Cloud</strong>
+              <span>Sincroniza por internet</span>
+            </div>
+          </button>
+
+          <button 
+            type="button"
+            class="metodo-btn {metodoSyncSeleccionado === 'carpeta' ? 'activo' : ''}"
+            on:click={() => metodoSyncSeleccionado = 'carpeta'}
+          >
+            <div class="metodo-icono"><FolderSync size={24} /></div>
+            <div class="metodo-info">
+              <strong>Carpeta Local</strong>
+              <span>Drive / OneDrive</span>
+            </div>
+          </button>
+
+          <button 
+            type="button"
+            class="metodo-btn {metodoSyncSeleccionado === 'ninguno' ? 'activo' : ''}"
+            on:click={() => metodoSyncSeleccionado = 'ninguno'}
+          >
+            <div class="metodo-icono">🚫</div>
+            <div class="metodo-info">
+              <strong>Desactivado</strong>
+              <span>Sin sincronización</span>
+            </div>
+          </button>
         </div>
       </div>
     </section>
@@ -1199,6 +1262,85 @@ function handleModalKeydown(event: KeyboardEvent) {
     .alerta-update {
       flex-direction: column;
       gap: 15px;
+    }
+  }
+
+    /* ========================================= */
+  /* SELECTOR DE MÉTODO DE SINCRONIZACIÓN      */
+  /* ========================================= */
+  .selector-sync { border-top: 4px solid var(--primary); }
+  
+  .selector-metodo {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 10px;
+  }
+  
+  .metodo-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 12px;
+    background: var(--bg-app);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    font-family: inherit;
+  }
+  
+  .metodo-btn:hover {
+    border-color: var(--primary);
+    background: var(--bg-panel);
+    transform: translateY(-2px);
+  }
+  
+  .metodo-btn.activo {
+    border-color: var(--primary);
+    background: rgba(92, 10, 31, 0.05);
+    box-shadow: 0 0 0 3px rgba(92, 10, 31, 0.1);
+  }
+  
+  .metodo-icono {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--bg-panel);
+    color: var(--primary);
+    font-size: 24px;
+  }
+  
+  .metodo-btn.activo .metodo-icono {
+    background: var(--primary);
+    color: white;
+  }
+  
+  .metodo-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  
+  .metodo-info strong {
+    font-size: 0.9rem;
+    color: var(--text-main);
+    font-weight: 700;
+  }
+  
+  .metodo-info span {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  
+  @media (max-width: 768px) {
+    .selector-metodo {
+      grid-template-columns: 1fr;
     }
   }
 </style>

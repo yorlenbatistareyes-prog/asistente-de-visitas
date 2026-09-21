@@ -30,6 +30,9 @@
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
+    "folder-tree:allow-pickDirectory",
+    "folder-tree:allow-readSyncFile",
+    "folder-tree:allow-writeSyncFile",
     "store:default",
     "shell:allow-open",
     {

@@ -4,11 +4,11 @@ import { writable, get } from 'svelte/store';
 import { sesionApp } from '$lib/stores/authStore';
 import { chequearEstadoNube, subirRespaldo } from '$lib/services/syncService';
 import { prepararDatosParaSubir } from '$lib/services/dbSyncHelper';
-import { cargarConfig, guardarConfig } from '$lib/services/db';
+import { cargarConfig, guardarConfig, isRestaurando } from '$lib/services/db';
 
 // 🔥 NUEVAS IMPORTACIONES PARA LA CARPETA COMPARTIDA
 import { invoke } from '@tauri-apps/api/core';
-import { writeTextFile, stat } from '@tauri-apps/plugin-fs';
+import { escribirPaqueteSync, leerPaqueteSync } from '$lib/services/folderSyncPath';
 
 export type SyncState = 'inactivo' | 'esperando' | 'sincronizando' | 'al_dia' | 'conflicto' | 'error';
 
@@ -52,25 +52,36 @@ let hayCambiosPendientesDuranteSubida = false;
 // =======================================================
 
 export async function dispararSincronizacionLocal() {
+    console.log("🚀 [dispararSync] Iniciando dispararSincronizacionLocal");
+
     let sesion = get(sesionApp);
 
     if (!sesion.isLoggedIn || !sesion.token) {
+        console.log("🚀 [dispararSync] No hay sesión, intentando rescatar...");
         const tokenGuardado = await cargarConfig('user_token'); 
-        if (!tokenGuardado) return;
+        if (!tokenGuardado) {
+            console.log("🚀 [dispararSync] ABORTADO: No hay token guardado");
+            return;
+        }
         sesion = { isLoggedIn: true, token: tokenGuardado, correo: sesion.correo || '', verificando: sesion.verificando || false };
         sesionApp.set(sesion);
+        console.log("🚀 [dispararSync] Sesión rescatada");
     }
 
     if (get(estadoSyncWeb).estado === 'sincronizando') {
+        console.log("🚀 [dispararSync] Ya está sincronizando, marcando pendiente");
         hayCambiosPendientesDuranteSubida = true;
         return;
     }
 
     if (temporizadorSync) clearTimeout(temporizadorSync);
 
+    console.log("🚀 [dispararSync] Poniendo estado ESPERANDO");
     estadoSyncWeb.set({ estado: 'esperando', mensaje: 'Esperando para sincronizar', nubeDispositivo: '', nubeFecha: '', origenConflicto: 'web' });
 
+    console.log("🚀 [dispararSync] Programando subida en 5 segundos");
     temporizadorSync = setTimeout(async () => {
+        console.log("🚀 [dispararSync] Ejecutando subida AHORA");
         await procesarSubidaAutomatica(sesion.token);
     }, 5000);
 }
@@ -179,10 +190,7 @@ async function ejecutarSincronizacionCarpetaLocal() {
         const llave = await obtenerOCrearLlave();
         const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
 
-        const separador = rutaCarpeta.includes('/') ? '/' : '\\';
-        const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
-
-        await writeTextFile(rutaArchivoFinal, paqueteCifrado);
+        await escribirPaqueteSync(rutaCarpeta, paqueteCifrado);
 
         // 🔥 En lugar de repetir código, usamos la función blindada
         await registrarSubidaCarpetaExitosa();
@@ -253,110 +261,137 @@ export async function registrarSubidaCarpetaExitosa(fechaExacta?: string) {
 export async function comprobarNubeAlAbrir() {
     if (radarPausado) return;
 
-    // 🌐 REVISIÓN INDEPENDIENTE 1: Servidor Web
-    let sesion = get(sesionApp);
-    if (!sesion.isLoggedIn || !sesion.token) {
-        const tokenGuardado = await cargarConfig('user_token'); 
-        if (tokenGuardado) {
-            sesion = { isLoggedIn: true, token: tokenGuardado, correo: sesion.correo || '', verificando: sesion.verificando || false };
-            sesionApp.set(sesion);
+    // 🔥 LEER EL MÉTODO ELEGIDO
+    const metodoActivo = await cargarConfig('metodo_sync');
+    
+    // Si no hay método configurado o es "ninguno", no revisar nada
+    if (!metodoActivo || metodoActivo === 'ninguno') {
+        return;
+    }
+
+    // 🌐 REVISIÓN 1: Servidor Web (solo si el método es 'web')
+    if (metodoActivo === 'web') {
+        let sesion = get(sesionApp);
+        if (!sesion.isLoggedIn || !sesion.token) {
+            const tokenGuardado = await cargarConfig('user_token'); 
+            if (tokenGuardado) {
+                sesion = { isLoggedIn: true, token: tokenGuardado, correo: sesion.correo || '', verificando: sesion.verificando || false };
+                sesionApp.set(sesion);
+            }
+        }
+
+        if (sesion.isLoggedIn && sesion.token) {
+            try {
+                let localUltimaSyncWeb = await cargarConfig('last_synced_web') || "1970-01-01T00:00:00.000Z";
+                const tiempoLocalWeb = new Date(localUltimaSyncWeb).getTime();
+                
+                const estadoNube = await chequearEstadoNube(sesion.token);
+                if (estadoNube && estadoNube.last_synced_at) {
+                    const fechaNube = new Date(estadoNube.last_synced_at).getTime();
+
+                    if (fechaNube > tiempoLocalWeb) {
+                        estadoSyncWeb.update(s => ({
+                            ...s, estado: 'conflicto', mensaje: 'Hay una actualización disponible en la nube.',
+                            nubeDispositivo: estadoNube.last_device || 'Dispositivo desconocido',
+                            nubeFecha: estadoNube.last_synced_at,
+                            origenConflicto: 'web'
+                        }));
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error("Error al comprobar la nube web en el arranque:", error);
+            }
         }
     }
 
-    if (sesion.isLoggedIn && sesion.token) {
+    // 📂 REVISIÓN 2: Carpeta Compartida (solo si el método es 'carpeta')
+            if (metodoActivo === 'carpeta') {
         try {
-            let localUltimaSyncWeb = await cargarConfig('last_synced_web') || "1970-01-01T00:00:00.000Z";
-            const tiempoLocalWeb = new Date(localUltimaSyncWeb).getTime();
-            
-            const estadoNube = await chequearEstadoNube(sesion.token);
-            if (estadoNube && estadoNube.last_synced_at) {
-                const fechaNube = new Date(estadoNube.last_synced_at).getTime();
+            const rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
+            if (rutaCarpeta) {
+                let localUltimaSyncFolder = await cargarConfig('last_synced_folder') || "1970-01-01T00:00:00.000Z";
+                const tiempoLocalFolder = new Date(localUltimaSyncFolder).getTime();
 
-                if (fechaNube > tiempoLocalWeb) {
-                    estadoSyncWeb.update(s => ({
-                        ...s, estado: 'conflicto', mensaje: 'Hay una actualización disponible en la nube.',
-                        nubeDispositivo: estadoNube.last_device || 'Dispositivo desconocido',
-                        nubeFecha: estadoNube.last_synced_at,
-                        origenConflicto: 'web'
-                    }));
-                    return; // Detiene la revisión para que el usuario resuelva esto primero
+                const paquete = await leerPaqueteSync(rutaCarpeta);
+                if (paquete) {
+                    const tiempoCarpeta = paquete.modifiedAt;
+
+                    // 🔍 DIAGNÓSTICO
+                    const diferencia = tiempoCarpeta - tiempoLocalFolder;
+                    console.log("🔍 [Radar Carpeta] last_synced_folder:", localUltimaSyncFolder);
+                    console.log("🔍 [Radar Carpeta] tiempoLocalFolder:", tiempoLocalFolder);
+                    console.log("🔍 [Radar Carpeta] mtime del archivo:", new Date(tiempoCarpeta).toISOString());
+                    console.log("🔍 [Radar Carpeta] tiempoCarpeta:", tiempoCarpeta);
+                    console.log("🔍 [Radar Carpeta] DIFERENCIA (segundos):", (diferencia / 1000).toFixed(2));
+                    console.log("🔍 [Radar Carpeta] ¿Dispara conflicto?:", tiempoCarpeta > (tiempoLocalFolder + 15000));
+
+                    if (tiempoCarpeta > (tiempoLocalFolder + 15000)) {
+                        estadoSyncCarpeta.set({
+                            estado: 'conflicto',
+                            mensaje: 'Hay una actualización disponible en la carpeta compartida.',
+                            nubeDispositivo: 'Otro dispositivo',
+                            nubeFecha: new Date(tiempoCarpeta).toISOString(),
+                            origenConflicto: 'carpeta'
+                        });
+                    }
                 }
             }
-        } catch (error) {
-            console.error("Error al comprobar la nube web en el arranque:", error);
+        } catch (e) {
+            // Ignoramos silenciosamente si la carpeta no está configurada o el archivo aún no existe
         }
-    }
-
-    // 📂 REVISIÓN INDEPENDIENTE 2: Carpeta Compartida
-    try {
-        const rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
-        if (rutaCarpeta) {
-            let localUltimaSyncFolder = await cargarConfig('last_synced_folder') || "1970-01-01T00:00:00.000Z";
-            const tiempoLocalFolder = new Date(localUltimaSyncFolder).getTime();
-
-            const separador = rutaCarpeta.includes('/') ? '/' : '\\';
-            const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
-
-            const infoArchivo = await stat(rutaArchivoFinal);
-            if (infoArchivo && infoArchivo.mtime) {
-                const tiempoCarpeta = infoArchivo.mtime.getTime();
-
-                if (tiempoCarpeta > (tiempoLocalFolder + 15000)) {
-                    estadoSyncCarpeta.set({
-                        estado: 'conflicto',
-                        mensaje: 'Hay una actualización disponible en la carpeta compartida.',
-                        nubeDispositivo: 'Otro dispositivo',
-                        nubeFecha: new Date(tiempoCarpeta).toISOString(),
-                        origenConflicto: 'carpeta'
-                    });
-                }
-            }
-        }
-    } catch (e) {
-        // Ignoramos silenciosamente si la carpeta no está configurada o el archivo aún no existe
     }
 }
 
 if (typeof window !== 'undefined') {
-    if (!(window as any).__radarAVisitsIniciado) {
-        (window as any).__radarAVisitsIniciado = true;
+    let filtroAntiBucle: ReturnType<typeof setTimeout>;
 
-        let filtroAntiBucle: ReturnType<typeof setTimeout>;
+    window.addEventListener('db_local_cambiada', () => {
+        // 🛡️ Si estamos restaurando, ignoramos cualquier cambio
+        if (isRestaurando()) {
+            console.log("🛡️ [SyncStore] Restauración en curso. Ignorando cambio local.");
+            return;
+        }
 
-        window.addEventListener('db_local_cambiada', () => {
-            if (guardandoMetadatosInternosWeb || guardandoMetadatosInternosCarpeta) {
-                console.log("🤫 [SyncStore] Ignorando eco interno.");
+        if (guardandoMetadatosInternosWeb || guardandoMetadatosInternosCarpeta) {
+            console.log("🤫 [SyncStore] Ignorando eco interno.");
+            return;
+        }
+
+        clearTimeout(filtroAntiBucle);
+
+        filtroAntiBucle = setTimeout(async () => {
+            if (isRestaurando()) {
+                console.log("🛡️ [SyncStore] Restauración detectada durante el delay. Ignorando.");
                 return;
             }
 
-            clearTimeout(filtroAntiBucle);
+            // 🔥 LEER EL MÉTODO DE SINCRONIZACIÓN ELEGIDO POR EL USUARIO
+            const metodoActivo = await cargarConfig('metodo_sync');
+            
+            // Si el método es "ninguno" o no está configurado, no hacer nada
+            if (!metodoActivo || metodoActivo === 'ninguno') {
+                return;
+            }
 
-            filtroAntiBucle = setTimeout(async () => {
-                let rutaCarpeta: string | null = null;
-                try { rutaCarpeta = await invoke<string | null>('obtener_ruta_sync'); } catch (e) { rutaCarpeta = null; }
+            // Verificar disponibilidad de cada carril
+            let rutaCarpeta: string | null = null;
+            try { rutaCarpeta = await invoke<string | null>('obtener_ruta_sync'); } catch (e) { rutaCarpeta = null; }
 
-                const sesion = get(sesionApp);
-                const sesionActiva = !!(sesion?.isLoggedIn && sesion?.token);
+            const sesion = get(sesionApp);
+            const sesionActiva = !!(sesion?.isLoggedIn && sesion?.token);
 
-                if (!rutaCarpeta && !sesionActiva) return;
+            // Solo disparar el carril que el usuario eligió
+            if (metodoActivo === 'web' && sesionActiva) {
+                console.log("🌐 [SyncStore] Método activo: WEB. Disparando sync web...");
+                dispararSincronizacionLocal();
+            }
+            
+            if (metodoActivo === 'carpeta' && rutaCarpeta) {
+                console.log("📁 [SyncStore] Método activo: CARPETA. Disparando sync carpeta...");
+                dispararSincronizacionCarpeta();
+            }
 
-                console.log("👂 [SyncStore] Cambio detectado. Disparando métodos activos...");
-                
-                if (sesionActiva) dispararSincronizacionLocal();
-                if (rutaCarpeta) dispararSincronizacionCarpeta();
-
-            }, 1000);
-        });
-
-        setInterval(async () => {
-            try {
-                if (guardandoMetadatosInternosWeb || guardandoMetadatosInternosCarpeta || 
-                    get(estadoSyncWeb).estado === 'sincronizando' || 
-                    get(estadoSyncCarpeta).estado === 'sincronizando' || 
-                    radarPausado) return;
-                
-                await comprobarNubeAlAbrir();
-            } catch (e) {}
-        }, 15000);
-    }
+        }, 1000);
+    });
 }

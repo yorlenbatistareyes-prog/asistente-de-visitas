@@ -2,8 +2,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import { open } from '@tauri-apps/plugin-dialog';
-  import { writeTextFile, readTextFile, stat } from '@tauri-apps/plugin-fs';
   import { CheckCircle, AlertCircle, Info } from 'lucide-svelte';
   
   // Importamos de la base de datos de AVisits
@@ -12,6 +10,7 @@
   // Importamos el estado visual del radar de la carpeta
   // Importamos el estado visual y el registro seguro
   import { estadoSyncCarpeta, registrarSubidaCarpetaExitosa } from '$lib/stores/autoSyncStore';
+  import { esAndroid, seleccionarRutaCarpeta, leerPaqueteSync, escribirPaqueteSync } from '$lib/services/folderSyncPath';
 
   let rutaCarpeta: string | null = null;
   let guardando = false;
@@ -36,20 +35,20 @@
 
   async function seleccionarCarpeta() {
     try {
-      const seleccion = await open({
-        directory: true,
-        multiple: false,
-        title: "Selecciona tu carpeta de Google Drive / OneDrive"
-      });
+      const seleccion = await seleccionarRutaCarpeta();
 
       if (seleccion) {
         guardando = true;
         rutaCarpeta = seleccion as string;
         await guardarRutaSync(rutaCarpeta); // Llama a Rust y notifica al radar
+        if (esAndroid()) {
+          console.log('📱 Android: archivo de sincronización seleccionado:', rutaCarpeta);
+        }
         guardando = false;
       }
     } catch (e) {
       console.error(e);
+      alert(`No se pudo abrir el selector de carpetas: ${e instanceof Error ? e.message : String(e)}`);
       guardando = false;
     }
   }
@@ -73,17 +72,15 @@
       const llave = await obtenerOCrearLlave();
       const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
 
-      const separador = rutaCarpeta.includes('/') ? '/' : '\\';
-      const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
-
-      await writeTextFile(rutaArchivoFinal, paqueteCifrado);
+      await escribirPaqueteSync(rutaCarpeta, paqueteCifrado);
       
       // 🔥 Usamos el registro seguro que bloquea el eco del radar
       await registrarSubidaCarpetaExitosa();
 
     } catch (error) {
       console.error("Error al sincronizar y guardar:", error);
-      estadoSyncCarpeta.set({ estado: 'error', mensaje: 'Error al guardar', nubeDispositivo: '', nubeFecha: '', origenConflicto: 'carpeta' });
+      const detalle = error instanceof Error ? error.message : String(error);
+      estadoSyncCarpeta.set({ estado: 'error', mensaje: `Error al guardar: ${detalle}`, nubeDispositivo: '', nubeFecha: '', origenConflicto: 'carpeta' });
       setTimeout(() => {
           estadoSyncCarpeta.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
       }, 4000);
@@ -101,21 +98,20 @@
       guardando = true;
       iniciarRestauracion(); 
       
-      const separador = rutaCarpeta.includes('/') ? '/' : '\\';
-      const rutaArchivoFinal = `${rutaCarpeta}${separador}sincronizacion_global.avisits`;
-
-      const paqueteCifrado = await readTextFile(rutaArchivoFinal);
+      const paquete = await leerPaqueteSync(rutaCarpeta);
+      const paqueteCifrado = paquete.content;
       const llave = await obtenerOCrearLlave();
+      const tiempoBase = paquete.modifiedAt;
+      const fechaSincronizacion = new Date(tiempoBase + 5000).toISOString();
 
       await invoke('importar_db_encriptada_global', {
         paqueteBase64: paqueteCifrado,
-        llaveBase64: llave
+        llaveBase64: llave,
+        lastSyncedFolder: fechaSincronizacion
       });
 
       // 🔥 BLINDAJE RESTAURACIÓN MANUAL: Emparejamos la fecha con la de la carpeta
-      const infoArchivo = await stat(rutaArchivoFinal);
-      const tiempoBase = infoArchivo && infoArchivo.mtime ? infoArchivo.mtime.getTime() : Date.now();
-      await guardarConfig('last_synced_folder', new Date(tiempoBase + 5000).toISOString());
+      await guardarConfig('last_synced_folder', fechaSincronizacion);
       
       await new Promise(resolve => setTimeout(resolve, 500)); // Pausa para SQLite
 
@@ -227,8 +223,6 @@
     .btn-moderno { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
     .btn-moderno:disabled { opacity: 0.5; cursor: not-allowed; }
     
-    .btn-outline { background: transparent; color: var(--text-main); border-color: var(--border-color); }
-    .btn-outline:hover:not(:disabled) { background: var(--bg-app); border-color: var(--text-muted); }
 
     @media (max-width: 600px) {
         .grupo-input { flex-direction: column; gap: 10px; }
