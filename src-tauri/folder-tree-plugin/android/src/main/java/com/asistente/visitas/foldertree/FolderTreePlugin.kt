@@ -17,12 +17,14 @@ import android.util.Base64
 @InvokeArg
 class FolderArgs {
     lateinit var treeUri: String
+    var fileName: String? = null
 }
 
 @InvokeArg
 class WriteArgs {
     lateinit var treeUri: String
     lateinit var content: String
+    var fileName: String? = null
 }
 
 @TauriPlugin
@@ -63,8 +65,9 @@ class FolderTreePlugin(private val activity: Activity) : Plugin(activity) {
     fun readSyncFile(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(FolderArgs::class.java)
-            val file = findSyncFile(args.treeUri)
-                ?: throw IllegalStateException("No existe sincronizacion_global.avisits en la carpeta")
+            val fileName = args.fileName ?: "sincronizacion_global.avisits"
+            val file = findSyncFile(args.treeUri, fileName)
+                ?: throw IllegalStateException("No existe $fileName en la carpeta")
             val bytes = activity.contentResolver.openInputStream(file.uri)?.use { it.readBytes() }
                 ?: throw IllegalStateException("No se pudo leer el archivo sincronizado")
             val result = JSObject()
@@ -82,8 +85,9 @@ class FolderTreePlugin(private val activity: Activity) : Plugin(activity) {
             val args = invoke.parseArgs(WriteArgs::class.java)
             val tree = tree(args.treeUri)
                 ?: throw IllegalStateException("La carpeta sincronizada ya no está disponible")
-            val file = findSyncFile(args.treeUri)
-                ?: tree.createFile("application/octet-stream", "sincronizacion_global.avisits")
+            val fileName = args.fileName ?: "sincronizacion_global.avisits"
+            val file = findSyncFile(args.treeUri, fileName)
+                ?: tree.createFile("application/octet-stream", fileName)
                 ?: throw IllegalStateException("No se pudo crear el archivo sincronizado")
             val bytes = Base64.decode(args.content, Base64.NO_WRAP)
             activity.contentResolver.openOutputStream(file.uri, "wt")?.use { it.write(bytes) }
@@ -97,6 +101,6 @@ class FolderTreePlugin(private val activity: Activity) : Plugin(activity) {
     private fun tree(treeUri: String): DocumentFile? =
         DocumentFile.fromTreeUri(activity, Uri.parse(treeUri))
 
-    private fun findSyncFile(treeUri: String): DocumentFile? =
-        tree(treeUri)?.findFile("sincronizacion_global.avisits")
+    private fun findSyncFile(treeUri: String, fileName: String? = null): DocumentFile? =
+        tree(treeUri)?.findFile(fileName ?: "sincronizacion_global.avisits")
 }

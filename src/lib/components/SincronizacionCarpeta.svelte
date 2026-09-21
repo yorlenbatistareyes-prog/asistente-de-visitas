@@ -10,7 +10,7 @@
   // Importamos el estado visual del radar de la carpeta
   // Importamos el estado visual y el registro seguro
   import { estadoSyncCarpeta, registrarSubidaCarpetaExitosa } from '$lib/stores/autoSyncStore';
-  import { esAndroid, seleccionarRutaCarpeta, leerPaqueteSync, escribirPaqueteSync } from '$lib/services/folderSyncPath';
+  import { esAndroid, seleccionarRutaCarpeta, leerPaqueteSync, escribirPaqueteSync, obtenerOCrearLlaveCarpeta } from '$lib/services/folderSyncPath';
 
   let rutaCarpeta: string | null = null;
   let guardando = false;
@@ -22,16 +22,6 @@
       console.log("Aún no hay ruta configurada.");
     }
   });
-
-  // Función para obtener la llave de seguridad (si no existe, la crea)
-  async function obtenerOCrearLlave(): Promise<string> {
-    let llave = await cargarConfig('llave_carpeta_sync');
-    if (!llave) {
-        llave = await invoke<string>('generar_llave_invisible');
-        await guardarConfig('llave_carpeta_sync', llave);
-    }
-    return llave;
-  }
 
   async function seleccionarCarpeta() {
     try {
@@ -69,7 +59,7 @@
 
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const llave = await obtenerOCrearLlave();
+      const llave = await obtenerOCrearLlaveCarpeta(rutaCarpeta);
       const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
 
       await escribirPaqueteSync(rutaCarpeta, paqueteCifrado);
@@ -79,7 +69,7 @@
 
     } catch (error) {
       console.error("Error al sincronizar y guardar:", error);
-      const detalle = error instanceof Error ? error.message : String(error);
+      const detalle = error instanceof Error ? error.message : typeof error === 'string' ? error : JSON.stringify(error);
       estadoSyncCarpeta.set({ estado: 'error', mensaje: `Error al guardar: ${detalle}`, nubeDispositivo: '', nubeFecha: '', origenConflicto: 'carpeta' });
       setTimeout(() => {
           estadoSyncCarpeta.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
@@ -100,7 +90,7 @@
       
       const paquete = await leerPaqueteSync(rutaCarpeta);
       const paqueteCifrado = paquete.content;
-      const llave = await obtenerOCrearLlave();
+      const llave = await obtenerOCrearLlaveCarpeta(rutaCarpeta);
       const tiempoBase = paquete.modifiedAt;
       const fechaSincronizacion = new Date(tiempoBase + 5000).toISOString();
 
@@ -117,7 +107,8 @@
 
     } catch (error) {
       console.error("Error al importar la sincronización:", error);
-      alert("Hubo un error al leer o restaurar el archivo. Asegúrate de que exista y no esté corrupto.");
+      const detalle = error instanceof Error ? error.message : String(error);
+      alert(`Hubo un error al leer o restaurar el archivo: ${detalle}`);
       terminarRestauracion(); 
     } finally {
       guardando = false;

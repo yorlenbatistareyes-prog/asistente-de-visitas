@@ -1,6 +1,6 @@
 [package]
 name = "asistente-de-visitas"
-version = "2.0.8"
+version = "2.0.14"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"

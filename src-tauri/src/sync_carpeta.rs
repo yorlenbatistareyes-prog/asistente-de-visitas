@@ -36,7 +36,7 @@ pub fn exportar_db_encriptada_global(llave_base64: String, app_handle: AppHandle
         .map_err(|e| format!("Error al leer la copia de la base de datos: {}", e))?;
     let _ = fs::remove_file(&snapshot_path);
 
-    let key_bytes = general_purpose::STANDARD.decode(llave_base64).map_err(|e| e.to_string())?;
+    let key_bytes = general_purpose::STANDARD.decode(&llave_base64).map_err(|e| e.to_string())?;
     let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_bytes);
     let cipher = Aes256Gcm::new(key);
 
@@ -49,7 +49,8 @@ pub fn exportar_db_encriptada_global(llave_base64: String, app_handle: AppHandle
     let mut paquete_completo = nonce_bytes.to_vec();
     paquete_completo.extend_from_slice(&cifrado);
 
-    Ok(general_purpose::STANDARD.encode(paquete_completo))
+    let paquete_base64 = general_purpose::STANDARD.encode(paquete_completo);
+    Ok(format!("AVISITS2:{}:{}", llave_base64, paquete_base64))
 }
 
 // 2. Descifrar e Importar (Sobrescribir la Base de Datos local)
@@ -60,8 +61,17 @@ pub fn importar_db_encriptada_global(
     last_synced_folder: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let key_bytes = general_purpose::STANDARD.decode(llave_base64).map_err(|e| e.to_string())?;
-    let paquete_bytes = general_purpose::STANDARD.decode(paquete_base64).map_err(|e| e.to_string())?;
+    let (llave_efectiva, paquete_efectivo) = if let Some(resto) = paquete_base64.strip_prefix("AVISITS2:") {
+        let (llave_embebida, paquete) = resto
+            .split_once(':')
+            .ok_or_else(|| "El archivo de sincronización está corrupto.".to_string())?;
+        (llave_embebida, paquete)
+    } else {
+        (llave_base64.as_str(), paquete_base64.as_str())
+    };
+
+    let key_bytes = general_purpose::STANDARD.decode(llave_efectiva).map_err(|e| e.to_string())?;
+    let paquete_bytes = general_purpose::STANDARD.decode(paquete_efectivo).map_err(|e| e.to_string())?;
 
     if paquete_bytes.len() < 12 {
         return Err("El archivo de sincronización está corrupto.".into());

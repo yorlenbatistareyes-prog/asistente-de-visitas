@@ -19,7 +19,7 @@
   import { estadoSyncWeb, estadoSyncCarpeta, comprobarNubeAlAbrir, pausarRadarTemporalmente, } from '$lib/stores/autoSyncStore';
   import { descargarRespaldo, subirRespaldo } from '$lib/services/syncService';
   import { prepararDatosParaSubir, restaurarDatosDeDescarga } from '$lib/services/dbSyncHelper';
-  import { leerPaqueteSync, escribirPaqueteSync } from '$lib/services/folderSyncPath';
+  import { leerPaqueteSync, escribirPaqueteSync, obtenerOCrearLlaveCarpeta } from '$lib/services/folderSyncPath';
 
   // Importamos los iconos que usaremos (Añadí ServerCrash y UploadCloud para el modal)
   import { 
@@ -66,7 +66,7 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "2.0.8": [
+    "2.0.9": [
       { texto: "Se mejoró la opción de seleccionar la carpeta de sincronización en Google Drive / OneDrive desde android.", tipo: "Zap" },
       
     ]
@@ -104,7 +104,7 @@
         if (!rutaCarpeta) throw new Error("No hay ruta de carpeta configurada.");
         const paquete = await leerPaqueteSync(rutaCarpeta);
         const paqueteCifrado = paquete.content;
-        const llave = await cargarConfig('llave_carpeta_sync');
+        const llave = await obtenerOCrearLlaveCarpeta(rutaCarpeta);
 
         // 🛡️ Usar la HORA ACTUAL (no el mtime del archivo, que puede estar desfasado o en el futuro)
         const fechaCarpeta = new Date().toISOString();
@@ -157,8 +157,9 @@
       setTimeout(() => window.location.reload(), 5000);
 
     } catch (e) {
-      console.error(e);
-      storeActual.update(s => ({ ...s, estado: 'error', mensaje: 'Fallo al descargar' }));
+      console.error('📂 [DESCARGA] Fallo al descargar/restaurar:', e);
+      const detalle = e instanceof Error ? e.message : typeof e === 'string' ? e : JSON.stringify(e);
+      storeActual.update(s => ({ ...s, estado: 'error', mensaje: `Fallo al descargar: ${detalle}` }));
       procesandoConflicto = false;
     }
   }
@@ -183,7 +184,7 @@
       } else if (conflictoActivo.origenConflicto === 'carpeta') {
         const rutaCarpeta = await invoke<string | null>('obtener_ruta_sync');
         if (rutaCarpeta) {
-          const llave = await cargarConfig('llave_carpeta_sync');
+          const llave = await obtenerOCrearLlaveCarpeta(rutaCarpeta);
           const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
           await escribirPaqueteSync(rutaCarpeta, paqueteCifrado);
           await guardarConfig('last_synced_folder', fechaActual);

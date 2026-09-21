@@ -8,7 +8,7 @@ import { cargarConfig, guardarConfig, isRestaurando } from '$lib/services/db';
 
 // 🔥 NUEVAS IMPORTACIONES PARA LA CARPETA COMPARTIDA
 import { invoke } from '@tauri-apps/api/core';
-import { escribirPaqueteSync, leerPaqueteSync } from '$lib/services/folderSyncPath';
+import { escribirPaqueteSync, leerPaqueteSync, obtenerOCrearLlaveCarpeta } from '$lib/services/folderSyncPath';
 
 export type SyncState = 'inactivo' | 'esperando' | 'sincronizando' | 'al_dia' | 'conflicto' | 'error';
 
@@ -150,21 +150,6 @@ async function procesarSubidaAutomatica(token: string) {
 // --- 2. LÓGICA DE CARPETA COMPARTIDA (CARRIL INDEPENDIENTE) ---
 // =======================================================
 
-async function obtenerOCrearLlave(): Promise<string> {
-    let llave = await cargarConfig('llave_carpeta_sync');
-    if (!llave) {
-        llave = await invoke<string>('generar_llave_invisible');
-        
-        guardandoMetadatosInternosCarpeta = true;
-        try {
-            await guardarConfig('llave_carpeta_sync', llave);
-        } finally {
-            setTimeout(() => { guardandoMetadatosInternosCarpeta = false; }, 2000);
-        }
-    }
-    return llave;
-}
-
 export function dispararSincronizacionCarpeta() {
     if (temporizadorCarpeta) clearTimeout(temporizadorCarpeta);
     
@@ -187,7 +172,7 @@ async function ejecutarSincronizacionCarpetaLocal() {
         // ⏱️ Pausa de 1.5s para que el usuario pueda ver el estado visualmente
         await new Promise(resolve => setTimeout(resolve, 1500));
 
-        const llave = await obtenerOCrearLlave();
+        const llave = await obtenerOCrearLlaveCarpeta(rutaCarpeta);
         const paqueteCifrado = await invoke<string>('exportar_db_encriptada_global', { llaveBase64: llave });
 
         await escribirPaqueteSync(rutaCarpeta, paqueteCifrado);
@@ -197,7 +182,12 @@ async function ejecutarSincronizacionCarpetaLocal() {
 
     } catch (error) {
         console.error("❌ [CarpetaSync] Error al sincronizar en la carpeta local:", error);
-        estadoSyncCarpeta.update(s => ({ ...s, estado: 'error', mensaje: 'Error en carpeta local' }));
+        const detalle = error instanceof Error
+            ? error.message
+            : typeof error === 'string'
+                ? error
+                : JSON.stringify(error);
+        estadoSyncCarpeta.update(s => ({ ...s, estado: 'error', mensaje: `Error en carpeta local: ${detalle}` }));
         setTimeout(() => {
             if (get(estadoSyncCarpeta).estado === 'error') {
                 estadoSyncCarpeta.update(s => ({ ...s, estado: 'inactivo', mensaje: '' }));
