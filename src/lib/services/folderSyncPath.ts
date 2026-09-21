@@ -45,7 +45,16 @@ export async function leerPaqueteSync(ruta: string): Promise<{ content: string; 
     const result = await invoke<AndroidReadResult>('plugin:folder-tree|readSyncFile', {
       treeUri: ruta
     });
-    return { content: result.content, modifiedAt: result.modifiedAt };
+    
+    let textoFinal = result.content;
+    // 🔥 EL ESCUDO INTELIGENTE:
+    // Si Android no nos mandó "AVISITS2:" de frente, significa que viene en Base64, así que lo decodificamos.
+    // Si ya trae "AVISITS2:", lo dejamos quieto para que atob() no explote.
+    if (!textoFinal.startsWith('AVISITS2:')) {
+      textoFinal = atob(textoFinal);
+    }
+    
+    return { content: textoFinal, modifiedAt: result.modifiedAt };
   }
 
   const archivo = obtenerRutaArchivoSync(ruta);
@@ -115,7 +124,8 @@ export async function obtenerOCrearLlaveCarpeta(ruta: string): Promise<string> {
     } catch (error) {
       if (nombre === NOMBRE_ARCHIVO_CLAVE_ANTERIOR || !esUriAndroid(ruta)) {
         if (esUriAndroid(ruta)) {
-          const detalle = error instanceof Error ? error.message : String(error);
+          // 🔥 EL ARREGLO: Usar JSON.stringify para no ver [object Object]
+          const detalle = error instanceof Error ? error.message : JSON.stringify(error);
           throw new Error(`No se pudo leer la clave compartida en la carpeta seleccionada: ${detalle}`);
         }
       }

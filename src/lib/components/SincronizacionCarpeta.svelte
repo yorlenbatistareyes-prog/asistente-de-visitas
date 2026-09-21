@@ -107,7 +107,8 @@
 
     } catch (error) {
       console.error("Error al importar la sincronización:", error);
-      const detalle = error instanceof Error ? error.message : String(error);
+      // 🔥 EL ARREGLO: JSON.stringify extrae el texto real en vez de [object Object]
+      const detalle = error instanceof Error ? error.message : (typeof error === 'string' ? error : JSON.stringify(error));
       alert(`Hubo un error al leer o restaurar el archivo: ${detalle}`);
       terminarRestauracion(); 
     } finally {

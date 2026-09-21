@@ -66,7 +66,7 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "2.0.9": [
+    "2.0.16": [
       { texto: "Se mejoró la opción de seleccionar la carpeta de sincronización en Google Drive / OneDrive desde android.", tipo: "Zap" },
       
     ]
