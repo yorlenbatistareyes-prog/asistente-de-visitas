@@ -160,7 +160,10 @@
       estado = 'exito';
       const fechaSinc = new Date(datosNube.backup.last_synced_at).toLocaleString();
       mensaje = `¡Datos restaurados con éxito! (De: ${fechaSinc})`;
-      setTimeout(() => estado = 'inactivo', 6000);
+      setTimeout(() => { 
+          window.location.reload(); 
+      }, 1500);
+      
     } catch (error) {
       mostrarError(getErrorMessage(error));
     }

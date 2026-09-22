@@ -137,8 +137,14 @@
 
             <!-- Botones de Acción -->
             <div class="acciones-visita">
-              <button class="btn-accion" on:click={() => abrirVisita(visita.id)}>
-                Documentar <ArrowRight size={14} />
+              <button class="btn-accion {visita.estado !== 'pendiente' && visita.estado !== 'en_progreso' ? 'btn-completado' : ''}" on:click={() => abrirVisita(visita.id)}>
+                {#if visita.estado === 'pendiente'}
+                  Documentar <ArrowRight size={14} />
+                {:else if visita.estado === 'en_progreso'}
+                  Continuar <ArrowRight size={14} />
+                {:else}
+                  Revisar <ArrowRight size={14} />
+                {/if}
               </button>
               <button class="btn-borrar" on:click={() => confirmarEliminarVisita(visita.id)} title="Eliminar visita">
                 <Trash2 size={18} />
@@ -321,6 +327,18 @@
   }
   .btn-accion:hover { background: #3a0411; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(92, 10, 31, 0.3); }
 
+/* Variante para botón de visita completada */
+  .btn-accion.btn-completado {
+    background: transparent !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-muted) !important;
+    box-shadow: none !important;
+  }
+  .btn-accion.btn-completado:hover {
+    border-color: var(--primary) !important;
+    color: var(--primary) !important;
+    transform: translateY(-1px);
+  }
   .btn-borrar {
     background: transparent; border: 1px solid #fecaca; color: #ef4444; 
     width: 38px; height: 38px; border-radius: 8px; display: flex; 

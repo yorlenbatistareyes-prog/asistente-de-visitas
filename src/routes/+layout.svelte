@@ -66,8 +66,8 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "2.0.16": [
-      { texto: "Se mejoró la opción de seleccionar la carpeta de sincronización en Google Drive / OneDrive desde android.", tipo: "Zap" },
+    "2.0.18": [
+      { texto: "Corregido error al sincronizarse los datos la aplicación se quedaba en segundo plano al reiniciarse.", tipo: "error: Bug" },
       
     ]
   };

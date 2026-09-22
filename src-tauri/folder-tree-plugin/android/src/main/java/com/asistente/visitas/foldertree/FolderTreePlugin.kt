@@ -29,13 +29,18 @@ class WriteArgs {
 
 @TauriPlugin
 class FolderTreePlugin(private val activity: Activity) : Plugin(activity) {
-    @Command
+   @Command
     fun pickDirectory(invoke: Invoke) {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
             addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
             addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+            
+            // Forzar a Android a mostrar proveedores de nube ocultos (como Google Drive)
+            putExtra("android.content.extra.SHOW_ADVANCED", true)
+            putExtra("android.content.extra.FANCY", true)
+            putExtra("android.content.extra.SHOW_FILESIZE", true)
         }
         startActivityForResult(invoke, intent, "directoryResult")
     }

@@ -109,11 +109,13 @@ pub fn importar_db_encriptada_global(
 
     // 🌟 EL TRUCO MAESTRO: Hilo en segundo plano para retrasar el reinicio
     // Esto permite devolver el 'Ok' a Svelte para que guarde el localStorage ANTES de morir
+   /*
     let env = app_handle.env();
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(1500));
         tauri::process::restart(&env);
     });
+    */
 
     Ok(())
 }

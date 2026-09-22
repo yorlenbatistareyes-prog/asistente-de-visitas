@@ -105,6 +105,8 @@
       
       await new Promise(resolve => setTimeout(resolve, 500)); // Pausa para SQLite
 
+      window.location.reload();
+      
     } catch (error) {
       console.error("Error al importar la sincronización:", error);
       // 🔥 EL ARREGLO: JSON.stringify extrae el texto real en vez de [object Object]
