@@ -211,6 +211,19 @@ export async function initDB(): Promise<Database> {
   }
 }
 
+// --- CERRAR CONEXIÓN (Liberar candado de Windows) ---
+export async function cerrarConexionDB() {
+  if (dbInstance) {
+    try {
+      await dbInstance.close();
+      dbInstance = null;
+      console.log("🔒 [DB] Conexión cerrada para permitir el cambiazo.");
+    } catch (e) {
+      console.error("Error al cerrar la base de datos:", e);
+    }
+  }
+}
+
 // --- 2. GESTIÓN DE CIRCUITOS ---
 
 export async function crearCircuito(nombre: string, etiquetas: string = "", fechaInicio: string = "", fechaFin: string = "") {

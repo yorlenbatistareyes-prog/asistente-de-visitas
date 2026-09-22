@@ -155,17 +155,18 @@ fn restaurar_bd(app_handle: tauri::AppHandle, ruta_origen: String) -> Result<(),
         .app_data_dir()
         .map_err(|e| e.to_string())?;
 
-    // Guardamos la copia con un nombre temporal
+    let db_path = app_data_dir.join("av_database.db");
     let restore_path = app_data_dir.join("av_database_restore.db");
+    
+    // Copiamos la BD descargada al archivo temporal
     std::fs::copy(&ruta_origen, &restore_path).map_err(|e| format!("Error al copiar: {}", e))?;
 
-    // 🌟 MISMO TRUCO: Retrasamos el reinicio 1.5 segundos
-    /*
-    let env = app_handle.env();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(1500));
-        tauri::process::restart(&env);
-    });*/
+    // 👇 EL CAMBIAZO EN VIVO
+    let _ = std::fs::remove_file(app_data_dir.join("av_database.db-wal"));
+    let _ = std::fs::remove_file(app_data_dir.join("av_database.db-shm"));
+    let _ = std::fs::remove_file(&db_path);
+    
+    std::fs::rename(&restore_path, &db_path).map_err(|e| format!("Error al aplicar la BD en vivo: {}", e))?;
 
     Ok(())
 }

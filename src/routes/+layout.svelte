@@ -9,7 +9,7 @@
 
   // Importamos getVersion y las funciones de DB
   import { getVersion } from '@tauri-apps/api/app'; 
-  import { cargarConfig, guardarConfig } from '$lib/services/db';
+  import { cargarConfig, guardarConfig, cerrarConexionDB } from '$lib/services/db';
 
   import { verificarActualizacion, irA_Descarga } from '$lib/services/updater';
 
@@ -66,8 +66,8 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "2.0.18": [
-      { texto: "Corregido error al sincronizarse los datos la aplicación se quedaba en segundo plano al reiniciarse.", tipo: "error: Bug" },
+    "2.0.19": [
+      { texto: "Corregido error al sincronizarse los datos la aplicación no mostraba datos nuevos creados desde otro dispositivo.", tipo: "error: Bug" },
       
     ]
   };
@@ -109,6 +109,10 @@
         // 🛡️ Usar la HORA ACTUAL (no el mtime del archivo, que puede estar desfasado o en el futuro)
         const fechaCarpeta = new Date().toISOString();
         console.log("📂 [DESCARGA] Importando BD desde carpeta...");
+        // 🛡️ SOLTAMOS EL ARCHIVO PARA QUE RUST PUEDA SOBRESCRIBIRLO
+        console.log("📂 [DESCARGA] Cerrando conexión local de SQLite...");
+        await cerrarConexionDB();
+
         await invoke('importar_db_encriptada_global', {
           paqueteBase64: paqueteCifrado,
           llaveBase64: llave,

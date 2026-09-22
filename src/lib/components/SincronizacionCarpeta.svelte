@@ -5,7 +5,7 @@
   import { CheckCircle, AlertCircle, Info } from 'lucide-svelte';
   
   // Importamos de la base de datos de AVisits
-  import { guardarRutaSync, cargarConfig, guardarConfig, iniciarRestauracion, terminarRestauracion } from '$lib/services/db';
+  import { guardarRutaSync, cargarConfig, guardarConfig, iniciarRestauracion, terminarRestauracion, cerrarConexionDB } from '$lib/services/db';
   
   // Importamos el estado visual del radar de la carpeta
   // Importamos el estado visual y el registro seguro
@@ -93,6 +93,9 @@
       const llave = await obtenerOCrearLlaveCarpeta(rutaCarpeta);
       const tiempoBase = paquete.modifiedAt;
       const fechaSincronizacion = new Date(tiempoBase + 5000).toISOString();
+
+      // 🛡️ SOLTAMOS EL ARCHIVO
+      await cerrarConexionDB();
 
       await invoke('importar_db_encriptada_global', {
         paqueteBase64: paqueteCifrado,

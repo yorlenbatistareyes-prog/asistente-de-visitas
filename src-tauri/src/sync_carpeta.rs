@@ -100,6 +100,7 @@ pub fn importar_db_encriptada_global(
         [],
     )
     .map_err(|e| format!("Error al preparar la configuración restaurada: {}", e))?;
+    // ... (código anterior)
     conn.execute(
         "INSERT INTO configuracion (clave, valor) VALUES (?1, ?2)
          ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
@@ -107,15 +108,19 @@ pub fn importar_db_encriptada_global(
     )
     .map_err(|e| format!("Error al guardar la fecha de sincronización: {}", e))?;
 
-    // 🌟 EL TRUCO MAESTRO: Hilo en segundo plano para retrasar el reinicio
-    // Esto permite devolver el 'Ok' a Svelte para que guarde el localStorage ANTES de morir
-   /*
-    let env = app_handle.env();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(1500));
-        tauri::process::restart(&env);
-    });
-    */
+    // 👇 1. Soltamos el archivo temporal para que Windows no lo bloquee
+    drop(conn);
+
+    // 👇 2. EL CAMBIAZO EN VIVO
+    let db_path = app_dir.join("av_database.db");
+    
+    // Limpiamos los temporales de SQLite para evitar corrupción
+    let _ = std::fs::remove_file(app_dir.join("av_database.db-wal"));
+    let _ = std::fs::remove_file(app_dir.join("av_database.db-shm"));
+    
+    // Eliminamos la BD vieja y renombramos la nueva
+    let _ = std::fs::remove_file(&db_path);
+    std::fs::rename(&restore_path, &db_path).map_err(|e| format!("Error al aplicar la BD en vivo: {}", e))?;
 
     Ok(())
 }
