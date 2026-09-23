@@ -9,6 +9,8 @@
   import { fechaPorCongregacion } from '$lib/stores/appStore'; 
   import NuevaCongregacionModal from "$lib/components/modals/NuevaCongregacionModal.svelte";
   
+  import { abrirWhatsApp, abrirCorreoJWPub } from '$lib/utils/contacto';
+
   import { 
     obtenerCircuitoPorId, 
     obtenerCongregaciones, 
@@ -183,6 +185,7 @@
           <div class="info-bloque">
             <Clock size={14} class="info-icon" />
             <div class="text-sm">
+            <span class="etiqueta-gris" style="text-transform: none;">Reuniones:</span>
               <div>{cong.diaSemana || 'Miércoles'}, {cong.horaSemana || '--:--'}</div>
               <div>{cong.diaFinSemana || 'Domingo'}, {cong.horaFinSemana || '--:--'}</div>
             </div>
@@ -191,7 +194,7 @@
           <div class="info-bloque direccion-bloque">
             <MapPin size={14} class="info-icon" style="margin-top: 3px;" />
             <div class="text-sm">
-              <span class="etiqueta-gris">Lugar de reunión:</span><br>
+              <span class="etiqueta-gris" style="text-transform: none;">Lugar de reunión:</span><br>
               {#if cong.enlace_mapa}
                 <a href={cong.enlace_mapa} target="_blank" class="enlace-mapa">{cong.direccion_salon || 'Abrir en Google Maps'} <ExternalLink size={12}/></a>
               {:else}
@@ -205,20 +208,20 @@
             <div class="dir-card">
               <span class="dir-rol">Coordinador</span>
               <span class="dir-nombre">{estadisticas[cong.nombre]?.cca?.nombre || 'No asignado'}</span>
-              <span class="dir-contacto"><Phone size={10}/> {estadisticas[cong.nombre]?.cca?.tel || '--'}</span>
-              <span class="dir-contacto"><Mail size={10}/> {estadisticas[cong.nombre]?.cca?.email || '--'}</span>
+              <span class="dir-contacto clickable-contact" role="button" tabindex="0" on:click={() => abrirWhatsApp(estadisticas[cong.nombre]?.cca?.tel, "Hola hermano...")} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && abrirWhatsApp(estadisticas[cong.nombre]?.cca?.tel, "Hola hermano...")}><Phone size={10}/> {estadisticas[cong.nombre]?.cca?.tel || '--'}</span>
+              <span class="dir-contacto clickable-contact" role="button" tabindex="0" on:click={() => abrirCorreoJWPub(estadisticas[cong.nombre]?.cca?.email, "Asunto", "Mensaje...")} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && abrirCorreoJWPub(estadisticas[cong.nombre]?.cca?.email, "Asunto", "Mensaje...")}><Mail size={10}/> {estadisticas[cong.nombre]?.cca?.email || '--'}</span>
             </div>
             <div class="dir-card">
               <span class="dir-rol">Secretario</span>
               <span class="dir-nombre">{estadisticas[cong.nombre]?.sec?.nombre || 'No asignado'}</span>
-              <span class="dir-contacto"><Phone size={10}/> {estadisticas[cong.nombre]?.sec?.tel || '--'}</span>
-              <span class="dir-contacto"><Mail size={10}/> {estadisticas[cong.nombre]?.sec?.email || '--'}</span>
+              <span class="dir-contacto clickable-contact" role="button" tabindex="0" on:click={() => abrirWhatsApp(estadisticas[cong.nombre]?.sec?.tel, "Hola hermano...")} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && abrirWhatsApp(estadisticas[cong.nombre]?.sec?.tel, "Hola hermano...")}><Phone size={10}/> {estadisticas[cong.nombre]?.sec?.tel || '--'}</span>
+              <span class="dir-contacto clickable-contact" role="button" tabindex="0" on:click={() => abrirCorreoJWPub(estadisticas[cong.nombre]?.sec?.email, "Asunto", "Mensaje...")} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && abrirCorreoJWPub(estadisticas[cong.nombre]?.sec?.email, "Asunto", "Mensaje...")}><Mail size={10}/> {estadisticas[cong.nombre]?.sec?.email || '--'}</span>
             </div>
             <div class="dir-card">
               <span class="dir-rol">S. de Servicio</span>
               <span class="dir-nombre">{estadisticas[cong.nombre]?.ss?.nombre || 'No asignado'}</span>
-              <span class="dir-contacto"><Phone size={10}/> {estadisticas[cong.nombre]?.ss?.tel || '--'}</span>
-              <span class="dir-contacto"><Mail size={10}/> {estadisticas[cong.nombre]?.ss?.email || '--'}</span>
+              <span class="dir-contacto clickable-contact" role="button" tabindex="0" on:click={() => abrirWhatsApp(estadisticas[cong.nombre]?.ss?.tel, "Hola hermano...")} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && abrirWhatsApp(estadisticas[cong.nombre]?.ss?.tel, "Hola hermano...")}><Phone size={10}/> {estadisticas[cong.nombre]?.ss?.tel || '--'}</span>
+              <span class="dir-contacto clickable-contact" role="button" tabindex="0" on:click={() => abrirCorreoJWPub(estadisticas[cong.nombre]?.ss?.email, "Asunto", "Mensaje...")} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && abrirCorreoJWPub(estadisticas[cong.nombre]?.ss?.email, "Asunto", "Mensaje...")}><Mail size={10}/> {estadisticas[cong.nombre]?.ss?.email || '--'}</span>
             </div>
           </div>
         </div>
@@ -309,5 +312,14 @@
     .toolbar-botones .btn-primary, .toolbar-botones .btn-importar { flex: 1 1 45%; justify-content: center; }
     .toolbar-botones .btn-danger-fino { flex: 1 1 100%; justify-content: center; }
     .grid-tarjetas { grid-template-columns: 1fr; }
+  }
+
+  .clickable-contact {
+    cursor: pointer;
+    transition: color 0.15s ease;
+  }
+  .clickable-contact:hover {
+    color: #2563eb; /* Azul elegante de enlaces */
+    text-decoration: underline;
   }
 </style>
