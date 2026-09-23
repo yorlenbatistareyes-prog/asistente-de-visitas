@@ -54,6 +54,15 @@
       "allow": [
         {
           "url": "https://updates.ejvapps.online/**"
+        },
+        {
+          "url": "https://wa.me/**"
+        },
+        {
+          "url": "https://mail.jwpub.org/**"
+        },
+        {
+          "url": "whatsapp://**"
         }
       ]
     }

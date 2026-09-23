@@ -6,17 +6,16 @@ export async function abrirWhatsApp(telefono: string | null | undefined, mensaje
   const numeroLimpio = telefono.replace(/\D/g, '');
   if (!numeroLimpio) return;
 
-  const nativeUrl = `whatsapp://send?phone=${numeroLimpio}&text=${encodeURIComponent(mensaje)}`;
-  const webUrl = `https://wa.me/${numeroLimpio}?text=${encodeURIComponent(mensaje)}`;
+  // Protocolo nativo para abrir directamente el chat con el número y mensaje
+  const nativeUrl = `whatsapp://send?phone=${numeroLimpio}${mensaje ? `&text=${encodeURIComponent(mensaje)}` : ''}`;
 
   try {
     await openUrl(nativeUrl);
   } catch (e) {
-    try {
-      await openUrl(webUrl);
-    } catch (err) {
-      console.error("No se pudo abrir WhatsApp:", err);
-    }
+    console.warn("No se pudo abrir la app nativa, intentando con web:", e);
+    // Fallback a la versión web si la app nativa presenta algún inconveniente
+    const webUrl = `https://wa.me/${numeroLimpio}${mensaje ? `?text=${encodeURIComponent(mensaje)}` : ''}`;
+    await openUrl(webUrl);
   }
 }
 
