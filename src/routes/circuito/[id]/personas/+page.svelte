@@ -7,6 +7,8 @@
   import { open as openDialog, confirm as confirmDialog, message as messageDialog } from '@tauri-apps/plugin-dialog';
   import { readFile } from '@tauri-apps/plugin-fs';
   
+  import { abrirWhatsApp, abrirCorreoJWPub } from '$lib/utils/contacto';
+
   import { 
     obtenerPersonasPorCircuito, 
     guardarPersona, 
@@ -239,9 +241,20 @@
                 </div>
                 
                 <div class="p-contacto" style="flex: 2.5; gap: 10px;">
-                  {#if p.telefono_celular}<span title="Celular"><Phone size={14}/> {p.telefono_celular}</span>{/if}
+                  
+                  {#if p.telefono_celular}
+                    <span class="clickable-contact" role="button" tabindex="0" title="Celular (WhatsApp)" on:click={() => abrirWhatsApp(p.telefono_celular, "Hola hermano...")} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && abrirWhatsApp(p.telefono_celular, "Hola hermano...")}>
+                      <Phone size={14}/> {p.telefono_celular}
+                    </span>
+                  {/if}
+
                   {#if p.telefono_fijo}<span title="Fijo"><Phone size={14} style="opacity: 0.5;"/> {p.telefono_fijo}</span>{/if}
-                  {#if p.email}<span title="Correo jwpub"><Mail size={14}/> {p.email}</span>{/if}
+                  
+                  {#if p.email}
+                    <span class="clickable-contact" role="button" tabindex="0" title="Correo jwpub" on:click={() => abrirCorreoJWPub(p.email, "Asunto", "Mensaje...")} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && abrirCorreoJWPub(p.email, "Asunto", "Mensaje...")}>
+                      <Mail size={14}/> {p.email}
+                    </span>
+                  {/if}
                 </div>
                 
                 <div class="p-acciones">
@@ -339,5 +352,14 @@
     .p-info { padding-right: 70px; }
     .p-contacto { flex-direction: column; gap: 8px; width: 100%; }
     .p-acciones { position: absolute; top: 15px; right: 15px; margin-left: 0; gap: 8px; }
+  }
+
+  .clickable-contact {
+    cursor: pointer;
+    transition: color 0.15s ease;
+  }
+  .clickable-contact:hover {
+    color: #2563eb;
+    text-decoration: underline;
   }
 </style>
