@@ -29,6 +29,9 @@
   let comidas: Hospitalidad[] = [];
   let pastoreos: Pastoreo[] = [];
   let textoAgenda = '';
+  
+  // Lista de personas para el autocompletado (Datalist)
+  let listaPersonas: string[] = [];
 
   // ==========================================
   // ESTADO DE LOS MODALES MANUALES
@@ -42,19 +45,54 @@
 
   const diasSemana = ['Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-  // ==========================================
+ // ==========================================
   // CARGA DE DATOS
   // ==========================================
   async function cargarPrograma() {
     cargandoDatos = true;
     try {
-      await initDB();
+      const db = await initDB();
       salidas = await obtenerPredicacion(idVisita);
       comidas = await obtenerHospitalidad(idVisita);
       pastoreos = await obtenerPastoreo(idVisita);
       
       const agendaDB = await obtenerAgenda(idVisita);
       textoAgenda = agendaDB?.puntos || '';
+
+      // 🌟 NUEVO: Cargamos las personas filtradas correctamente
+      try {
+        // 1. Obtenemos la visita actual
+        const visitas = await db.select<any[]>("SELECT * FROM visitas_programadas WHERE id = $1", [idVisita]);
+        
+        if (visitas.length > 0) {
+          const congId = visitas[0].congregacion_id;
+
+          // 2. Buscamos el nombre en texto de la congregación
+          const congResult = await db.select<any[]>("SELECT nombre FROM congregaciones WHERE id = $1", [congId]);
+          
+          if (congResult.length > 0) {
+            const nombreCong = congResult[0].nombre;
+
+            // 3. Traemos a las personas cuyo campo 'congregacion' coincida con ese nombre
+            const personasResult = await db.select<{nombre: string, apellidos: string}[]>(
+              "SELECT nombre, apellidos FROM personas WHERE congregacion = $1 ORDER BY nombre ASC",
+              [nombreCong]
+            );
+
+            // Si hay hermanos en esa congregación, llenamos la lista
+            if (personasResult.length > 0) {
+              listaPersonas = personasResult.map(p => p.apellidos ? `${p.nombre} ${p.apellidos}`.trim() : p.nombre);
+            } else {
+              // Salvavidas: si la congregación no tiene hermanos registrados, traemos a todos
+              const todos = await db.select<{nombre: string, apellidos: string}[]>("SELECT nombre, apellidos FROM personas ORDER BY nombre ASC");
+              listaPersonas = todos.map(p => p.apellidos ? `${p.nombre} ${p.apellidos}`.trim() : p.nombre);
+            }
+          }
+        }
+      } catch (errorDb) {
+        console.warn("Error cargando lista de personas:", errorDb);
+      }
+
     } catch (error) {
       console.error("Error cargando programa:", error);
     } finally {
@@ -67,7 +105,6 @@
   // ==========================================
   // CONVERSORES DE HORA
   // ==========================================
-  // Convierte la hora militar del selector (14:30) a formato am/pm (02:30 pm)
   function convertirA12Horas(hora24: string) {
     if (!hora24 || !hora24.includes(':')) return hora24;
     const [h, m] = hora24.split(':');
@@ -79,7 +116,6 @@
     return `${horaStr}:${m} ${ampm}`;
   }
 
-  // Convierte "02:30 pm" de vuelta a "14:30" para que el <input type="time"> lo entienda al editar
   function revertirA24Horas(horaAmPm: string) {
     if (!horaAmPm) return '09:00';
     const match = horaAmPm.match(/(\d+):(\d+)\s*(am|pm)/i);
@@ -239,7 +275,7 @@
       <!-- PREDICACIÓN -->
       {#if subPestana === 'predicacion'}
         <div class="seccion-header">
-          <h5>Salidas al Servicio</h5>
+          <h5>Salidas al Ministerio</h5>
           <button class="btn-anadir" on:click={() => { formPredicacion = { dia: 'Martes', hora: '09:00', tipo_arreglo: 'Predicar en grupo' }; modalActivo = 'predicacion'; }}><Plus size={14} /> Añadir Salida</button>
         </div>
         <div class="timeline-container">
@@ -357,11 +393,19 @@
 <!-- ========================================== -->
 <!-- MODALES PARA ENTRADA MANUAL -->
 <!-- ========================================== -->
+
+<!-- DATALIST GLOBAL PARA TODA LA APP -->
+<datalist id="lista-personas">
+  {#each listaPersonas as persona}
+    <option value={persona}></option>
+  {/each}
+</datalist>
+
 {#if modalActivo !== 'ninguno'}
   <div class="modal-overlay" on:click|self={() => modalActivo = 'ninguno'}>
     <div class="modal-content">
       <div class="modal-header">
-        <h4>{formPredicacion.id || formHospitalidad.id || formPastoreo.id ? 'Editar' : 'Añadir'} {modalActivo === 'predicacion' ? 'Salida' : modalActivo === 'hospitalidad' ? 'Comida' : 'Pastoreo'}</h4>
+        <h4>{formPredicacion.id || formHospitalidad.id || formPastoreo.id ? 'Editar' : 'Añadir'} {modalActivo === 'predicacion' ? 'Salida' : modalActivo === 'hospitalidad' ? 'Comida' : 'Visita'}</h4>
         <button class="btn-close" on:click={() => modalActivo = 'ninguno'}><X size={18}/></button>
       </div>
       
@@ -380,8 +424,14 @@
             <input type="time" bind:value={formPredicacion.hora}>
           </div>
 
-          <div class="form-row"><label>Acompañante (Esposo):</label> <input type="text" bind:value={formPredicacion.acomp_esposo}></div>
-          <div class="form-row"><label>Acompañante (Esposa):</label> <input type="text" bind:value={formPredicacion.acomp_esposa}></div>
+          <div class="form-row">
+            <label>Acompañante (Esposo):</label> 
+            <input type="text" bind:value={formPredicacion.acomp_esposo} list="lista-personas" placeholder="Escribe o selecciona...">
+          </div>
+          <div class="form-row">
+            <label>Acompañante (Esposa):</label> 
+            <input type="text" bind:value={formPredicacion.acomp_esposa} list="lista-personas" placeholder="Escribe o selecciona...">
+          </div>
           <div class="form-row">
             <label>Tipo de arreglo:</label> 
             <select bind:value={formPredicacion.tipo_arreglo}>
@@ -396,7 +446,10 @@
         {#if modalActivo === 'hospitalidad'}
           <div class="form-row"><label>Día:</label> <select bind:value={formHospitalidad.dia}>{#each diasSemana as d}<option>{d}</option>{/each}</select></div>
           <div class="form-row"><label>Tipo:</label> <select bind:value={formHospitalidad.tipo_comida}><option>Almuerzo</option><option>Comida</option></select></div>
-          <div class="form-row"><label>Familia Anfitriona:</label> <input type="text" bind:value={formHospitalidad.anfitrion}></div>
+          <div class="form-row">
+            <label>Familia Anfitriona:</label> 
+            <input type="text" bind:value={formHospitalidad.anfitrion} list="lista-personas" placeholder="Escribe o selecciona...">
+          </div>
           <div class="form-row"><label>Dirección:</label> <input type="text" bind:value={formHospitalidad.direccion}></div>
           <div class="form-row"><label>Teléfono:</label> <input type="text" bind:value={formHospitalidad.telefono}></div>
           <button class="btn-submit" on:click={guardarManualHospitalidad}>Guardar Comida</button>
@@ -413,8 +466,14 @@
             <label>Hora:</label> 
             <input type="time" bind:value={formPastoreo.hora_temp}>
           </div>
-          <div class="form-row"><label>Familia/Publicador:</label> <input type="text" bind:value={formPastoreo.familia}></div>
-          <div class="form-row"><label>Anciano que acompaña:</label> <input type="text" bind:value={formPastoreo.anciano}></div>
+          <div class="form-row">
+            <label>Familia/Publicador:</label> 
+            <input type="text" bind:value={formPastoreo.familia} list="lista-personas" placeholder="Escribe o selecciona...">
+          </div>
+          <div class="form-row">
+            <label>Anciano / SM que acompaña:</label> 
+            <input type="text" bind:value={formPastoreo.anciano} list="lista-personas" placeholder="Escribe o selecciona...">
+          </div>
           <div class="form-row"><label>Teléfono:</label> <input type="text" bind:value={formPastoreo.telefono}></div>
           <button class="btn-submit" on:click={guardarManualPastoreo}>Guardar Pastoreo</button>
         {/if}
