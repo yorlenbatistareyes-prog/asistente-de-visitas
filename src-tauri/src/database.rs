@@ -29,14 +29,23 @@ pub fn inicializar_bd() -> Result<()> {
         [],
     )?;
 
+    // ... en inicializar_bd() ...
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS congregaciones (
             id INTEGER PRIMARY KEY AUTOINCREMENT, circuito TEXT NOT NULL, nombre TEXT NOT NULL, 
             enVisita BOOLEAN DEFAULT 0, ciudad TEXT, provincia TEXT, pais TEXT, idioma TEXT, 
             esLenguaSenas BOOLEAN DEFAULT 0, telefono TEXT, horaSemana TEXT, horaFinSemana TEXT, 
-            diaSemana TEXT, diaFinSemana TEXT, UNIQUE(circuito, nombre))",
+            diaSemana TEXT, diaFinSemana TEXT,
+            numero_congregacion TEXT, direccion_salon TEXT, enlace_mapa TEXT,
+            UNIQUE(circuito, nombre))",
         [],
     )?;
+
+    // MIGRACIONES SEGURAS PARA AÑADIR LAS COLUMNAS A BASES DE DATOS EXISTENTES:
+    let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN numero_congregacion TEXT", []);
+    let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN direccion_salon TEXT", []);
+    let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN enlace_mapa TEXT", []);
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS personas (

@@ -6,16 +6,19 @@
 
   const dispatch = createEventDispatcher();
 
-  // Estructura de datos basada en tu base de datos SQLite
+  // Estructura actualizada con los nuevos campos
   let formData = {
     id: undefined,
     nombre: '',
+    numero_congregacion: '',
     ciudad: '',
     provincia: '',
-    pais: 'Cuba', // Valor por defecto para ahorrar tiempo
+    pais: 'Cuba',
     idioma: 'Español',
     esLenguaSenas: false,
     telefono: '',
+    direccion_salon: '',
+    enlace_mapa: '',
     diaSemana: '',
     horaSemana: '',
     diaFinSemana: '',
@@ -25,7 +28,11 @@
 
   onMount(() => {
     if (datosEdicion) {
-      formData = { ...datosEdicion };
+      formData = { 
+        ...datosEdicion,
+        esLenguaSenas: Boolean(datosEdicion.esLenguaSenas || datosEdicion.es_lengua_senas),
+        enVisita: Boolean(datosEdicion.enVisita || datosEdicion.en_visita)
+      };
     }
   });
 
@@ -53,36 +60,62 @@
     </div>
 
     <div class="modal-body">
-      <div class="form-group full-width">
-        <label for="nombre">Nombre de la Congregación *</label>
-        <input 
-          id="nombre" type="text" 
-          class="input-global" 
-          placeholder="Ej: Centro, Norte, etc." 
-          bind:value={formData.nombre} 
-        />
+      
+      <!-- Fila superior: Nombre y Número JW -->
+      <div class="form-group-row mb-15">
+        <div class="form-group" style="flex: 3; margin-bottom: 0;">
+          <label for="nombre">Nombre de la Congregación *</label>
+          <input 
+            id="nombre" type="text" 
+            class="input-global" 
+            placeholder="Ej: AEROPUERTO - HOLGUÍN" 
+            bind:value={formData.nombre} 
+          />
+        </div>
+        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+          <label for="numero">Número JW</label>
+          <input 
+            id="numero" type="text" 
+            class="input-global" 
+            placeholder="Ej: 15636" 
+            bind:value={formData.numero_congregacion} 
+          />
+        </div>
       </div>
 
       <div class="form-grid">
+        <!-- COLUMNA 1: Ubicación -->
         <div class="form-column">
           <h4 class="section-title">Ubicación y Contacto</h4>
           
-          <div class="form-group">
-            <label for="ciudad">Ciudad / Municipio</label>
-            <input id="ciudad" type="text" class="input-global" bind:value={formData.ciudad} />
-          </div>
-          
-          <div class="form-group">
-            <label for="provincia">Provincia</label>
-            <input id="provincia" type="text" class="input-global" bind:value={formData.provincia} />
+          <div class="form-group-row" style="margin-bottom: 15px;">
+            <div class="form-group half">
+              <label for="ciudad">Ciudad</label>
+              <input id="ciudad" type="text" class="input-global" bind:value={formData.ciudad} />
+            </div>
+            <div class="form-group half">
+              <label for="provincia">Provincia</label>
+              <input id="provincia" type="text" class="input-global" bind:value={formData.provincia} />
+            </div>
           </div>
 
+          <div class="form-group">
+            <label for="direccion">Dirección del Salón</label>
+            <textarea id="direccion" class="input-global" rows="2" placeholder="Dirección completa..." bind:value={formData.direccion_salon}></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="mapa">Enlace de Google Maps</label>
+            <input id="mapa" type="url" class="input-global" placeholder="https://maps.google.com/..." bind:value={formData.enlace_mapa} />
+          </div>
+          
           <div class="form-group">
             <label for="telefono">Teléfono del Salón</label>
             <input id="telefono" type="text" class="input-global" placeholder="Ej: +53..." bind:value={formData.telefono} />
           </div>
         </div>
 
+        <!-- COLUMNA 2: Reuniones -->
         <div class="form-column">
           <h4 class="section-title">Reuniones e Idioma</h4>
           
@@ -149,7 +182,7 @@
 
   /* CONTENEDOR DEL MODAL */
   .modal-content {
-    width: 90%; max-width: 700px; /* Más ancho para las 2 columnas */
+    width: 90%; max-width: 750px;
     max-height: 90vh; display: flex; flex-direction: column;
     padding: 0; overflow: hidden; animation: scaleIn 0.2s ease-out;
   }
@@ -185,14 +218,17 @@
   }
 
   .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
-  .form-group.full-width { margin-bottom: 25px; }
+  .mb-15 { margin-bottom: 20px; }
   
-  .form-group-row { display: flex; gap: 10px; margin-bottom: 15px; }
+  .form-group-row { display: flex; gap: 15px; margin-bottom: 15px; }
   .form-group.half { margin-bottom: 0; flex: 1; }
 
   label {
     font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px;
   }
+
+  /* ELEMENTOS DE FORMULARIO (Se apoyan en tu .input-global) */
+  textarea.input-global { resize: vertical; min-height: 42px; font-family: inherit; }
 
   /* CHECKBOX PERSONALIZADO */
   .checkbox-group { flex-direction: row; align-items: center; }
@@ -216,5 +252,10 @@
   @keyframes scaleIn {
     from { opacity: 0; transform: scale(0.95); }
     to { opacity: 1; transform: scale(1); }
+  }
+
+  @media (max-width: 600px) {
+    .form-grid { grid-template-columns: 1fr; gap: 15px; }
+    .form-group-row { flex-direction: column; gap: 15px; }
   }
 </style>

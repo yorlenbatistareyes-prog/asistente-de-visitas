@@ -52,6 +52,9 @@ export interface Congregacion {
   horaFinSemana?: string;
   diaSemana?: string;
   diaFinSemana?: string;
+  numero_congregacion?: string;
+  direccion_salon?: string;
+  enlace_mapa?: string;
 }
 export interface Persona {
   id?: number;
@@ -136,9 +139,17 @@ export async function initDB(): Promise<Database> {
         horaFinSemana TEXT,
         diaSemana TEXT,
         diaFinSemana TEXT,
+        numero_congregacion TEXT,
+        direccion_salon TEXT,
+        enlace_mapa TEXT,
         UNIQUE(circuito, nombre)
       );
     `);
+
+    // 🛡️ Migraciones seguras (Añade las columnas a DBs existentes sin borrar datos)
+    try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN numero_congregacion TEXT;`); } catch (e) {}
+    try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN direccion_salon TEXT;`); } catch (e) {}
+    try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN enlace_mapa TEXT;`); } catch (e) {}
 
     // TABLA PERSONAS
     await dbInstance.execute(`
