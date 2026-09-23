@@ -258,7 +258,12 @@
   .search-bar { display: flex; align-items: center; gap: 10px; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 12px; padding: 0 16px; height: 44px; margin-bottom: 24px; color: var(--text-muted); }
   .search-bar input { border: none; background: transparent; outline: none; font-size: 0.9rem; color: var(--text-main); width: 100%; }
 
-  .grid-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px; margin-bottom: 30px; }
+  .grid-tarjetas { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); 
+    gap: 20px; 
+    margin-bottom: 30px; 
+  }
   .tarjeta-congregacion { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; transition: all 0.2s ease; }
   .tarjeta-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
   .numero-badge { background: #f1ebd5; color: #785a28; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 0.85rem; border: 1px solid #e2d7ba; }
