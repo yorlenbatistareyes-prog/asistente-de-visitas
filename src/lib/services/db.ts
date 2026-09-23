@@ -197,6 +197,61 @@ export async function initDB(): Promise<Database> {
       );
     `);
 
+    // ----------------------------------------------------
+    // --- TABLAS PARA EL PROGRAMA DE LA VISITA ---
+    // ----------------------------------------------------
+
+    await dbInstance.execute(`
+      CREATE TABLE IF NOT EXISTS visita_predicacion (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        visita_id INTEGER NOT NULL,
+        dia TEXT NOT NULL,
+        hora TEXT NOT NULL,
+        acomp_esposo TEXT,
+        acomp_esposa TEXT,
+        publicador TEXT,
+        telefono TEXT,
+        tipo_arreglo TEXT,
+        FOREIGN KEY(visita_id) REFERENCES visitas_programadas(id) ON DELETE CASCADE
+      );
+    `);
+
+    await dbInstance.execute(`
+      CREATE TABLE IF NOT EXISTS visita_hospitalidad (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        visita_id INTEGER NOT NULL,
+        dia TEXT NOT NULL,
+        tipo_comida TEXT NOT NULL,
+        anfitrion TEXT NOT NULL,
+        direccion TEXT,
+        telefono TEXT,
+        FOREIGN KEY(visita_id) REFERENCES visitas_programadas(id) ON DELETE CASCADE
+      );
+    `);
+
+    await dbInstance.execute(`
+      CREATE TABLE IF NOT EXISTS visita_pastoreo (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        visita_id INTEGER NOT NULL,
+        dia_hora TEXT,
+        familia TEXT NOT NULL,
+        direccion TEXT,
+        telefono TEXT,
+        anciano TEXT,
+        notas TEXT,
+        FOREIGN KEY(visita_id) REFERENCES visitas_programadas(id) ON DELETE CASCADE
+      );
+    `);
+
+    await dbInstance.execute(`
+      CREATE TABLE IF NOT EXISTS visita_agenda (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        visita_id INTEGER NOT NULL UNIQUE,
+        puntos TEXT,
+        FOREIGN KEY(visita_id) REFERENCES visitas_programadas(id) ON DELETE CASCADE
+      );
+    `);
+
     await dbInstance.execute(`
       CREATE TABLE IF NOT EXISTS configuracion (
         clave TEXT PRIMARY KEY,
@@ -638,17 +693,89 @@ export async function obtenerUltimasRevisionesPorCircuito(circuitoId: number): P
   }
 }
 
-// ==================================================
-// --- GESTIÓN DE RUTA DE SINCRONIZACIÓN (CARPETA) --
-// ==================================================
+// ==========================================
+// MÓDULO: PROGRAMA DE LA SEMANA
+// ==========================================
 
-export async function guardarRutaSync(ruta: string | null) {
-  try {
-    const resultado = await invoke('guardar_ruta_sync', { ruta });
-    notificarCambioLocal(); // 📢 Grita al sistema que la carpeta cambió
-    return resultado;
-  } catch (error) {
-    console.error("Error guardando ruta de sincronización en Rust:", error);
-    throw error;
-  }
+export interface Predicacion { id?: number; visita_id: number; dia: string; hora: string; acomp_esposo?: string; acomp_esposa?: string; tipo_arreglo?: string; }
+export interface Hospitalidad { id?: number; visita_id: number; dia: string; tipo_comida: 'Almuerzo' | 'Comida'; anfitrion: string; direccion?: string; telefono?: string; }
+export interface Pastoreo { id?: number; visita_id: number; dia_hora?: string; familia: string; direccion?: string; telefono?: string; anciano?: string; notas?: string; }
+export interface Agenda { id?: number; visita_id: number; puntos?: string; }
+
+// --- PREDICACIÓN ---
+export async function obtenerPredicacion(visitaId: number): Promise<Predicacion[]> {
+    const db = await initDB();
+    return await db.select<Predicacion[]>("SELECT * FROM visita_predicacion WHERE visita_id = $1 ORDER BY id ASC", [visitaId]);
+}
+export async function guardarPredicacion(datos: Predicacion) {
+    const db = await initDB();
+    if (datos.id) {
+        await db.execute("UPDATE visita_predicacion SET dia=$1, hora=$2, acomp_esposo=$3, acomp_esposa=$4, tipo_arreglo=$5 WHERE id=$6", 
+        [datos.dia, datos.hora, datos.acomp_esposo, datos.acomp_esposa, datos.tipo_arreglo, datos.id]);
+    } else {
+        await db.execute("INSERT INTO visita_predicacion (visita_id, dia, hora, acomp_esposo, acomp_esposa, tipo_arreglo) VALUES ($1, $2, $3, $4, $5, $6)", 
+        [datos.visita_id, datos.dia, datos.hora, datos.acomp_esposo, datos.acomp_esposa, datos.tipo_arreglo]);
+    }
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('db_local_cambiada'));
+}
+
+// --- HOSPITALIDAD ---
+export async function obtenerHospitalidad(visitaId: number): Promise<Hospitalidad[]> {
+    const db = await initDB();
+    return await db.select<Hospitalidad[]>("SELECT * FROM visita_hospitalidad WHERE visita_id = $1", [visitaId]);
+}
+export async function guardarHospitalidad(datos: Hospitalidad) {
+    const db = await initDB();
+    if (datos.id) {
+        await db.execute("UPDATE visita_hospitalidad SET dia=$1, tipo_comida=$2, anfitrion=$3, direccion=$4, telefono=$5 WHERE id=$6", 
+        [datos.dia, datos.tipo_comida, datos.anfitrion, datos.direccion, datos.telefono, datos.id]);
+    } else {
+        await db.execute("INSERT INTO visita_hospitalidad (visita_id, dia, tipo_comida, anfitrion, direccion, telefono) VALUES ($1, $2, $3, $4, $5, $6)", 
+        [datos.visita_id, datos.dia, datos.tipo_comida, datos.anfitrion, datos.direccion, datos.telefono]);
+    }
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('db_local_cambiada'));
+}
+
+// --- PASTOREO ---
+export async function obtenerPastoreo(visitaId: number): Promise<Pastoreo[]> {
+    const db = await initDB();
+    return await db.select<Pastoreo[]>("SELECT * FROM visita_pastoreo WHERE visita_id = $1", [visitaId]);
+}
+export async function guardarPastoreo(datos: Pastoreo) {
+    const db = await initDB();
+    if (datos.id) {
+        await db.execute("UPDATE visita_pastoreo SET dia_hora=$1, familia=$2, direccion=$3, telefono=$4, anciano=$5, notas=$6 WHERE id=$7", 
+        [datos.dia_hora, datos.familia, datos.direccion, datos.telefono, datos.anciano, datos.notas, datos.id]);
+    } else {
+        await db.execute("INSERT INTO visita_pastoreo (visita_id, dia_hora, familia, direccion, telefono, anciano, notas) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
+        [datos.visita_id, datos.dia_hora, datos.familia, datos.direccion, datos.telefono, datos.anciano, datos.notas]);
+    }
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('db_local_cambiada'));
+}
+
+// --- AGENDA ---
+export async function obtenerAgenda(visitaId: number): Promise<Agenda | null> {
+    const db = await initDB();
+    const result = await db.select<Agenda[]>("SELECT * FROM visita_agenda WHERE visita_id = $1", [visitaId]);
+    return result.length > 0 ? result[0] : null;
+}
+export async function guardarAgenda(datos: Agenda) {
+    const db = await initDB();
+    await db.execute("INSERT INTO visita_agenda (visita_id, puntos) VALUES ($1, $2) ON CONFLICT(visita_id) DO UPDATE SET puntos=excluded.puntos", 
+    [datos.visita_id, datos.puntos]);
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('db_local_cambiada'));
+}
+
+// --- ELIMINAR GENÉRICO ---
+export async function eliminarRegistroPrograma(tabla: 'predicacion' | 'hospitalidad' | 'pastoreo', id: number) {
+    const db = await initDB();
+    let query = "";
+    if (tabla === 'predicacion') query = "DELETE FROM visita_predicacion WHERE id = $1";
+    else if (tabla === 'hospitalidad') query = "DELETE FROM visita_hospitalidad WHERE id = $1";
+    else if (tabla === 'pastoreo') query = "DELETE FROM visita_pastoreo WHERE id = $1";
+    
+    if (query) {
+        await db.execute(query, [id]);
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('db_local_cambiada'));
+    }
 }

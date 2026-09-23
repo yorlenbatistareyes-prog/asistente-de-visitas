@@ -10,7 +10,8 @@
   import { dispararSincronizacionLocal } from '$lib/stores/autoSyncStore';
 
   import AnalisisVisita from '$lib/components/AnalisisVisita.svelte';
-import RevisionVisita from '$lib/components/RevisionVisita.svelte';
+  import RevisionVisita from '$lib/components/RevisionVisita.svelte';
+  import ProgramaVisita from '$lib/components/ProgramaVisita.svelte'; // 🌟 AÑADIR ESTO
 
   $: idCircuito = Number($page.params.id);
   $: idVisita = Number($page.params.idVisita);
@@ -182,7 +183,7 @@ import RevisionVisita from '$lib/components/RevisionVisita.svelte';
 
       {:else if pestanaActiva === 'programa'}
         <div class="animar-entrada">
-          <div class="empty-state placeholder-box"><Calendar size={40} color="#cbd5e1" style="margin-bottom: 15px;" /><p>Aquí inyectaremos el componente <strong>ProgramaVisita.svelte</strong></p><p style="font-size: 0.85rem; margin-top: 10px;">Gestión del programa de la semana facilitado por los ancianos.</p></div>
+           <ProgramaVisita {idVisita} /> <!-- 🌟 REEMPLAZAMOS EL PLACEHOLDER -->
         </div>
       {/if}
 

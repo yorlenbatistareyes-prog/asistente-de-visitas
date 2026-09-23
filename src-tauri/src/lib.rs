@@ -12,6 +12,7 @@ pub mod analisis;
 pub mod revision;
 pub mod reportes;
 pub mod sync_carpeta;
+pub mod programa_visita;
 
 use serde::{Deserialize, Serialize};
 use std::process::Command; // Necesario para abrir Word/Excel
@@ -333,6 +334,17 @@ pub fn run() {
             sync_carpeta::guardar_ruta_sync,
             sync_carpeta::obtener_ruta_sync,
             sync_carpeta::generar_llave_invisible,
+
+            // Aquí irían tus otras funciones...
+          programa_visita::obtener_predicacion_rust,
+          programa_visita::guardar_predicacion_rust,
+          programa_visita::obtener_hospitalidad_rust,
+          programa_visita::guardar_hospitalidad_rust,
+          programa_visita::obtener_pastoreo_rust,
+          programa_visita::guardar_pastoreo_rust,
+          programa_visita::obtener_agenda_rust,
+          programa_visita::guardar_agenda_rust,
+          programa_visita::eliminar_registro_programa_rust
 
         ])
         .run(tauri::generate_context!())
