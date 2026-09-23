@@ -1,12 +1,11 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { Plus, Upload, Edit, Trash2, Search, MapPin, Calendar, Clock, ExternalLink, User } from "lucide-svelte"; 
+  import { Plus, Upload, Edit, Trash2, Search, MapPin, Clock, ExternalLink, Phone, Mail } from "lucide-svelte"; 
   import Papa from 'papaparse'; 
-  
+  import { invoke } from '@tauri-apps/api/core';
   import { save as saveDialog, open as openDialog, confirm as confirmDialog, message as messageDialog } from '@tauri-apps/plugin-dialog';
   import { readFile } from '@tauri-apps/plugin-fs';
-
   import { fechaPorCongregacion } from '$lib/stores/appStore'; 
   import NuevaCongregacionModal from "$lib/components/modals/NuevaCongregacionModal.svelte";
   
@@ -29,6 +28,9 @@
   let datosEdicion: Congregacion | null = null;
   let busqueda = "";
 
+  // 🌟 AQUÍ GUARDAREMOS LOS CÁLCULOS AUTOMÁTICOS DE PERSONAS
+  let estadisticas: Record<string, any> = {};
+
   $: listaFiltrada = lista.filter(cong =>
     cong.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
     (cong.ciudad || "").toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -36,96 +38,68 @@
   );
 
   async function cargarDatos() {
-    circuitoActual = await obtenerCircuitoPorId(idCircuito);
-    
-    if (circuitoActual) {
-      const resultados = await obtenerCongregaciones(circuitoActual.nombre);
-      lista = [...resultados];
+  circuitoActual = await obtenerCircuitoPorId(idCircuito);
 
-      try {
-        const db = await initDB();
-        let fechasActualizadas: Record<string, string> = {};
-        
-        for (const cong of lista) {
-          if (cong.id) {
-            const res = await db.select<{fecha: string}[]>(
-              'SELECT fecha FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC LIMIT 1',
-              [cong.id]
-            );
-            if (res.length > 0) {
-              fechasActualizadas[cong.nombre] = res[0].fecha;
-            }
-          }
+  if (circuitoActual && circuitoActual.id) {
+    const resultados = await obtenerCongregaciones(circuitoActual.nombre);
+    lista = [...resultados];
+
+    // 🌟 LLAMADA AL CEREBRO DE RUST PARA LAS ESTADÍSTICAS Y DIRECTIVOS
+    try {
+      estadisticas = await invoke('obtener_estadisticas_congregaciones_rust', { 
+        circuitoId: circuitoActual.id 
+      });
+    } catch (e) {
+      console.error("Error cargando estadísticas de congregaciones:", e);
+    }
+
+    // Carga del historial de fechas (tu código anterior)...
+    try {
+      const db = await initDB();
+      let fechasActualizadas: Record<string, string> = {};
+      for (const cong of lista) {
+        if (cong.id) {
+          const res = await db.select<{fecha: string}[]>('SELECT fecha FROM historial_visitas WHERE congregacion_id = $1 ORDER BY fecha DESC LIMIT 1', [cong.id]);
+          if (res.length > 0) fechasActualizadas[cong.nombre] = res[0].fecha;
         }
-        fechaPorCongregacion.set(fechasActualizadas);
-      } catch (e) {
-        console.error("Error al cargar fechas del historial:", e);
       }
+      fechaPorCongregacion.set(fechasActualizadas);
+    } catch (e) {
+      console.error("Error al cargar fechas del historial:", e);
     }
   }
+}
 
   onMount(cargarDatos);
   $: if (idCircuito) cargarDatos();
 
-  function abrirModal() {
-    datosEdicion = null;
-    mostrarModal = true;
-  }
-
-  function editarCongregacion(cong: Congregacion) {
-    datosEdicion = { ...cong };
-    mostrarModal = true;
-  }
+  function abrirModal() { datosEdicion = null; mostrarModal = true; }
+  function editarCongregacion(cong: Congregacion) { datosEdicion = { ...cong }; mostrarModal = true; }
 
   async function borrar(id: number | undefined, nombre: string) {
     if (!id) return;
-    const confirmacionOficial = await confirmDialog(
-      `¿Seguro que deseas eliminar a la congregación "${nombre}"? Toda su información se perderá de forma permanente.`, 
-      { title: 'Eliminar Congregación', kind: 'warning' }
-    );
-
-    if (!confirmacionOficial) return;
-
-    try {
-      await eliminarCongregacion(id);
-      await cargarDatos();
-    } catch (error) {
-      alert("❌ Ocurrió un error en la base de datos al intentar eliminar la congregación.");
-    }
+    const confirmado = await confirmDialog(`¿Seguro que deseas eliminar a "${nombre}"?`, { title: 'Eliminar Congregación', kind: 'warning' });
+    if (!confirmado) return;
+    try { await eliminarCongregacion(id); await cargarDatos(); } 
+    catch (error) { alert("❌ Error al eliminar la congregación."); }
   }
 
   async function handleGuardarCongregacion(e: CustomEvent) {
     try {
       const nueva = e.detail;
       if (!circuitoActual) return;
-
       let datosParaGuardar: any = {
-        circuito: circuitoActual.nombre,
-        nombre: nueva.nombre.trim().toUpperCase(),
-        enVisita: Boolean(nueva.enVisita),
-        numero_congregacion: nueva.numero_congregacion || "",
-        ciudad: nueva.ciudad || "",
-        provincia: nueva.provincia || "",
-        pais: nueva.pais || "Cuba",
-        telefono: nueva.telefono || "",
-        direccion_salon: nueva.direccion_salon || "",
-        enlace_mapa: nueva.enlace_mapa || "",
-        diaSemana: nueva.diaSemana || "",
-        horaSemana: nueva.horaSemana || "",
-        diaFinSemana: nueva.diaFinSemana || "",
-        horaFinSemana: nueva.horaFinSemana || "",
-        idioma: "Español",
-        esLenguaSenas: Boolean(nueva.esLenguaSenas)
+        circuito: circuitoActual.nombre, nombre: nueva.nombre.trim().toUpperCase(),
+        enVisita: Boolean(nueva.enVisita), numero_congregacion: nueva.numero_congregacion || "",
+        ciudad: nueva.ciudad || "", provincia: nueva.provincia || "", pais: nueva.pais || "Cuba",
+        telefono: nueva.telefono || "", direccion_salon: nueva.direccion_salon || "", enlace_mapa: nueva.enlace_mapa || "",
+        diaSemana: nueva.diaSemana || "", horaSemana: nueva.horaSemana || "", diaFinSemana: nueva.diaFinSemana || "", horaFinSemana: nueva.horaFinSemana || "",
+        idioma: "Español", esLenguaSenas: Boolean(nueva.esLenguaSenas)
       };
-
       if (nueva.id && String(nueva.id).trim() !== "") datosParaGuardar.id = Number(nueva.id);
-
       await guardarCongregacion(datosParaGuardar);
-      mostrarModal = false;
-      await cargarDatos(); 
-    } catch (err) {
-      alert("Ocurrió un error al guardar.");
-    }
+      mostrarModal = false; await cargarDatos(); 
+    } catch (err) { alert("Ocurrió un error al guardar."); }
   }
 
   async function importarCSV() {
@@ -143,55 +117,33 @@
       const textoCSV = new TextDecoder().decode(csvBytes);
 
       Papa.parse(textoCSV, {
-        header: true,
-        skipEmptyLines: true,
+        header: true, skipEmptyLines: true,
         complete: async (results) => {
           const datosCSV = results.data as Record<string, string>[];
           let importadas = 0;
-
           for (const fila of datosCSV) {
             if (!fila["Congregación"]) continue;
             try {
               await guardarCongregacion({
-                circuito: circuitoActual!.nombre, 
-                nombre: fila["Congregación"],
-                numero_congregacion: fila["Número de congregación"] || "",
-                enVisita: false,
-                ciudad: fila["Ciudad (Correspondencia)"] || "",
-                provincia: fila["Estado o provincia (Correspondencia)"] || "",
-                pais: fila["País (Correspondencia)"] || "",
-                telefono: fila["Teléfono (Teléfono 1)"] || "",
-                idioma: "Español",
-                esLenguaSenas: false
+                circuito: circuitoActual!.nombre, nombre: fila["Congregación"], numero_congregacion: fila["Número de congregación"] || "",
+                enVisita: false, ciudad: fila["Ciudad (Correspondencia)"] || "", provincia: fila["Estado o provincia (Correspondencia)"] || "",
+                pais: fila["País (Correspondencia)"] || "", telefono: fila["Teléfono (Teléfono 1)"] || "", idioma: "Español", esLenguaSenas: false
               });
               importadas++;
-            } catch (err) {
-              console.error("Error guardando congregación:", err);
-            }
+            } catch (err) {}
           }
-          await cargarDatos(); 
-          alert(`✅ Importación completada: ${importadas} congregaciones añadidas.`);
+          await cargarDatos(); alert(`✅ Importación completada: ${importadas} congregaciones añadidas.`);
         }
       });
-    } catch (error) {
-      alert("❌ Error al leer el archivo.");
-    }
+    } catch (error) { alert("❌ Error al leer el archivo."); }
   }
 
   async function borrarTodo() {
-    if (lista.length === 0) return;
-    if (!circuitoActual) return;
-    const confirmado = await confirmDialog(
-      "⚠️ PELIGRO: ¿Estás seguro de que deseas eliminar TODAS las congregaciones de este circuito?",
-      { title: 'Vaciar Congregaciones', kind: 'warning' }
-    );
+    if (lista.length === 0 || !circuitoActual) return;
+    const confirmado = await confirmDialog("⚠️ PELIGRO: ¿Eliminar TODAS las congregaciones?", { title: 'Vaciar Congregaciones', kind: 'warning' });
     if (!confirmado) return;
-    try {
-      await eliminarTodasLasCongregaciones(circuitoActual.nombre);
-      await cargarDatos(); 
-    } catch (error) {
-      alert("Ocurrió un error al intentar vaciar el registro.");
-    }
+    try { await eliminarTodasLasCongregaciones(circuitoActual.nombre); await cargarDatos(); } 
+    catch (error) { alert("Ocurrió un error."); }
   }
 </script>
 
@@ -201,19 +153,10 @@
       <h3>Congregaciones</h3>
       <p>Añade y gestiona las congregaciones de tu circuito.</p>
     </div>
-    
     <div class="toolbar-botones">
-      <button class="btn-importar" on:click={importarCSV}>
-        <Upload size={18} /> <span>Importar CSV</span>
-      </button>
-
-      <button class="btn-global btn-primary" on:click={abrirModal}>
-        <Plus size={18} /> Añadir Congregación
-      </button>
-
-      <button class="btn-danger-fino" on:click={borrarTodo} title="Limpiar todas las congregaciones">
-        <Trash2 size={18} /> <span class="texto-btn-danger">Limpiar</span>
-      </button>
+      <button class="btn-importar" on:click={importarCSV}><Upload size={18} /> <span>Importar CSV</span></button>
+      <button class="btn-global btn-primary" on:click={abrirModal}><Plus size={18} /> Añadir Congregación</button>
+      <button class="btn-danger-fino" on:click={borrarTodo} title="Limpiar"><Trash2 size={18} /> <span class="texto-btn-danger">Limpiar</span></button>
     </div>
   </div>
 
@@ -222,23 +165,18 @@
     <input type="text" placeholder="Buscar por nombre, número o ciudad..." bind:value={busqueda} />
   </div>
 
-  <!-- GRILLA DE TARJETAS -->
   <div class="grid-tarjetas">
     {#each listaFiltrada as cong (cong.id || cong.nombre)}
       <div class="tarjeta-congregacion card-global">
         
-        <!-- CABECERA: Número de congregación y botones -->
         <div class="tarjeta-header">
-          <div class="numero-badge">
-            {cong.numero_congregacion || 'S/N'}
-          </div>
+          <div class="numero-badge">{cong.numero_congregacion || 'S/N'}</div>
           <div class="action-buttons">
             <button type="button" class="btn-icon-edit action-btn" on:click={() => editarCongregacion(cong)}><Edit size={16} /></button>
             <button type="button" class="btn-icon-delete action-btn" on:click={() => borrar(cong.id, cong.nombre)}><Trash2 size={16} /></button>
           </div>
         </div>
 
-        <!-- CUERPO: Título (Sin la etiqueta de ciudad repetida) -->
         <div class="tarjeta-body">
           <h4 class="nombre-congregacion">{cong.nombre}</h4>
           
@@ -262,25 +200,35 @@
             </div>
           </div>
 
-          <!-- DIRECTIVOS (Cálculo automático futuro) -->
-          <div class="directivos-bloque">
-            <div class="directivo-item">
-              <span class="etiqueta-gris">Coordinador</span>
-              <div class="directivo-nombre"><User size={12}/> Automático desde Personas</div>
+          <!-- DIRECTIVOS (Preparados para las estadísticas automáticas) -->
+          <div class="directivos-grid">
+            <div class="dir-card">
+              <span class="dir-rol">Coordinador</span>
+              <span class="dir-nombre">{estadisticas[cong.nombre]?.cca?.nombre || 'No asignado'}</span>
+              <span class="dir-contacto"><Phone size={10}/> {estadisticas[cong.nombre]?.cca?.tel || '--'}</span>
+              <span class="dir-contacto"><Mail size={10}/> {estadisticas[cong.nombre]?.cca?.email || '--'}</span>
             </div>
-            <div class="directivo-item">
-              <span class="etiqueta-gris">Secretario</span>
-              <div class="directivo-nombre"><User size={12}/> Automático desde Personas</div>
+            <div class="dir-card">
+              <span class="dir-rol">Secretario</span>
+              <span class="dir-nombre">{estadisticas[cong.nombre]?.sec?.nombre || 'No asignado'}</span>
+              <span class="dir-contacto"><Phone size={10}/> {estadisticas[cong.nombre]?.sec?.tel || '--'}</span>
+              <span class="dir-contacto"><Mail size={10}/> {estadisticas[cong.nombre]?.sec?.email || '--'}</span>
+            </div>
+            <div class="dir-card">
+              <span class="dir-rol">S. de Servicio</span>
+              <span class="dir-nombre">{estadisticas[cong.nombre]?.ss?.nombre || 'No asignado'}</span>
+              <span class="dir-contacto"><Phone size={10}/> {estadisticas[cong.nombre]?.ss?.tel || '--'}</span>
+              <span class="dir-contacto"><Mail size={10}/> {estadisticas[cong.nombre]?.ss?.email || '--'}</span>
             </div>
           </div>
         </div>
 
-        <!-- PIE: Contadores (Cálculo automático futuro) -->
+        <!-- CONTADORES -->
         <div class="tarjeta-footer">
-          <div class="pill-badge pill-pub"><span>--</span> publicadores</div>
-          <div class="pill-badge pill-anc"><span>--</span> ancianos</div>
-          <div class="pill-badge pill-sm"><span>--</span> SM</div>
-          <div class="pill-badge pill-pre"><span>--</span> precursores</div>
+          <div class="pill-badge pill-pub"><span>{estadisticas[cong.nombre]?.publicadores || '--'}</span> publicadores</div>
+          <div class="pill-badge pill-anc"><span>{estadisticas[cong.nombre]?.ancianos || '--'}</span> ancianos</div>
+          <div class="pill-badge pill-sm"><span>{estadisticas[cong.nombre]?.sm || '--'}</span> SM</div>
+          <div class="pill-badge pill-pre"><span>{estadisticas[cong.nombre]?.precursores || '--'}</span> precursores</div>
         </div>
         
       </div>
@@ -288,9 +236,7 @@
   </div>
 
   {#if listaFiltrada.length === 0}
-    <div class="empty-state">
-      <p>Aún no hay congregaciones o no hay resultados para tu búsqueda.</p>
-    </div>
+    <div class="empty-state"><p>Aún no hay congregaciones o no hay resultados para tu búsqueda.</p></div>
   {/if}
 </div>
 
@@ -305,34 +251,24 @@
   .header-section p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
   .toolbar-botones { display: flex; gap: 10px; }
 
-  .btn-primary { background-color: #5c0a1f !important; color: white !important; border: none; height: 38px; padding: 0 24px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(92, 10, 31, 0.2); }
-  .btn-primary:hover { background-color: #3a0411 !important; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(92, 10, 31, 0.3); }
-  .btn-importar { background-color: #14532d; color: white; border: none; height: 38px; padding: 0 24px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(20, 83, 45, 0.2); }
-  .btn-importar:hover { background-color: #052e16; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(20, 83, 45, 0.3); }
-  .btn-danger-fino { background-color: transparent; color: #ef4444; border: 1px solid #ef4444; height: 38px; padding: 0 16px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; transition: all 0.2s ease; }
-  .btn-danger-fino:hover { background-color: #ef4444; color: white; box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3); }
+  .btn-primary { background-color: #5c0a1f !important; color: white !important; border: none; height: 38px; padding: 0 24px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; box-shadow: 0 2px 4px rgba(92, 10, 31, 0.2); }
+  .btn-importar { background-color: #14532d; color: white; border: none; height: 38px; padding: 0 24px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; box-shadow: 0 2px 4px rgba(20, 83, 45, 0.2); }
+  .btn-danger-fino { background-color: transparent; color: #ef4444; border: 1px solid #ef4444; height: 38px; padding: 0 16px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; }
 
   .search-bar { display: flex; align-items: center; gap: 10px; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 12px; padding: 0 16px; height: 44px; margin-bottom: 24px; color: var(--text-muted); }
   .search-bar input { border: none; background: transparent; outline: none; font-size: 0.9rem; color: var(--text-main); width: 100%; }
 
-  /* TARJETAS HÍBRIDAS */
-  .grid-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; margin-bottom: 30px; }
-  
-  .tarjeta-congregacion { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-  .tarjeta-congregacion:hover { transform: translateY(-3px); box-shadow: 0 8px 16px rgba(0,0,0,0.06); border-color: rgba(92, 10, 31, 0.2); }
-
+  .grid-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px; margin-bottom: 30px; }
+  .tarjeta-congregacion { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; transition: all 0.2s ease; }
   .tarjeta-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .numero-badge { background: #f1ebd5; color: #785a28; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 0.85rem; letter-spacing: 0.5px; border: 1px solid #e2d7ba; }
+  .numero-badge { background: #f1ebd5; color: #785a28; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 0.85rem; border: 1px solid #e2d7ba; }
   
   .action-buttons { display: flex; gap: 5px; }
-  .action-btn { background: transparent; border: none; cursor: pointer; opacity: 0.5; transition: all 0.2s; padding: 4px; border-radius: 6px; }
+  .action-btn { background: transparent; border: none; cursor: pointer; opacity: 0.5; padding: 4px; border-radius: 6px; }
   .btn-icon-edit { color: var(--primary); }
   .btn-icon-delete { color: #ef4444; }
-  .action-btn:hover { opacity: 1; background-color: var(--bg-subtle, #f1f5f9); }
 
   .tarjeta-body { display: flex; flex-direction: column; gap: 10px; flex-grow: 1; }
-  
-  /* Reduje el margen inferior del título ya que eliminamos el badge */
   .nombre-congregacion { margin: 0 0 5px 0; font-size: 1.15rem; font-weight: 800; color: var(--text-main); line-height: 1.2; text-transform: uppercase; }
 
   .info-bloque { display: flex; align-items: flex-start; gap: 8px; color: var(--text-main); }
@@ -342,16 +278,17 @@
   
   .direccion-bloque { margin-top: 5px; padding-top: 10px; border-top: 1px dashed var(--border-color); }
   .enlace-mapa { color: #2563eb; text-decoration: none; display: flex; align-items: center; gap: 4px; font-weight: 500; }
-  .enlace-mapa:hover { text-decoration: underline; }
 
-  .directivos-bloque { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; background: var(--bg-app); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); }
-  .directivo-item { display: flex; flex-direction: column; gap: 2px; }
-  .directivo-nombre { font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 4px; font-style: italic; color: var(--text-muted); }
+  /* DISEÑO DIRECTIVOS COMPACTO 3 COLUMNAS */
+  .directivos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-top: 15px; background: var(--bg-app); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); }
+  .dir-card { display: flex; flex-direction: column; gap: 2px; }
+  .dir-rol { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+  .dir-nombre { font-size: 0.85rem; font-weight: 600; color: var(--text-main); margin-bottom: 2px; line-height: 1.1; }
+  .dir-contacto { font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .tarjeta-footer { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color); }
   .pill-badge { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
   .pill-badge span { font-weight: 800; font-size: 0.85rem; }
-  
   .pill-pub { background: #e0f2fe; color: #0369a1; }
   .pill-anc { background: #f3f4f6; color: #4b5563; }
   .pill-sm  { background: #f3f4f6; color: #4b5563; }

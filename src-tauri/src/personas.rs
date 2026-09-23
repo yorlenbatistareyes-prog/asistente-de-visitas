@@ -1,5 +1,6 @@
 use crate::database::establecer_conexion;
 use serde::{Deserialize, Serialize};
+use rusqlite::OptionalExtension; // IMPORTANTE: Necesario para manejar búsquedas que no encuentran resultados sin dar error
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PersonaRust {
@@ -16,13 +17,42 @@ pub struct PersonaRust {
     pub email: Option<String>,
 }
 
+// 🌟 NUEVA FUNCIÓN: Fusiona los privilegios antiguos con los nuevos del CSV sin duplicar
+fn fusionar_privilegios(viejos: &Option<String>, nuevos: &Option<String>) -> Option<String> {
+    let mut lista_privilegios: Vec<String> = Vec::new();
+
+    if let Some(v) = viejos {
+        for p in v.split(',') {
+            let limpio = p.trim().to_uppercase();
+            if !limpio.is_empty() && !lista_privilegios.contains(&limpio) {
+                lista_privilegios.push(limpio);
+            }
+        }
+    }
+
+    if let Some(n) = nuevos {
+        for p in n.split(',') {
+            let limpio = p.trim().to_uppercase();
+            if !limpio.is_empty() && !lista_privilegios.contains(&limpio) {
+                lista_privilegios.push(limpio);
+            }
+        }
+    }
+
+    if lista_privilegios.is_empty() {
+        None
+    } else {
+        Some(lista_privilegios.join(", "))
+    }
+}
+
 #[tauri::command]
 pub fn obtener_personas_por_circuito_rust(circuito_id: i64) -> Result<Vec<PersonaRust>, String> {
     let conn = establecer_conexion().map_err(|e| e.to_string())?;
 
     let mut stmt = conn.prepare(
         "SELECT id, circuito_id, nombre, segundo_nombre, apellidos, privilegio, congregacion, direccion, telefono_celular, telefono_fijo, email 
-         FROM personas WHERE circuito_id = ?1 ORDER BY apellidos ASC"
+         FROM personas WHERE circuito_id = ?1 ORDER BY congregacion ASC, apellidos ASC"
     ).map_err(|e| e.to_string())?;
 
     let personas_iter = stmt
@@ -56,7 +86,7 @@ pub fn guardar_persona_rust(p: PersonaRust) -> Result<(), String> {
     let conn = establecer_conexion().map_err(|e| e.to_string())?;
 
     if let Some(id_existente) = p.id {
-        // ACTUALIZAR PERSONA
+        // ACTUALIZACIÓN DIRECTA (Cuando editas desde el Modal y guardas)
         conn.execute(
             "UPDATE personas SET 
              nombre = ?1, segundo_nombre = ?2, apellidos = ?3, privilegio = ?4, 
@@ -78,16 +108,42 @@ pub fn guardar_persona_rust(p: PersonaRust) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
     } else {
-        // INSERTAR NUEVA PERSONA
-        conn.execute(
-            "INSERT INTO personas 
-             (circuito_id, nombre, segundo_nombre, apellidos, privilegio, congregacion, direccion, telefono_celular, telefono_fijo, email) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            rusqlite::params![
-                p.circuito_id, p.nombre, p.segundo_nombre, p.apellidos, p.privilegio, 
-                p.congregacion, p.direccion, p.telefono_celular, p.telefono_fijo, p.email
-            ],
+        // NUEVA INSERCIÓN O IMPORTACIÓN CSV
+        
+        // 1. Buscamos si ya existe el hermano (Mismo Nombre, Apellido y Congregación)
+        let mut stmt = conn.prepare(
+            "SELECT id, privilegio FROM personas WHERE circuito_id = ?1 AND nombre = ?2 AND apellidos = ?3 AND (congregacion = ?4 OR (congregacion IS NULL AND ?4 IS NULL))"
         ).map_err(|e| e.to_string())?;
+        
+        let resultado_busqueda = stmt.query_row(
+            rusqlite::params![p.circuito_id, p.nombre, p.apellidos, p.congregacion],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?))
+        ).optional().map_err(|e| e.to_string())?;
+
+        if let Some((id_dup, privilegio_viejo)) = resultado_busqueda {
+            // SI EXISTE: Actualizamos sus datos y FUSIONAMOS los privilegios
+            let privilegios_unidos = fusionar_privilegios(&privilegio_viejo, &p.privilegio);
+
+            conn.execute(
+                "UPDATE personas SET 
+                 segundo_nombre=?1, privilegio=?2, direccion=?3, telefono_celular=?4, telefono_fijo=?5, email=?6
+                 WHERE id=?7",
+                rusqlite::params![
+                    p.segundo_nombre, privilegios_unidos, p.direccion, p.telefono_celular, p.telefono_fijo, p.email, id_dup
+                ],
+            ).map_err(|e| e.to_string())?;
+        } else {
+            // SI NO EXISTE: Insertamos como persona nueva
+            conn.execute(
+                "INSERT INTO personas 
+                 (circuito_id, nombre, segundo_nombre, apellidos, privilegio, congregacion, direccion, telefono_celular, telefono_fijo, email) 
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                rusqlite::params![
+                    p.circuito_id, p.nombre, p.segundo_nombre, p.apellidos, p.privilegio, 
+                    p.congregacion, p.direccion, p.telefono_celular, p.telefono_fijo, p.email
+                ],
+            ).map_err(|e| e.to_string())?;
+        }
     }
 
     Ok(())

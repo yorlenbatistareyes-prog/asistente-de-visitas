@@ -141,3 +141,91 @@ pub fn eliminar_congregacion_rust(id: i64) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
     Ok(())
 }
+
+use std::collections::HashMap;
+
+// --- ESTRUCTURAS PARA ESTADÍSTICAS ---
+#[derive(Debug, Serialize, Deserialize, Clone)] // 🌟 AÑADIDO CLONE AQUÍ
+pub struct DirectivoContacto {
+    pub nombre: String,
+    pub tel: String,
+    pub email: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)] // 🌟 AÑADIDO CLONE AQUÍ
+pub struct EstadisticasCongregacion {
+    pub publicadores: i64,
+    pub ancianos: i64,
+    pub sm: i64,
+    pub precursores: i64,
+    pub cca: Option<DirectivoContacto>,
+    pub sec: Option<DirectivoContacto>,
+    pub ss: Option<DirectivoContacto>,
+}
+
+#[tauri::command]
+pub fn obtener_estadisticas_congregaciones_rust(circuito_id: i64) -> Result<HashMap<String, EstadisticasCongregacion>, String> {
+    let conn = establecer_conexion().map_err(|e| e.to_string())?;
+    
+    // Obtenemos todas las personas de este circuito
+    let mut stmt = conn.prepare(
+        "SELECT congregacion, nombre, apellidos, privilegio, telefono_celular, telefono_fijo, email 
+         FROM personas 
+         WHERE circuito_id = ?1 AND congregacion IS NOT NULL"
+    ).map_err(|e| e.to_string())?;
+    
+    let personas_iter = stmt.query_map([circuito_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?, // Congregacion
+            row.get::<_, String>(1)?, // Nombre
+            row.get::<_, String>(2)?, // Apellido
+            row.get::<_, Option<String>>(3)?, // Privilegio
+            row.get::<_, Option<String>>(4)?, // Celular
+            row.get::<_, Option<String>>(5)?, // Fijo
+            row.get::<_, Option<String>>(6)?  // Email
+        ))
+    }).map_err(|e| e.to_string())?;
+
+    let mut mapa: HashMap<String, EstadisticasCongregacion> = HashMap::new();
+
+    for p in personas_iter {
+        let (cong_nombre, nombre, apellido, priv_opt, cel_opt, fijo_opt, email_opt) = p.map_err(|e| e.to_string())?;
+        
+        // Si la congregación no existe en el mapa, la inicializamos
+        let stats = mapa.entry(cong_nombre.clone()).or_insert(EstadisticasCongregacion {
+            publicadores: 0,
+            ancianos: 0,
+            sm: 0,
+            precursores: 0,
+            cca: None,
+            sec: None,
+            ss: None,
+        });
+
+        let privilegios = priv_opt.unwrap_or_default().to_uppercase();
+        
+        // 1. Todo el que está en la base de datos es al menos publicador (a menos que indiques lo contrario)
+        stats.publicadores += 1;
+
+        // 2. Contadores básicos
+        if privilegios.contains("ANCIANO") { stats.ancianos += 1; }
+        if privilegios.contains("SM") { stats.sm += 1; }
+        if privilegios.contains("PR") || privilegios.contains("PE") || privilegios.contains("PET") { 
+            stats.precursores += 1; 
+        }
+
+        // 3. Captura de Directivos
+        let nombre_completo = format!("{} {}", nombre, apellido);
+        // Preferimos celular, si no hay usamos fijo
+        let telefono = cel_opt.unwrap_or_else(|| fijo_opt.unwrap_or_default());
+        let email = email_opt.unwrap_or_default();
+
+        let contacto = DirectivoContacto { nombre: nombre_completo, tel: telefono, email };
+
+        if privilegios.contains("CCA") && stats.cca.is_none() { stats.cca = Some(contacto.clone()); }
+        else if privilegios.contains("SEC") && stats.sec.is_none() { stats.sec = Some(contacto.clone()); }
+        else if privilegios.contains("SS") && stats.ss.is_none() { stats.ss = Some(contacto); }
+    }
+
+    Ok(mapa)
+}

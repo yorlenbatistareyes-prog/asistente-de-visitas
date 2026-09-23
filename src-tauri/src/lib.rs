@@ -280,10 +280,13 @@ pub fn run() {
             circuitos::obtener_todos_los_circuitos_rust,
             circuitos::obtener_circuito_por_id_rust,
             circuitos::eliminar_circuito_rust,
+            
             // --- NUEVOS COMANDOS DE CONGREGACIONES ---
             congregaciones::obtener_congregaciones_rust,
             congregaciones::guardar_congregacion_rust,
             congregaciones::eliminar_congregacion_rust,
+            congregaciones::obtener_estadisticas_congregaciones_rust,
+
             // --- NUEVOS COMANDOS DE PERSONAS ---
             personas::obtener_personas_por_circuito_rust,
             personas::guardar_persona_rust,
