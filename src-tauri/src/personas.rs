@@ -81,9 +81,55 @@ pub fn obtener_personas_por_circuito_rust(circuito_id: i64) -> Result<Vec<Person
     Ok(personas)
 }
 
+fn limpiar_telefono(tel: Option<String>) -> Option<String> {
+    let t = tel?;
+    let t_limpio = t.trim();
+    if t_limpio.is_empty() { return None; }
+    
+    // Extraemos todos los números limpios encontrando bloques de dígitos
+    let mut unicos: Vec<String> = Vec::new();
+    for linea in t_limpio.lines() {
+        let parte = linea.trim();
+        // Limpiamos caracteres que no sean números o el signo +
+        let num_limpio: String = parte.chars().filter(|c| c.is_ascii_digit() || *c == '+').collect();
+        
+        if num_limpio.len() >= 7 {
+            // Verificamos si ya tenemos un número idéntico o si uno contiene al otro (ej: 54536101 y 054536101)
+            let mut ya_existe = false;
+            for u in &unicos {
+                if u == &num_limpio || u.ends_with(&num_limpio) || num_limpio.ends_with(u) {
+                    ya_existe = true;
+                    break;
+                }
+            }
+            if !ya_existe {
+                unicos.push(parte.to_string());
+            }
+        }
+    }
+    
+    if unicos.is_empty() {
+        None
+    } else {
+        // Nos quedamos exclusivamente con el primer número limpio principal encontrado
+        Some(unicos[0].clone())
+    }
+}
+
 #[tauri::command]
-pub fn guardar_persona_rust(p: PersonaRust) -> Result<(), String> {
+pub fn guardar_persona_rust(mut p: PersonaRust) -> Result<(), String> {
     let conn = establecer_conexion().map_err(|e| e.to_string())?;
+    p.telefono_celular = limpiar_telefono(p.telefono_celular);
+    p.telefono_fijo = limpiar_telefono(p.telefono_fijo);
+
+    // 🌟 Si el fijo y el celular resultan ser el mismo número, borramos el fijo para que no se repita //
+   if let (Some(cel), Some(fij)) = (&p.telefono_celular, &p.telefono_fijo) {
+        let cel_digitos: String = cel.chars().filter(|c| c.is_ascii_digit()).collect();
+        let fij_digitos: String = fij.chars().filter(|c| c.is_ascii_digit()).collect();
+        if cel_digitos == fij_digitos || cel_digitos.ends_with(&fij_digitos) || fij_digitos.ends_with(&cel_digitos) {
+            p.telefono_fijo = None;
+        }
+    }
 
     if let Some(id_existente) = p.id {
         // ACTUALIZACIÓN DIRECTA (Cuando editas desde el Modal y guardas)
