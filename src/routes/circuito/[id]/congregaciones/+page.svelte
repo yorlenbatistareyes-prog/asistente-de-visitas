@@ -129,6 +129,7 @@
       Papa.parse(textoCSV, {
         header: true, skipEmptyLines: true,
         complete: async (results) => {
+
           const datosCSV = results.data as Record<string, string>[];
           let importadas = 0;
           for (const fila of datosCSV) {

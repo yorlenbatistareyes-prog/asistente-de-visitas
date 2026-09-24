@@ -83,8 +83,6 @@
       zoom: zoom
     });
 
-    map.addControl(new NavigationControl(), 'top-right');
-
     map.on('load', () => {
     dibujarMarcadores();
     dibujarLimites();

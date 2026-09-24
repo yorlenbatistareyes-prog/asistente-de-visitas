@@ -1,7 +1,7 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
   // Importamos el icono RefreshCw para la nueva sección de sincronización
-  import { ArrowLeft, HelpCircle, ChevronDown, ChevronUp, Database, Map, Users, Settings, BarChart2, FileText, RefreshCw } from 'lucide-svelte';
+  import { ArrowLeft, HelpCircle, ChevronDown, ChevronUp, Database, Map, Users, Settings, BarChart2, FileText, RefreshCw, MapPin, Palette, CheckCircle2 } from 'lucide-svelte';
 
   function volver() {
     window.history.back();
@@ -115,6 +115,89 @@
 
         <p><strong>¿Cómo funciona el flujo diario?</strong><br>
         Una vez vinculada la carpeta y reconocido el archivo localmente, la app gestiona las actualizaciones de forma fluida mediante los botones de sincronización manual y automática, permitiéndote llevar el control exacto entre tu PC y tu teléfono.</p>
+      `
+    }    ,
+    {
+      id: "mapa_circuito",
+      icono: MapPin,
+      pregunta: "8. Mapa del Circuito (Territorios y Coordenadas)",
+      respuesta: `
+        <p>La pestaña <strong>Mapa</strong> dentro de cada circuito muestra todas las congregaciones geográficamente sobre un mapa interactivo. Cada congregación puede tener:</p>
+
+        <p>
+          • 📍 <strong>Un pin rojo</strong> con la ubicación exacta del Salón del Reino.<br>
+          • 🗺️ <strong>Un polígono de color</strong> que delimita su territorio.<br>
+          • 📊 <strong>Un popup</strong> con datos y un botón directo a Google Maps.
+        </p>
+
+        <br>
+
+        <p><strong>¿Cómo activar el mapa? (Solo la primera vez)</strong><br>
+        El mapa es <em>opcional</em>. Para activarlo necesitas una <strong>clave API gratuita de MapTiler</strong>. Sigue estos pasos:</p>
+
+        <p>
+        <strong>1.</strong> Entra a <a href="https://cloud.maptiler.com/account/keys/" target="_blank" rel="noopener noreferrer">cloud.maptiler.com/account/keys</a> y crea una cuenta gratis.<br>
+        <strong>2.</strong> En el panel, copia tu clave API (una cadena larga de letras y números).<br>
+        <strong>3.</strong> En Avisits, ve a <em>Configuración → Mapa del Circuito (Opcional)</em>.<br>
+        <strong>4.</strong> Pega la clave y pulsa el botón <strong>"Probar clave"</strong>. Debe aparecer un mensaje verde de confirmación.<br>
+        <strong>5.</strong> Pulsa <strong>"Guardar Cambios"</strong> abajo. ¡Listo!
+        </p>
+
+        <br>
+
+        <p><strong>¿Cómo añadir la ubicación de una congregación?</strong><br>
+        Entra a <em>Circuito → Congregaciones</em>, edita una congregación y baja hasta la sección de coordenadas:</p>
+
+        <p>
+        <strong>1.</strong> Desde tu móvil, abre Google Maps.<br>
+        <strong>2.</strong> Busca el Salón del Reino o navega hasta su ubicación exacta.<br>
+        <strong>3.</strong> Toca y mantén pulsado el punto exacto hasta que aparezca un pin rojo.<br>
+        <strong>4.</strong> Abajo aparece un número tipo <code>20.876005, -76.205711</code>. Tócalo para copiarlo.<br>
+        <strong>5.</strong> Pega la latitud en el primer campo y la longitud en el segundo.<br>
+        <strong>6.</strong> Pulsa <strong>"Verificar ubicación en Google Maps"</strong> para confirmar que el pin cae donde debe.
+        </p>
+
+        <br>
+
+        <p><strong>¿Cómo importar el territorio de una congregación (KML)?</strong><br>
+        Puedes dibujar el territorio de cada congregación en <a href="https://www.google.com/earth/about/versions/" target="_blank" rel="noopener noreferrer">Google Earth Pro</a> (escritorio) y luego importarlo:</p>
+
+        <p>
+        <strong>1.</strong> En Google Earth, dibuja un polígono con la herramienta "Añadir polígono".<br>
+        <strong>2.</strong> Guárdalo como archivo <code>.kml</code> en tu equipo.<br>
+        <strong>3.</strong> En Avisits, edita la congregación y baja al bloque <strong>"Límite del territorio (KML)"</strong>.<br>
+        <strong>4.</strong> Pulsa <strong>"Importar archivo KML"</strong> y selecciona tu archivo.<br>
+        <strong>5.</strong> Elige un <strong>color</strong> para el territorio (o deja el rojo por defecto).<br>
+        <strong>6.</strong> Pulsa <strong>"Guardar"</strong>. El polígono aparecerá en el mapa con ese color.
+        </p>
+
+        <br>
+
+        <p><strong>¿Cómo usar el mapa?</strong></p>
+
+        <p>
+        • 🖱️ <strong>Mover:</strong> arrastra con el ratón o el dedo.<br>
+        • 🔍 <strong>Zoom:</strong> usa los botones <code>+</code> y <code>−</code> arriba a la derecha o la rueda del ratón.<br>
+        • 📍 <strong>Ver datos:</strong> pulsa sobre un pin rojo para ver el popup con nombre, dirección y coordenadas.<br>
+        • 🚗 <strong>Abrir en Google Maps:</strong> desde el popup, pulsa el botón azul <em>"Ver en Google Maps"</strong></em> para abrir la ubicación en tu navegador o app.<br>
+        • 🎨 <strong>Colores:</strong> cada territorio tiene su propio color. Puedes cambiarlo desde el modal de la congregación.
+        </p>
+
+        <br>
+
+        <p><strong>Estados del mapa:</strong></p>
+
+        <p>
+        • ⚙️ <strong>"Aún no has configurado tu clave":</strong> aparece cuando no has pegado la clave de MapTiler. Pulsa el botón <em>"Ir a Configuración"</em>.<br>
+        • 📭 <strong>"Ninguna congregación tiene coordenadas":</strong> hay clave, pero aún no has añadido lat/lng a ninguna congregación.<br>
+        • 🗺️ <strong>Mapa visible:</strong> todo listo. Se muestran los pines y polígonos disponibles.<br>
+        • ⚠️ <strong>Aviso amarillo abajo:</strong> lista de congregaciones que aún no tienen coordenadas registradas.
+        </p>
+
+        <br>
+
+        <p><strong>Consejo importante sobre las coordenadas:</strong><br>
+        Siempre saca las coordenadas desde <strong>Google Maps</strong> (WGS84). Si las copias de otra aplicación que use un sistema de referencia distinto (como NAD27), el pin podría aparecer desplazado ~150 metros del sitio real.</p>
       `
     }
   ];

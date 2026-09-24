@@ -100,7 +100,7 @@
 </div>
 
 <style>
-  .circuito-layout {
+    .circuito-layout {
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -108,13 +108,16 @@
     max-width: 1200px;
     margin: 0 auto;
     width: 100%;
+    height: 100%;
+    min-height: 0;
   }
 
-  .circuito-header {
+    .circuito-header {
     padding: 20px 30px 0 30px; 
     display: flex;
     flex-direction: column;
     gap: 15px;
+    flex-shrink: 0;
   }
 
   .btn-back {
@@ -157,8 +160,12 @@
     border-bottom-color: var(--primary);
   }
 
-  .circuito-content {
+    .circuito-content {
     padding-top: 10px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-bottom: 30px;
   }
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }

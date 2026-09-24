@@ -125,7 +125,7 @@ pub fn guardar_congregacion_rust(cong: CongregacionRust) -> Result<(), String> {
         // La regla ON CONFLICT intercepta los duplicados y actualiza sus datos en lugar de fallar
                    conn.execute(
             "INSERT INTO congregaciones 
-             (circuito, nombre, enVisita, ciudad, provincia, pais, idioma, esLenguaSenas, telefono, horaSemana, horaFinSemana, diaSemana, diaFinSemana, numero_congregacion, direccion_salon, enlace_mapa, latitud, longitud, limite_geojson) 
+            (circuito, nombre, enVisita, ciudad, provincia, pais, idioma, esLenguaSenas, telefono, horaSemana, horaFinSemana, diaSemana, diaFinSemana, numero_congregacion, direccion_salon, enlace_mapa, latitud, longitud, limite_geojson, color_poligono) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
              ON CONFLICT(circuito, nombre) DO UPDATE SET 
              numero_congregacion = excluded.numero_congregacion,
