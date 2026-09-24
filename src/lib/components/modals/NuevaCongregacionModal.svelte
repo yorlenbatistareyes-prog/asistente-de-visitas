@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { X, Save } from 'lucide-svelte';
+  import { X, Save, MapPin, ExternalLink } from 'lucide-svelte';
 
   export let datosEdicion: any = null;
 
@@ -23,7 +23,9 @@
     horaSemana: '',
     diaFinSemana: '',
     horaFinSemana: '',
-    enVisita: false
+    enVisita: false,
+    latitud: null as number | null,
+    longitud: null as number | null
   };
 
   onMount(() => {
@@ -108,6 +110,42 @@
             <label for="mapa">Enlace de Google Maps</label>
             <input id="mapa" type="url" class="input-global" placeholder="https://maps.google.com/..." bind:value={formData.enlace_mapa} />
           </div>
+
+          <div class="form-group">
+             <label>Coordenadas (para el mapa del circuito)</label>
+             <div class="coords-row">
+                <input 
+                  type="number" 
+                  step="0.000001"
+                  class="input-global" 
+                  placeholder="Latitud (ej: 20.8871)" 
+                  bind:value={formData.latitud} 
+                />
+                <input 
+                  type="number" 
+                  step="0.000001"
+                  class="input-global" 
+                  placeholder="Longitud (ej: -76.2631)" 
+                  bind:value={formData.longitud} 
+                />
+             </div>
+             <small class="hint-coords">
+                Pega el enlace de Google Maps arriba y extrae los dos números, o usa el botón de abajo.
+             </small>
+          </div>
+
+          {#if formData.latitud != null && formData.longitud != null}
+            <div class="form-group">
+               <a 
+                 href={`https://www.google.com/maps?q=${formData.latitud},${formData.longitud}`} 
+                 target="_blank" 
+                 rel="noopener noreferrer"
+                 class="btn-ver-mapa"
+              >
+                <MapPin size={14} /> Verificar ubicación en Google Maps <ExternalLink size={12} />
+              </a>
+            </div>
+          {/if}
           
           <div class="form-group">
             <label for="telefono">Teléfono del Salón</label>
@@ -258,4 +296,65 @@
     .form-grid { grid-template-columns: 1fr; gap: 15px; }
     .form-group-row { flex-direction: column; gap: 15px; }
   }
+
+  /* === COORDENADAS LAT/LNG === */
+.coords-row {
+  display: flex;
+  gap: 10px;
+}
+
+.coords-row .input-global {
+  flex: 1;
+  min-width: 0; /* Evita que el input se desborde */
+}
+
+/* Ocultar las flechitas del input[type=number] para que se vea más limpio */
+.coords-row input[type=number]::-webkit-outer-spin-button,
+.coords-row input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.coords-row input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.hint-coords {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-style: italic;
+  line-height: 1.3;
+}
+
+.btn-ver-mapa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-ver-mapa:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(225, 29, 72, 0.05);
+}
+
+/* En móvil, apilamos los dos inputs */
+@media (max-width: 600px) {
+  .coords-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
 </style>

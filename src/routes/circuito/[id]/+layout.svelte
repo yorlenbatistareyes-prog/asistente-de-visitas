@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { Users, UserSquare, ArrowLeft, Map, Briefcase, BarChart2 } from 'lucide-svelte';
+  import { Users, UserSquare, ArrowLeft, Map, Briefcase, BarChart2, Globe } from 'lucide-svelte';
   
   import { obtenerCircuitoPorId, type Circuito } from '$lib/services/db';
 
@@ -82,6 +82,15 @@
       >
         <BarChart2 size={16} /> <span>Registros e Informes</span>
       </a>
+      
+      <a 
+        href={`/circuito/${idCircuito}/mapa`} 
+        class="tab" 
+        class:active={$page.url.pathname.includes('/mapa')}
+      >
+        <Globe size={16} /> <span>Mapa</span>
+      </a>
+      
     </nav>
   </header>
 

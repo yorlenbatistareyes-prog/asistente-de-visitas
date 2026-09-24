@@ -1,10 +1,10 @@
 <script lang="ts">
 
   import { 
-     CloudSync, FolderSync, FolderInput, User, Database, Globe, Save, ArrowLeft,  AlertTriangle, X, ArchiveRestore, DownloadCloud
-  } from 'lucide-svelte';
-  import { onMount } from 'svelte';
+   CloudSync, FolderSync, FolderInput, User, Database, Globe, Save, ArrowLeft,  AlertTriangle, X, ArchiveRestore, DownloadCloud, Map, Check
+} from 'lucide-svelte';
 
+  import { onMount } from 'svelte';
   import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
   import { exists, readFile, writeFile, remove, stat, readDir, BaseDirectory } from '@tauri-apps/plugin-fs';
   import { invoke } from '@tauri-apps/api/core';
@@ -24,6 +24,15 @@
   let nombreCircuito = "";
   let piePagina = "Informe generado por Asistente de Visitas";
   let idioma = "Español";
+
+  
+  // --- MAPA (Opcional) ---
+  let maptilerKey = "";
+  let probandoClave = false;
+  type EstadoClave = 'idle' | 'ok' | 'error' | 'vacia';
+  let estadoClave: EstadoClave = 'idle';
+  let mensajeClave = "";
+
     // 🔥 SELECTOR DE MÉTODO DE SINCRONIZACIÓN
   type MetodoSync = 'web' | 'carpeta' | 'ninguno';
   let metodoSyncSeleccionado: MetodoSync = 'ninguno';
@@ -52,6 +61,9 @@
         nombreCircuito = await cargarConfig('nombreCircuito') || "";
         piePagina = await cargarConfig('piePagina') || "Informe generado por Asistente de Visitas";
         idioma = await cargarConfig('idioma') || "Español";
+        
+        // 🗺️ Cargar la clave de MapTiler (si existe)
+        maptilerKey = await cargarConfig('maptiler_key') || "";
 
                 // 🔥 Cargar el método de sincronización elegido
         const metodoGuardado = await cargarConfig('metodo_sync');
@@ -144,6 +156,9 @@
       await guardarConfig('piePagina', piePagina);
       await guardarConfig('idioma', idioma);
       await guardarConfig('metodo_sync', metodoSyncSeleccionado);
+      
+      // 🗺️ Guardar la clave de MapTiler
+      await guardarConfig('maptiler_key', maptilerKey);
       // Las variables de sincronización ya se guardan solas al tocarlas
       
       alert("✅ Configuración guardada en SQLite correctamente.");
@@ -301,6 +316,45 @@ function handleModalKeydown(event: KeyboardEvent) {
     cerrarModalReset();
   }
 }
+
+
+  // --- PROBAR CLAVE DE MAPTILER ---
+  async function probarClave() {
+    const clave = maptilerKey.trim();
+    if (!clave) {
+      estadoClave = 'vacia';
+      mensajeClave = 'Primero pega una clave para probar.';
+      return;
+    }
+
+    probandoClave = true;
+    estadoClave = 'idle';
+    mensajeClave = 'Comprobando...';
+
+    try {
+      // Pedimos un tile muy pequeño (50x50 px). Es lo mínimo posible.
+     const url = `https://api.maptiler.com/maps/streets-v2/256/0/0/0.png?key=${clave}`;
+      const res = await fetch(url, { method: 'GET' });
+
+      if (res.ok) {
+        estadoClave = 'ok';
+        mensajeClave = '✅ Clave válida. El mapa funcionará correctamente.';
+      } else if (res.status === 401 || res.status === 403) {
+        estadoClave = 'error';
+        mensajeClave = '❌ Clave incorrecta o no autorizada. Revísala en maptiler.com.';
+      } else {
+        estadoClave = 'error';
+        mensajeClave = `⚠️ La API respondió con código ${res.status}. Inténtalo de nuevo.`;
+      }
+    } catch (e) {
+      // Si hay error de red, puede ser el CSP (que aún no hemos tocado).
+      estadoClave = 'error';
+      mensajeClave = '⚠️ No se pudo contactar con MapTiler. Revisa tu conexión o el CSP de Tauri.';
+      console.error('Error probando clave MapTiler:', e);
+    } finally {
+      probandoClave = false;
+    }
+  }
 </script>
 
 <div class="config-page">
@@ -476,6 +530,62 @@ function handleModalKeydown(event: KeyboardEvent) {
           <button class="btn-global danger-btn" on:click={abrirModalReset}>
             <AlertTriangle size={16} /> Resetear Aplicación
           </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 4. PANEL: Mapa del Circuito (Opcional)     -->
+    <!-- ========================================== -->
+    <section class="card-global config-section">
+      <div class="section-icon"><Map size={24} /></div>
+      <div class="section-content">
+        <h3>Mapa del Circuito <span class="badge-opcional">Opcional</span></h3>
+        <p>
+          Muestra las congregaciones del circuito sobre un mapa interactivo. 
+          Requiere una clave gratuita de MapTiler. Si no la añades, la pestaña "Mapa" 
+          simplemente mostrará un aviso.
+        </p>
+
+        <div class="form-group">
+          <label for="maptiler-key">Clave API de MapTiler</label>
+          <input 
+            id="maptiler-key" 
+            type="text" 
+            class="input-global" 
+            placeholder="Pega aquí tu clave de MapTiler"
+            bind:value={maptilerKey}
+            spellcheck="false"
+            autocomplete="off"
+          />
+          <small class="hint-clave">
+            ¿No tienes clave? Consíguela gratis en{' '}
+            <a href="https://cloud.maptiler.com/account/keys/" target="_blank" rel="noopener noreferrer">
+              cloud.maptiler.com
+            </a>
+            {' '}→ Crea una cuenta → Copia tu clave.
+          </small>
+        </div>
+
+        <div class="acciones-clave">
+          <button 
+            type="button" 
+            class="btn-global btn-probar"
+            on:click={probarClave}
+            disabled={probandoClave || !maptilerKey.trim()}
+          >
+            {#if probandoClave}
+              Comprobando...
+            {:else}
+              <Check size={16} /> Probar clave
+            {/if}
+          </button>
+
+          {#if estadoClave !== 'idle'}
+            <div class="estado-clave estado-{estadoClave}">
+              {mensajeClave}
+            </div>
+          {/if}
         </div>
       </div>
     </section>
@@ -1339,6 +1449,12 @@ function handleModalKeydown(event: KeyboardEvent) {
   }
   
   @media (max-width: 768px) {
+    .selector-metodo {
+      grid-template-columns: 1fr;
+    }
+  }
+
+    @media (max-width: 768px) {
     .selector-metodo {
       grid-template-columns: 1fr;
     }

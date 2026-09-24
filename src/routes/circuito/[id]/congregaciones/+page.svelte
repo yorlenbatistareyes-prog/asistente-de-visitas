@@ -87,22 +87,29 @@
   }
 
   async function handleGuardarCongregacion(e: CustomEvent) {
-    try {
-      const nueva = e.detail;
-      if (!circuitoActual) return;
-      let datosParaGuardar: any = {
-        circuito: circuitoActual.nombre, nombre: nueva.nombre.trim().toUpperCase(),
-        enVisita: Boolean(nueva.enVisita), numero_congregacion: nueva.numero_congregacion || "",
-        ciudad: nueva.ciudad || "", provincia: nueva.provincia || "", pais: nueva.pais || "Cuba",
-        telefono: nueva.telefono || "", direccion_salon: nueva.direccion_salon || "", enlace_mapa: nueva.enlace_mapa || "",
-        diaSemana: nueva.diaSemana || "", horaSemana: nueva.horaSemana || "", diaFinSemana: nueva.diaFinSemana || "", horaFinSemana: nueva.horaFinSemana || "",
-        idioma: "Español", esLenguaSenas: Boolean(nueva.esLenguaSenas)
-      };
-      if (nueva.id && String(nueva.id).trim() !== "") datosParaGuardar.id = Number(nueva.id);
-      await guardarCongregacion(datosParaGuardar);
-      mostrarModal = false; await cargarDatos(); 
-    } catch (err) { alert("Ocurrió un error al guardar."); }
-  }
+  try {
+    const nueva = e.detail;
+    if (!circuitoActual) return;
+    let datosParaGuardar: any = {
+      circuito: circuitoActual.nombre, nombre: nueva.nombre.trim().toUpperCase(),
+      enVisita: Boolean(nueva.enVisita), numero_congregacion: nueva.numero_congregacion || "",
+      ciudad: nueva.ciudad || "", provincia: nueva.provincia || "", pais: nueva.pais || "Cuba",
+      telefono: nueva.telefono || "", direccion_salon: nueva.direccion_salon || "", enlace_mapa: nueva.enlace_mapa || "",
+      diaSemana: nueva.diaSemana || "", horaSemana: nueva.horaSemana || "", diaFinSemana: nueva.diaFinSemana || "", horaFinSemana: nueva.horaFinSemana || "",
+      idioma: "Español", esLenguaSenas: Boolean(nueva.esLenguaSenas),
+      // 🌟 AQUÍ ESTÁ LA CLAVE
+      latitud: (nueva.latitud !== null && nueva.latitud !== undefined && nueva.latitud !== "") 
+        ? parseFloat(nueva.latitud) 
+        : null,
+      longitud: (nueva.longitud !== null && nueva.longitud !== undefined && nueva.longitud !== "") 
+        ? parseFloat(nueva.longitud) 
+        : null
+    };
+    if (nueva.id && String(nueva.id).trim() !== "") datosParaGuardar.id = Number(nueva.id);
+    await guardarCongregacion(datosParaGuardar);
+    mostrarModal = false; await cargarDatos(); 
+  } catch (err) { alert("Ocurrió un error al guardar."); }
+}
 
   async function importarCSV() {
     if (!circuitoActual) return;

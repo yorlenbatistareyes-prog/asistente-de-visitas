@@ -55,6 +55,8 @@ export interface Congregacion {
   numero_congregacion?: string;
   direccion_salon?: string;
   enlace_mapa?: string;
+  latitud?: number | null;
+  longitud?: number | null;
 }
 export interface Persona {
   id?: number;
@@ -124,32 +126,38 @@ export async function initDB(): Promise<Database> {
 
     // TABLA CONGREGACIONES
     await dbInstance.execute(`
-      CREATE TABLE IF NOT EXISTS congregaciones (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        circuito TEXT NOT NULL,
-        nombre TEXT NOT NULL,
-        enVisita BOOLEAN DEFAULT 0,
-        ciudad TEXT,
-        provincia TEXT,
-        pais TEXT,
-        idioma TEXT,
-        esLenguaSenas BOOLEAN DEFAULT 0,
-        telefono TEXT,
-        horaSemana TEXT,
-        horaFinSemana TEXT,
-        diaSemana TEXT,
-        diaFinSemana TEXT,
-        numero_congregacion TEXT,
-        direccion_salon TEXT,
-        enlace_mapa TEXT,
-        UNIQUE(circuito, nombre)
-      );
-    `);
+  CREATE TABLE IF NOT EXISTS congregaciones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    circuito TEXT NOT NULL,
+    nombre TEXT NOT NULL,
+    enVisita BOOLEAN DEFAULT 0,
+    ciudad TEXT,
+    provincia TEXT,
+    pais TEXT,
+    idioma TEXT,
+    esLenguaSenas BOOLEAN DEFAULT 0,
+    telefono TEXT,
+    horaSemana TEXT,
+    horaFinSemana TEXT,
+    diaSemana TEXT,
+    diaFinSemana TEXT,
+    numero_congregacion TEXT,
+    direccion_salon TEXT,
+    enlace_mapa TEXT,
+    latitud REAL,
+    longitud REAL,
+    UNIQUE(circuito, nombre)
+  );
+`);
 
     // 🛡️ Migraciones seguras (Añade las columnas a DBs existentes sin borrar datos)
     try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN numero_congregacion TEXT;`); } catch (e) {}
     try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN direccion_salon TEXT;`); } catch (e) {}
     try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN enlace_mapa TEXT;`); } catch (e) {}
+
+    // 🗺️ Coordenadas para el mapa del circuito (migración segura)
+    try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN latitud REAL;`); } catch (e) {}
+    try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN longitud REAL;`); } catch (e) {}
 
     // TABLA PERSONAS
     await dbInstance.execute(`
@@ -789,4 +797,23 @@ export async function eliminarRegistroPrograma(tabla: 'predicacion' | 'hospitali
         await db.execute(query, [id]);
         if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('db_local_cambiada'));
     }
+}
+
+
+// ==================================================
+// --- 12. SINCRONIZACIÓN POR CARPETA ---
+// ==================================================
+
+/**
+ * Guarda (o borra, si es null) la ruta de la carpeta de sincronización en Rust.
+ * Lo usa SincronizacionCarpeta.svelte cuando el usuario elige una carpeta.
+ */
+export async function guardarRutaSync(ruta: string | null) {
+  try {
+    await invoke('guardar_ruta_sync', { ruta });
+    notificarCambioLocal();
+  } catch (error) {
+    console.error("Error guardando ruta de sincronización:", error);
+    throw error;
+  }
 }
