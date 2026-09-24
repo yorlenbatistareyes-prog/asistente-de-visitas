@@ -29,13 +29,26 @@ import { parseKMLToGeoJSON, contarPuntosKML } from '$lib/utils/kmlParser';
     enVisita: false,
     latitud: null as number | null,
     longitud: null as number | null,
-    limite_geojson: null as string | null
+    limite_geojson: null as string | null,
+    color_poligono: '#e11d48' as string | null
   };
 
     // --- ESTADO DEL KML ---
   let tieneLimite = false;
   let puntosLimite = 0;
   let cargandoKml = false;
+
+    // --- COLORES PRESET DEL POLÍGONO ---
+  const coloresPreset = [
+    { nombre: 'Rojo Avisits', valor: '#e11d48' },
+    { nombre: 'Azul', valor: '#2563eb' },
+    { nombre: 'Verde', valor: '#16a34a' },
+    { nombre: 'Naranja', valor: '#ea580c' },
+    { nombre: 'Morado', valor: '#9333ea' },
+    { nombre: 'Cian', valor: '#0891b2' },
+    { nombre: 'Amarillo', valor: '#eab308' },
+    { nombre: 'Gris', valor: '#64748b' },
+  ];
 
 
     onMount(() => {
@@ -252,6 +265,35 @@ import { parseKMLToGeoJSON, contarPuntosKML } from '$lib/utils/kmlParser';
     </div>
   {/if}
 </div>
+
+{#if tieneLimite}
+  <div class="form-group">
+    <label>Color del territorio</label>
+    <div class="color-picker-row">
+      {#each coloresPreset as preset}
+        <button
+          type="button"
+          class="color-swatch"
+          class:active={formData.color_poligono === preset.valor}
+          style={`background: ${preset.valor};`}
+          title={preset.nombre}
+          on:click={() => formData.color_poligono = preset.valor}
+        ></button>
+      {/each}
+      
+      <label class="color-custom" title="Elegir otro color">
+        <input 
+          type="color" 
+          bind:value={formData.color_poligono} 
+        />
+        <span class="color-custom-icon">🎨</span>
+      </label>
+    </div>
+    <small class="hint-coords">
+      Este color se usará para pintar el territorio en el mapa del circuito.
+    </small>
+  </div>
+{/if}
           
           <div class="form-group">
             <label for="telefono">Teléfono del Salón</label>
@@ -535,5 +577,72 @@ import { parseKMLToGeoJSON, contarPuntosKML } from '$lib/utils/kmlParser';
     background: #ef4444;
     color: white;
     border-color: #ef4444;
+  }
+
+  
+  /* === SELECTOR DE COLOR DEL POLÍGONO === */
+  .color-picker-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .color-swatch {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .color-swatch:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  }
+
+  .color-swatch.active {
+    border-color: var(--text-main);
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.15);
+    transform: scale(1.1);
+  }
+
+  .color-custom {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px dashed var(--border-color);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: var(--bg-panel);
+    overflow: hidden;
+  }
+
+  .color-custom:hover {
+    border-color: var(--primary);
+    transform: scale(1.1);
+  }
+
+  .color-custom input[type="color"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    opacity: 0;
+  }
+
+  .color-custom-icon {
+    font-size: 14px;
+    pointer-events: none;
   }
 </style>

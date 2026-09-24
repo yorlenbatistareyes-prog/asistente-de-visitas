@@ -58,6 +58,7 @@ export interface Congregacion {
   latitud?: number | null;
   longitud?: number | null;
   limite_geojson?: string | null;
+  color_poligono?: string | null;
 }
 
 export interface Persona {
@@ -149,6 +150,7 @@ export async function initDB(): Promise<Database> {
     latitud REAL,
     longitud REAL,
     limite_geojson TEXT,
+    color_poligono TEXT,
     UNIQUE(circuito, nombre)
   );
 `);
@@ -164,7 +166,10 @@ export async function initDB(): Promise<Database> {
 
     // 🗺️ Límite del territorio en formato GeoJSON (migración segura)
     try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN limite_geojson TEXT;`); } catch (e) {}
-
+    // 🎨 Color personalizado del polígono (migración segura)
+    try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN color_poligono TEXT;`); } catch (e) {}
+    
+    
     // TABLA PERSONAS
     await dbInstance.execute(`
       CREATE TABLE IF NOT EXISTS personas (

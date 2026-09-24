@@ -19,6 +19,7 @@
   let circuito: Circuito | null = null;
   let congregacionesConCoords: Congregacion[] = [];
   let congregacionesSinCoords: Congregacion[] = [];
+  let todasLasCongregaciones: Congregacion[] = [];
   let cargando = true;
   let hayClave = false;
 
@@ -45,6 +46,7 @@
     circuito = await obtenerCircuitoPorId(idCircuito);
     if (circuito) {
       const todas = await obtenerCongregaciones(circuito.nombre);
+      todasLasCongregaciones = todas;
       congregacionesConCoords = todas.filter(
         c => c.latitud != null && c.longitud != null
       );
@@ -161,7 +163,7 @@
     if (!map) return;
 
     // Recopilamos todos los GeoJSON de congregaciones que tengan límite
-    const features = congregacionesConCoords
+      const features = todasLasCongregaciones
       .filter(c => c.limite_geojson)
       .map(c => {
         try {
@@ -169,10 +171,11 @@
           // Añadimos el nombre de la congregación a las propiedades
           return {
             ...geo,
-            properties: {
+              properties: {
               ...(geo.properties || {}),
               congregacion: c.nombre,
               congregacionId: c.id,
+              color: c.color_poligono || '#e11d48',
             }
           };
         } catch (e) {
@@ -200,24 +203,24 @@
         data: geojsonData as any,
       });
 
-      // Relleno del polígono (rosa suave)
+            // Relleno del polígono (usa el color de cada congregación)
       map.addLayer({
         id: 'limites-fill',
         type: 'fill',
         source: 'limites',
         paint: {
-          'fill-color': '#e11d48',
+          'fill-color': ['get', 'color'] as any,
           'fill-opacity': 0.15,
         },
       });
 
-      // Borde del polígono (rojo)
+      // Borde del polígono (mismo color, más opaco)
       map.addLayer({
         id: 'limites-line',
         type: 'line',
         source: 'limites',
         paint: {
-          'line-color': '#e11d48',
+          'line-color': ['get', 'color'] as any,
           'line-width': 2,
           'line-opacity': 0.7,
         },

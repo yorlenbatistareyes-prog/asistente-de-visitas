@@ -37,7 +37,7 @@ pub fn inicializar_bd() -> Result<()> {
             enVisita BOOLEAN DEFAULT 0, ciudad TEXT, provincia TEXT, pais TEXT, idioma TEXT, 
             esLenguaSenas BOOLEAN DEFAULT 0, telefono TEXT, horaSemana TEXT, horaFinSemana TEXT, 
             diaSemana TEXT, diaFinSemana TEXT,
-            numero_congregacion TEXT, direccion_salon TEXT, enlace_mapa TEXT, latitud REAL, longitud REAL, limite_geojson TEXT,
+            numero_congregacion TEXT, direccion_salon TEXT, enlace_mapa TEXT, latitud REAL, longitud REAL, limite_geojson TEXT, color_poligono TEXT,
             UNIQUE(circuito, nombre))",
         [],
     )?;
@@ -51,7 +51,9 @@ pub fn inicializar_bd() -> Result<()> {
     let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN latitud REAL", []);
     let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN longitud REAL", []);
     let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN limite_geojson TEXT", []);
-
+    let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN color_poligono TEXT", []);
+   
+   
     conn.execute(
         "CREATE TABLE IF NOT EXISTS personas (
             id INTEGER PRIMARY KEY AUTOINCREMENT, circuito_id INTEGER, nombre TEXT NOT NULL, 

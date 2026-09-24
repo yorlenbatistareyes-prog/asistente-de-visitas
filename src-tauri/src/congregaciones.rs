@@ -31,6 +31,7 @@ pub struct CongregacionRust {
     pub latitud: Option<f64>,
     pub longitud: Option<f64>,
     pub limite_geojson: Option<String>,
+    pub color_poligono: Option<String>,
 }
 
 // --- COMANDOS PARA CONGREGACIONES ---
@@ -39,7 +40,7 @@ pub struct CongregacionRust {
 pub fn obtener_congregaciones_rust(circuito: String) -> Result<Vec<CongregacionRust>, String> {
     let conn = establecer_conexion().map_err(|e| e.to_string())?;
 
-        let mut stmt = conn.prepare("SELECT id, circuito, nombre, enVisita, ciudad, provincia, pais, idioma, esLenguaSenas, telefono, horaSemana, horaFinSemana, diaSemana, diaFinSemana, numero_congregacion, direccion_salon, enlace_mapa, latitud, longitud, limite_geojson FROM congregaciones WHERE circuito = ?1 ORDER BY nombre ASC").map_err(|e| e.to_string())?;
+     let mut stmt = conn.prepare("SELECT id, circuito, nombre, enVisita, ciudad, provincia, pais, idioma, esLenguaSenas, telefono, horaSemana, horaFinSemana, diaSemana, diaFinSemana, numero_congregacion, direccion_salon, enlace_mapa, latitud, longitud, limite_geojson, color_poligono FROM congregaciones WHERE circuito = ?1 ORDER BY nombre ASC").map_err(|e| e.to_string())?;
 
     let congregaciones_iter = stmt
         .query_map(rusqlite::params![circuito], |row| {
@@ -64,6 +65,7 @@ pub fn obtener_congregaciones_rust(circuito: String) -> Result<Vec<CongregacionR
                 latitud: row.get(17)?,
                 longitud: row.get(18)?,
                 limite_geojson: row.get(19)?,
+                color_poligono: row.get(20)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -85,14 +87,14 @@ pub fn guardar_congregacion_rust(cong: CongregacionRust) -> Result<(), String> {
 
     if let Some(id_existente) = cong.id {
         // ACTUALIZAR DIRECTO (Cuando guardas desde el Modal de Edición)
-        conn.execute(
+               conn.execute(
             "UPDATE congregaciones SET 
              nombre = ?1, enVisita = ?2, ciudad = ?3, provincia = ?4, pais = ?5, 
              idioma = ?6, esLenguaSenas = ?7, telefono = ?8, horaSemana = ?9, 
              horaFinSemana = ?10, diaSemana = ?11, diaFinSemana = ?12,
              numero_congregacion = ?13, direccion_salon = ?14, enlace_mapa = ?15,
-             latitud = ?16, longitud = ?17, limite_geojson = ?18
-             WHERE id = ?19",
+             latitud = ?16, longitud = ?17, limite_geojson = ?18, color_poligono = ?19
+             WHERE id = ?20",
             rusqlite::params![
                 cong.nombre.to_uppercase(),
                 en_visita_int,
@@ -112,17 +114,19 @@ pub fn guardar_congregacion_rust(cong: CongregacionRust) -> Result<(), String> {
                 cong.latitud,
                 cong.longitud,
                 cong.limite_geojson,
+                cong.color_poligono,
                 id_existente
             ],
         )
         .map_err(|e| e.to_string())?;
+
     } else {
         // INSERTAR NUEVA O ACTUALIZAR (Cuando usas el botón "Importar CSV")
         // La regla ON CONFLICT intercepta los duplicados y actualiza sus datos en lugar de fallar
                    conn.execute(
             "INSERT INTO congregaciones 
              (circuito, nombre, enVisita, ciudad, provincia, pais, idioma, esLenguaSenas, telefono, horaSemana, horaFinSemana, diaSemana, diaFinSemana, numero_congregacion, direccion_salon, enlace_mapa, latitud, longitud, limite_geojson) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
              ON CONFLICT(circuito, nombre) DO UPDATE SET 
              numero_congregacion = excluded.numero_congregacion,
              ciudad = excluded.ciudad,
@@ -136,7 +140,7 @@ pub fn guardar_congregacion_rust(cong: CongregacionRust) -> Result<(), String> {
                 cong.idioma, es_lengua_senas_int, cong.telefono, cong.hora_semana,
                 cong.hora_fin_semana, cong.dia_semana, cong.dia_fin_semana,
                 cong.numero_congregacion, cong.direccion_salon, cong.enlace_mapa,
-                cong.latitud, cong.longitud, cong.limite_geojson
+                cong.latitud, cong.longitud, cong.limite_geojson, cong.color_poligono
             ],
         ).map_err(|e| e.to_string())?;
     }
