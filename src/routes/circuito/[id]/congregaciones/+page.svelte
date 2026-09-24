@@ -103,7 +103,9 @@
         : null,
       longitud: (nueva.longitud !== null && nueva.longitud !== undefined && nueva.longitud !== "") 
         ? parseFloat(nueva.longitud) 
-        : null
+        : null,
+        // 🗺️ Límite del territorio (GeoJSON serializado o null)
+        limite_geojson: nueva.limite_geojson || null
     };
     if (nueva.id && String(nueva.id).trim() !== "") datosParaGuardar.id = Number(nueva.id);
     await guardarCongregacion(datosParaGuardar);

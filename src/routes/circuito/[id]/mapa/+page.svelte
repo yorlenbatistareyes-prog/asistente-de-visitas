@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount, onDestroy } from 'svelte';
-  import { Map, MapStyle, config, Marker, Popup, NavigationControl } from '@maptiler/sdk';
+  import { Map, MapStyle, config, Marker, Popup, NavigationControl, GeoJSONSource } from '@maptiler/sdk';
   import '@maptiler/sdk/dist/maptiler-sdk.css';
   import { MapPin, AlertCircle, Settings } from 'lucide-svelte';
   import { goto } from '$app/navigation';
@@ -84,7 +84,8 @@
     map.addControl(new NavigationControl(), 'top-right');
 
     map.on('load', () => {
-      dibujarMarcadores();
+    dibujarMarcadores();
+    dibujarLimites();
     });
   }
 
@@ -152,6 +153,75 @@
         [Math.max(...lngs), Math.max(...lats)]
       ];
       map.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 800 });
+    }
+  }
+
+  
+  function dibujarLimites() {
+    if (!map) return;
+
+    // Recopilamos todos los GeoJSON de congregaciones que tengan límite
+    const features = congregacionesConCoords
+      .filter(c => c.limite_geojson)
+      .map(c => {
+        try {
+          const geo = JSON.parse(c.limite_geojson!);
+          // Añadimos el nombre de la congregación a las propiedades
+          return {
+            ...geo,
+            properties: {
+              ...(geo.properties || {}),
+              congregacion: c.nombre,
+              congregacionId: c.id,
+            }
+          };
+        } catch (e) {
+          console.warn(`Error parseando GeoJSON de ${c.nombre}:`, e);
+          return null;
+        }
+      })
+      .filter((f): f is NonNullable<typeof f> => f !== null);
+
+    if (features.length === 0) return;
+
+    // Creamos la fuente GeoJSON
+    const geojsonData = {
+      type: 'FeatureCollection',
+      features: features,
+    };
+
+    // Si ya existe la fuente, la actualizamos
+    if (map.getSource('limites')) {
+      (map.getSource('limites') as GeoJSONSource).setData(geojsonData as any);
+    } else {
+      // Si no existe, la creamos
+      map.addSource('limites', {
+        type: 'geojson',
+        data: geojsonData as any,
+      });
+
+      // Relleno del polígono (rosa suave)
+      map.addLayer({
+        id: 'limites-fill',
+        type: 'fill',
+        source: 'limites',
+        paint: {
+          'fill-color': '#e11d48',
+          'fill-opacity': 0.15,
+        },
+      });
+
+      // Borde del polígono (rojo)
+      map.addLayer({
+        id: 'limites-line',
+        type: 'line',
+        source: 'limites',
+        paint: {
+          'line-color': '#e11d48',
+          'line-width': 2,
+          'line-opacity': 0.7,
+        },
+      });
     }
   }
 

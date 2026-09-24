@@ -57,7 +57,9 @@ export interface Congregacion {
   enlace_mapa?: string;
   latitud?: number | null;
   longitud?: number | null;
+  limite_geojson?: string | null;
 }
+
 export interface Persona {
   id?: number;
   circuito_id: number; 
@@ -146,6 +148,7 @@ export async function initDB(): Promise<Database> {
     enlace_mapa TEXT,
     latitud REAL,
     longitud REAL,
+    limite_geojson TEXT,
     UNIQUE(circuito, nombre)
   );
 `);
@@ -158,6 +161,9 @@ export async function initDB(): Promise<Database> {
     // 🗺️ Coordenadas para el mapa del circuito (migración segura)
     try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN latitud REAL;`); } catch (e) {}
     try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN longitud REAL;`); } catch (e) {}
+
+    // 🗺️ Límite del territorio en formato GeoJSON (migración segura)
+    try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN limite_geojson TEXT;`); } catch (e) {}
 
     // TABLA PERSONAS
     await dbInstance.execute(`

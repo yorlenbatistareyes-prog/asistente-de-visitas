@@ -1,6 +1,9 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
-  import { X, Save, MapPin, ExternalLink } from 'lucide-svelte';
+import { createEventDispatcher, onMount } from 'svelte';
+import { X, Save, MapPin, ExternalLink, FileUp, Trash2, CheckCircle } from 'lucide-svelte';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { readTextFile } from '@tauri-apps/plugin-fs';
+import { parseKMLToGeoJSON, contarPuntosKML } from '$lib/utils/kmlParser';
 
   export let datosEdicion: any = null;
 
@@ -25,16 +28,33 @@
     horaFinSemana: '',
     enVisita: false,
     latitud: null as number | null,
-    longitud: null as number | null
+    longitud: null as number | null,
+    limite_geojson: null as string | null
   };
 
-  onMount(() => {
+    // --- ESTADO DEL KML ---
+  let tieneLimite = false;
+  let puntosLimite = 0;
+  let cargandoKml = false;
+
+
+    onMount(() => {
     if (datosEdicion) {
       formData = { 
         ...datosEdicion,
         esLenguaSenas: Boolean(datosEdicion.esLenguaSenas || datosEdicion.es_lengua_senas),
         enVisita: Boolean(datosEdicion.enVisita || datosEdicion.en_visita)
       };
+      // 🗺️ ¿Ya tiene límite guardado?
+      if (formData.limite_geojson) {
+        tieneLimite = true;
+        try {
+          const geo = JSON.parse(formData.limite_geojson);
+          puntosLimite = geo?.geometry?.coordinates?.[0]?.length || 0;
+        } catch (e) {
+          puntosLimite = 0;
+        }
+      }
     }
   });
 
@@ -48,6 +68,54 @@
 
   function cerrar() {
     dispatch('close');
+  }
+
+  
+  // --- IMPORTAR KML ---
+  async function importarKML() {
+    try {
+      cargandoKml = true;
+
+      const seleccion = await openDialog({
+        title: 'Seleccionar archivo KML',
+        multiple: false,
+        directory: false,
+        filters: [{ name: 'Google Earth', extensions: ['kml'] }]
+      });
+
+      if (!seleccion) {
+        cargandoKml = false;
+        return;
+      }
+
+      const rutaOrigen = Array.isArray(seleccion) ? seleccion[0] : seleccion;
+      const kmlTexto = await readTextFile(rutaOrigen as string);
+
+      const geojson = parseKMLToGeoJSON(kmlTexto);
+      if (!geojson) {
+        alert('❌ No se pudo leer el KML. Asegúrate de que contiene un polígono (Polygon).');
+        cargandoKml = false;
+        return;
+      }
+
+      formData.limite_geojson = JSON.stringify(geojson);
+      tieneLimite = true;
+      puntosLimite = contarPuntosKML(kmlTexto);
+      cargandoKml = false;
+
+    } catch (error) {
+      console.error('Error importando KML:', error);
+      alert('❌ Error al leer el archivo KML: ' + error);
+      cargandoKml = false;
+    }
+  }
+
+  // --- ELIMINAR LÍMITE ---
+  function eliminarLimite() {
+    if (!confirm('¿Eliminar el límite de esta congregación?')) return;
+    formData.limite_geojson = null;
+    tieneLimite = false;
+    puntosLimite = 0;
   }
 </script>
 
@@ -146,6 +214,44 @@
               </a>
             </div>
           {/if}
+
+          
+<div class="form-group">
+  <label>Límite del territorio (KML)</label>
+  
+  {#if !tieneLimite}
+    <button 
+      type="button" 
+      class="btn-importar-kml" 
+      on:click={importarKML}
+      disabled={cargandoKml}
+    >
+      <FileUp size={14} /> 
+      {cargandoKml ? 'Cargando...' : 'Importar archivo KML'}
+    </button>
+    <small class="hint-coords">
+      Dibuja el territorio en Google Earth y guarda el archivo .kml. Luego impórtalo aquí.
+    </small>
+  {:else}
+    <div class="kml-cargado">
+      <div class="kml-info">
+        <CheckCircle size={16} color="#16a34a" />
+        <div>
+          <strong>Límite cargado</strong>
+          <div class="kml-detalle">{puntosLimite} puntos</div>
+        </div>
+      </div>
+      <button 
+        type="button" 
+        class="btn-eliminar-kml" 
+        on:click={eliminarLimite}
+        title="Eliminar límite"
+      >
+        <Trash2 size={14} />
+      </button>
+    </div>
+  {/if}
+</div>
           
           <div class="form-group">
             <label for="telefono">Teléfono del Salón</label>
@@ -357,4 +463,77 @@
     gap: 8px;
   }
 }
+
+
+  /* === IMPORTAR KML === */
+  .btn-importar-kml {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-panel);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-main);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-importar-kml:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(225, 29, 72, 0.05);
+    border-style: solid;
+  }
+  .btn-importar-kml:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .kml-cargado {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: var(--radius-sm);
+  }
+
+  .kml-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-main);
+    font-size: 0.85rem;
+  }
+
+  .kml-detalle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .btn-eliminar-kml {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    background: transparent;
+    color: #ef4444;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-eliminar-kml:hover {
+    background: #ef4444;
+    color: white;
+    border-color: #ef4444;
+  }
 </style>

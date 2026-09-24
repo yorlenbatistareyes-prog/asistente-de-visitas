@@ -30,6 +30,7 @@ pub struct CongregacionRust {
     pub enlace_mapa: Option<String>,
     pub latitud: Option<f64>,
     pub longitud: Option<f64>,
+    pub limite_geojson: Option<String>,
 }
 
 // --- COMANDOS PARA CONGREGACIONES ---
@@ -38,7 +39,7 @@ pub struct CongregacionRust {
 pub fn obtener_congregaciones_rust(circuito: String) -> Result<Vec<CongregacionRust>, String> {
     let conn = establecer_conexion().map_err(|e| e.to_string())?;
 
-    let mut stmt = conn.prepare("SELECT id, circuito, nombre, enVisita, ciudad, provincia, pais, idioma, esLenguaSenas, telefono, horaSemana, horaFinSemana, diaSemana, diaFinSemana, numero_congregacion, direccion_salon, enlace_mapa, latitud, longitud FROM congregaciones WHERE circuito = ?1 ORDER BY nombre ASC").map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare("SELECT id, circuito, nombre, enVisita, ciudad, provincia, pais, idioma, esLenguaSenas, telefono, horaSemana, horaFinSemana, diaSemana, diaFinSemana, numero_congregacion, direccion_salon, enlace_mapa, latitud, longitud, limite_geojson FROM congregaciones WHERE circuito = ?1 ORDER BY nombre ASC").map_err(|e| e.to_string())?;
 
     let congregaciones_iter = stmt
         .query_map(rusqlite::params![circuito], |row| {
@@ -62,6 +63,7 @@ pub fn obtener_congregaciones_rust(circuito: String) -> Result<Vec<CongregacionR
                 enlace_mapa: row.get(16)?,
                 latitud: row.get(17)?,
                 longitud: row.get(18)?,
+                limite_geojson: row.get(19)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -89,8 +91,8 @@ pub fn guardar_congregacion_rust(cong: CongregacionRust) -> Result<(), String> {
              idioma = ?6, esLenguaSenas = ?7, telefono = ?8, horaSemana = ?9, 
              horaFinSemana = ?10, diaSemana = ?11, diaFinSemana = ?12,
              numero_congregacion = ?13, direccion_salon = ?14, enlace_mapa = ?15,
-             latitud = ?16, longitud = ?17
-             WHERE id = ?18",
+             latitud = ?16, longitud = ?17, limite_geojson = ?18
+             WHERE id = ?19",
             rusqlite::params![
                 cong.nombre.to_uppercase(),
                 en_visita_int,
@@ -109,6 +111,7 @@ pub fn guardar_congregacion_rust(cong: CongregacionRust) -> Result<(), String> {
                 cong.enlace_mapa,
                 cong.latitud,
                 cong.longitud,
+                cong.limite_geojson,
                 id_existente
             ],
         )
@@ -116,30 +119,30 @@ pub fn guardar_congregacion_rust(cong: CongregacionRust) -> Result<(), String> {
     } else {
         // INSERTAR NUEVA O ACTUALIZAR (Cuando usas el botón "Importar CSV")
         // La regla ON CONFLICT intercepta los duplicados y actualiza sus datos en lugar de fallar
-           conn.execute(
-    "INSERT INTO congregaciones 
-     (circuito, nombre, enVisita, ciudad, provincia, pais, idioma, esLenguaSenas, telefono, horaSemana, horaFinSemana, diaSemana, diaFinSemana, numero_congregacion, direccion_salon, enlace_mapa, latitud, longitud) 
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
-     ON CONFLICT(circuito, nombre) DO UPDATE SET 
-     numero_congregacion = excluded.numero_congregacion,
-     ciudad = excluded.ciudad,
-     provincia = excluded.provincia,
-     pais = excluded.pais,
-     telefono = excluded.telefono,
-     direccion_salon = excluded.direccion_salon,
-     enlace_mapa = excluded.enlace_mapa",
-    rusqlite::params![
-        cong.circuito, cong.nombre.to_uppercase(), en_visita_int, cong.ciudad, cong.provincia, cong.pais,
-        cong.idioma, es_lengua_senas_int, cong.telefono, cong.hora_semana,
-        cong.hora_fin_semana, cong.dia_semana, cong.dia_fin_semana,
-        cong.numero_congregacion, cong.direccion_salon, cong.enlace_mapa,
-        cong.latitud, cong.longitud
-    ],
-      ).map_err(|e| e.to_string())?;
+                   conn.execute(
+            "INSERT INTO congregaciones 
+             (circuito, nombre, enVisita, ciudad, provincia, pais, idioma, esLenguaSenas, telefono, horaSemana, horaFinSemana, diaSemana, diaFinSemana, numero_congregacion, direccion_salon, enlace_mapa, latitud, longitud, limite_geojson) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+             ON CONFLICT(circuito, nombre) DO UPDATE SET 
+             numero_congregacion = excluded.numero_congregacion,
+             ciudad = excluded.ciudad,
+             provincia = excluded.provincia,
+             pais = excluded.pais,
+             telefono = excluded.telefono,
+             direccion_salon = excluded.direccion_salon,
+             enlace_mapa = excluded.enlace_mapa",
+            rusqlite::params![
+                cong.circuito, cong.nombre.to_uppercase(), en_visita_int, cong.ciudad, cong.provincia, cong.pais,
+                cong.idioma, es_lengua_senas_int, cong.telefono, cong.hora_semana,
+                cong.hora_fin_semana, cong.dia_semana, cong.dia_fin_semana,
+                cong.numero_congregacion, cong.direccion_salon, cong.enlace_mapa,
+                cong.latitud, cong.longitud, cong.limite_geojson
+            ],
+        ).map_err(|e| e.to_string())?;
     }
-
     Ok(())
 }
+
 
 #[tauri::command]
 pub fn eliminar_congregacion_rust(id: i64) -> Result<(), String> {

@@ -37,7 +37,7 @@ pub fn inicializar_bd() -> Result<()> {
             enVisita BOOLEAN DEFAULT 0, ciudad TEXT, provincia TEXT, pais TEXT, idioma TEXT, 
             esLenguaSenas BOOLEAN DEFAULT 0, telefono TEXT, horaSemana TEXT, horaFinSemana TEXT, 
             diaSemana TEXT, diaFinSemana TEXT,
-            numero_congregacion TEXT, direccion_salon TEXT, enlace_mapa TEXT, latitud REAL, longitud REAL,
+            numero_congregacion TEXT, direccion_salon TEXT, enlace_mapa TEXT, latitud REAL, longitud REAL, limite_geojson TEXT,
             UNIQUE(circuito, nombre))",
         [],
     )?;
@@ -47,9 +47,10 @@ pub fn inicializar_bd() -> Result<()> {
     let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN direccion_salon TEXT", []);
     let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN enlace_mapa TEXT", []);
 
-    // 🗺️ NUEVAS: coordenadas del mapa
-   let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN latitud REAL", []);
-   let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN longitud REAL", []);
+    // 🗺️ Migraciones para las columnas del mapa (coordenadas y límite GeoJSON)//
+    let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN latitud REAL", []);
+    let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN longitud REAL", []);
+    let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN limite_geojson TEXT", []);
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS personas (
