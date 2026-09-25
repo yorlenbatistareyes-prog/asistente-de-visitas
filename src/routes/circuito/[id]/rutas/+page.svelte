@@ -275,10 +275,15 @@ async function borrarRuta(ruta: Ruta) {
         <label for="tipo">Evento</label>
         <select id="tipo" class="input-global" bind:value={tipoVisita}>
           <option value="Visita a una congregación">Visita a una congregación</option>
+          <option value="Semana de Precursor">Semana de Precursor</option>
+          <option value="Semana de Descanso">Semana de Descanso</option>
+          <option value="Semana de días libres">Semana de Días Libres</option>
+          <option value="Asamblea de Circuito">Asamblea de Circuito</option>
+          <option value="Asamblea Regional">Asamblea Regional</option>
           <option value="Hacer visita de pastoreo">Hacer Visita de Pastoreo</option>
           <option value="Recibir visita de pastoreo">Recibir Visita de Pastoreo</option>
-          <option value="Asamblea de Circuito">Asamblea de Circuito</option>
-          <option value="Semana de Descanso">Semana de Descanso</option>
+          <option value="Escuela del Servicio de precursor">Escuela del Servicio de Precursor</option>
+          <option value="Escuela del Ministerio del Reino">Escuela del Ministerio del Reino</option>
         </select>
       </div>
 
@@ -446,5 +451,65 @@ async function borrarRuta(ruta: Ruta) {
     color: var(--text-muted) !important;
     cursor: not-allowed !important;
     opacity: 0.6;
+  }
+
+  /* ==========================================
+     DISEÑO RESPONSIVO PARA MÓVILES (ANDROID/IOS)
+     ========================================== */
+  @media (max-width: 768px) {
+    /* Encabezado y botón principal */
+    .header-section {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .btn-primary {
+      width: 100%;
+      justify-content: center;
+    }
+
+    /* Tarjeta de Ruta */
+    .ruta-item {
+      flex-direction: column;
+      padding: 0; /* Quitamos padding global para separar en bloques */
+      overflow: hidden;
+      align-items: stretch;
+    }
+
+    /* Bloque superior: Fecha y Detalles */
+    .ruta-info {
+      padding: 15px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .detalles h5 {
+      font-size: 1.15rem; /* Un poco más grande para lectura en móvil */
+    }
+
+    /* Bloque inferior: Asignación y Botones */
+    .acciones-ruta {
+      width: 100%;
+      padding: 15px;
+      background: rgba(100, 116, 139, 0.03); /* Fondo sutil estilo footer */
+      border-top: 1px solid var(--border-color);
+      flex-wrap: wrap; /* Permite que los elementos bajen de línea */
+      box-sizing: border-box;
+      gap: 12px;
+    }
+
+    /* La congregación ocupa toda la fila superior del footer */
+    .asignacion-bloque {
+      width: 100%;
+      justify-content: space-between;
+    }
+    .asignado-nombre {
+      max-width: 70%; /* Evita que el texto empuje el botón "Cambiar" fuera */
+      font-size: 0.85rem;
+    }
+
+    /* El botón Crear Visita se expande ocupando el espacio junto al basurero */
+    .btn-accion {
+      flex: 1; 
+      justify-content: center;
+    }
   }
 </style>

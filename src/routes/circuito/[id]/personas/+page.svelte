@@ -341,17 +341,54 @@
   .vacio { padding: 60px; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--border-color); }
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-  @media (max-width: 768px) {
-    .toolbar-modular { flex-direction: column; align-items: stretch; gap: 15px; }
-    .search-pill, .filter-select { width: 100% !important; height: 52px !important; min-height: 52px !important; border-radius: 30px !important; }
-    .filters-aside { width: 100%; flex-wrap: wrap; }
-    .filters-aside .btn-importar, .filters-aside .btn-primary-fino { flex: 1; height: 50px !important; justify-content: center; }
-    .filters-aside .btn-danger-fino { flex: 1 1 100%; height: 50px; justify-content: center; }
-    .persona-row { flex-direction: column; align-items: flex-start; position: relative; padding: 15px; gap: 10px; }
-    .p-info { padding-right: 70px; }
-    .p-contacto { flex-direction: column; gap: 8px; width: 100%; }
-    .p-acciones { position: absolute; top: 15px; right: 15px; margin-left: 0; gap: 8px; }
+@media (max-width: 768px) {
+    .toolbar-modular { 
+        flex-direction: column; 
+        align-items: stretch; 
+        gap: 12px; 
+    }
+    .search-pill, .filter-select { 
+        width: 100% !important; 
+        height: 48px !important; 
+        min-height: 48px !important; 
+        border-radius: 24px !important; 
+    }
+    .filters-aside { 
+        width: 100%; 
+        flex-direction: column; /* Cambiamos a columna para que se apilen bien */
+        gap: 10px; /* Separación clara entre botones */
+        margin-bottom: 10px; /* Separación con la lista de abajo */
+    }
+    .filters-aside .btn-importar, 
+    .filters-aside .btn-primary-fino, 
+    .filters-aside .btn-danger-fino { 
+        width: 100%; /* Todos los botones del mismo ancho */
+        height: 44px !important; 
+        justify-content: center; /* Texto centrado */
+        border-radius: 22px;
+    }
+    
+    /* Ajustes para las filas de personas en móvil */
+    .persona-row { 
+        flex-direction: column; 
+        align-items: flex-start; 
+        position: relative; 
+        padding: 15px; 
+        gap: 12px; 
+    }
+    .p-info { padding-right: 60px; } /* Deja espacio para los botones de editar/borrar */
+    .p-contacto { 
+        flex-direction: column; 
+        gap: 8px; 
+        width: 100%; 
+    }
+    .p-acciones { 
+        position: absolute; 
+        top: 15px; 
+        right: 15px; 
+        margin-left: 0; 
+        gap: 8px; 
+    }
   }
 
   .clickable-contact {
