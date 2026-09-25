@@ -254,17 +254,25 @@
       <div class="grupo-congregacion card-global">
         
         <div class="header-congregacion" role="button" tabindex="0" on:click={() => toggleExpandir(nombreCongregacion)}>
-          <div class="titulo-cong"><Users size={20} color="var(--primary)" /><h2>{nombreCongregacion}</h2></div>
+          <div class="titulo-cong">
+            <h2 class="nombre-cong-negro">{nombreCongregacion}</h2>
+          </div>
           <div class="header-acciones">
-            <span class="badge-conteo">{personasAgrupadas[nombreCongregacion].length} personas</span>
             {#if expandidas[nombreCongregacion]}<ChevronUp size={20} color="var(--text-muted)" />{:else}<ChevronDown size={20} color="var(--text-muted)" />{/if}
           </div>
         </div>
 
-        {#if expandidas[nombreCongregacion]}
+       {#if expandidas[nombreCongregacion]}
           <div class="tabla-personas" transition:slide={{ duration: 250 }}>
+            
+            <!-- TEXTO ACTUALIZADO EN MINÚSCULA -->
+            <div class="info-total-desplegado">
+              Resultados: {personasAgrupadas[nombreCongregacion].length}
+            </div>
+
             {#each personasAgrupadas[nombreCongregacion] as p}
               <div class="persona-row">
+
                 <div class="p-info" role="button" tabindex="0" on:click={() => abrirEdicion(p)}>
                   <span class="p-nombre">{p.apellidos}, {p.nombre}</span>
                   <span class="p-meta">{p.privilegio || 'Publicador'}</span>
@@ -346,14 +354,26 @@
   .btn-importar { background-color: #14532d; color: white; border: none; height: 38px; padding: 0 24px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; box-shadow: 0 2px 4px rgba(20, 83, 45, 0.2); }
   .btn-danger-fino { background-color: transparent; color: #ef4444; border: 1px solid #ef4444; height: 38px; padding: 0 16px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; }
 
-  .lista-agrupada { display: flex; flex-direction: column; gap: 25px; }
-  .grupo-congregacion { background: var(--bg-panel); border-radius: var(--radius-lg); border: 1px solid var(--border-color); overflow: hidden; }
-  .header-congregacion { background: rgba(100, 116, 139, 0.05); padding: 15px 25px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-  .titulo-cong { display: flex; align-items: center; gap: 10px; }
-  .titulo-cong h2 { margin: 0; font-size: 1.15rem; color: var(--text-main); font-weight: 800; }
-  .header-acciones { display: flex; align-items: center; gap: 15px; }
-  .badge-conteo { background: var(--bg-app); color: var(--text-muted); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; border: 1px solid var(--border-color); }
-
+  /* Diseño en Grid a 2 columnas */
+  /* Forzamos el Grid a 2 columnas */
+  .lista-agrupada { 
+    display: grid !important; 
+    grid-template-columns: repeat(2, 1fr) !important; 
+    gap: 15px; 
+    align-items: start; 
+  }
+  
+  .grupo-congregacion { background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-color); overflow: hidden; }
+  
+  .header-congregacion { background: transparent; padding: 15px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.2s; }
+  .header-congregacion:hover { background: rgba(100, 116, 139, 0.02); }
+  
+  .titulo-cong { display: flex; flex-direction: column; }
+  
+  /* Nombre en negro (color principal) con la cantidad */
+  .nombre-cong-negro { margin: 0; font-size: 1rem; color: var(--text-main); font-weight: 700; line-height: 1.4; text-transform: uppercase; }
+  
+  .header-acciones { display: flex; align-items: center; }
   .persona-row { display: flex; align-items: center; padding: 15px 25px; border-bottom: 1px solid var(--border-color); }
   .persona-row:hover { background: rgba(100, 116, 139, 0.05); }
   .p-info { flex: 1.5; display: flex; flex-direction: column; cursor: pointer; }
@@ -380,9 +400,21 @@
   .btn-cerrar-menu { margin-top: 5px; background: #f8fafc; border: 1px solid var(--border-color); padding: 8px; border-radius: var(--radius-sm); font-weight: 700; color: var(--text-main); cursor: pointer; text-align: center; }
   .vacio { padding: 60px; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--border-color); }
 
+  /* Estilo para el total de personas al desplegar la lista */
+  .info-total-desplegado {
+    padding: 10px 25px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background-color: rgba(100, 116, 139, 0.03);
+    border-bottom: 1px solid var(--border-color);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 768px) {
 
+    .lista-agrupada { grid-template-columns: 1fr !important; }
     .resumen-section { padding: 15px; }
     .estadisticas-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .stat-number { font-size: 1.6rem; }
@@ -444,4 +476,5 @@
     color: #2563eb;
     text-decoration: underline;
   }
+
 </style>
