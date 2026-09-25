@@ -17,6 +17,7 @@
     guardarCongregacion,
     eliminarCongregacion,
     eliminarTodasLasCongregaciones,
+    purgarCongregacionesArchivadas,
     initDB,
     type Circuito,
     type Congregacion 
@@ -78,15 +79,18 @@
   function abrirModal() { datosEdicion = null; mostrarModal = true; }
   function editarCongregacion(cong: Congregacion) { datosEdicion = { ...cong }; mostrarModal = true; }
 
-  async function borrar(id: number | undefined, nombre: string) {
+    async function borrar(id: number | undefined, nombre: string) {
     if (!id) return;
-    const confirmado = await confirmDialog(`¿Seguro que deseas eliminar a "${nombre}"?`, { title: 'Eliminar Congregación', kind: 'warning' });
+    const confirmado = await confirmDialog(
+      `¿Seguro que deseas eliminar a "${nombre}"?\n\n⚠️ Esta acción también borrará TODAS sus visitas, rutas y análisis asociados. No se puede deshacer.`,
+      { title: 'Eliminar Congregación', kind: 'warning' }
+    );
     if (!confirmado) return;
     try { await eliminarCongregacion(id); await cargarDatos(); } 
     catch (error) { alert("❌ Error al eliminar la congregación."); }
   }
 
-    async function handleGuardarCongregacion(e: CustomEvent) {
+      async function handleGuardarCongregacion(e: CustomEvent) {
     try {
       const nueva = e.detail;
       if (!circuitoActual) return;
@@ -104,7 +108,8 @@
           ? parseFloat(nueva.longitud) 
           : null,
         limite_geojson: nueva.limite_geojson || null,
-        color_poligono: nueva.color_poligono || null
+        color_poligono: nueva.color_poligono || null,
+        activo: 1
       };
       if (nueva.id && String(nueva.id).trim() !== "") datosParaGuardar.id = Number(nueva.id);
       await guardarCongregacion(datosParaGuardar);
@@ -125,13 +130,13 @@
       const rutaOrigen = Array.isArray(seleccion) ? seleccion[0] : seleccion;
       const csvBytes = await readFile(rutaOrigen as string);
       const textoCSV = new TextDecoder().decode(csvBytes);
-
       Papa.parse(textoCSV, {
         header: true, skipEmptyLines: true,
         complete: async (results) => {
-
           const datosCSV = results.data as Record<string, string>[];
           let importadas = 0;
+          const nombresImportados: string[] = [];
+
           for (const fila of datosCSV) {
             if (!fila["Congregación"]) continue;
             try {
@@ -141,21 +146,45 @@
                 pais: fila["País (Correspondencia)"] || "", telefono: fila["Teléfono (Teléfono 1)"] || "", idioma: "Español", esLenguaSenas: false
               });
               importadas++;
-            } catch (err) {}
+              nombresImportados.push(fila["Congregación"]);
+            } catch (err) {
+              console.error('Error importando fila:', err);
+            }
           }
-          await cargarDatos(); alert(`✅ Importación completada: ${importadas} congregaciones añadidas.`);
+
+          // 🗑️ PURGA: eliminamos congregaciones archivadas que ya no estén en el CSV
+          let purgadas = 0;
+          try {
+            purgadas = await purgarCongregacionesArchivadas(circuitoActual!.nombre, nombresImportados);
+          } catch (err) {
+            console.error('Error durante la purga:', err);
+          }
+
+          await cargarDatos();
+
+          // 📢 Mensaje final al usuario
+          let mensaje = `✅ Importación completada: ${importadas} congregaciones añadidas.`;
+          if (purgadas > 0) {
+            mensaje += `\n\n🗑️ Se eliminaron ${purgadas} congregaciones antiguas que ya no están en el CSV.`;
+          }
+          alert(mensaje);
         }
       });
+
     } catch (error) { alert("❌ Error al leer el archivo."); }
   }
 
-  async function borrarTodo() {
+   async function borrarTodo() {
     if (lista.length === 0 || !circuitoActual) return;
-    const confirmado = await confirmDialog("⚠️ PELIGRO: ¿Eliminar TODAS las congregaciones?", { title: 'Vaciar Congregaciones', kind: 'warning' });
+    const confirmado = await confirmDialog(
+      `¿Ocultar TODAS las congregaciones del circuito?\n\n✅ Las visitas, rutas y análisis NO se borrarán.\n✅ Podrás recuperarlas reimportando el CSV.\n\nLas congregaciones desaparecerán de la lista hasta que las reimportes.`,
+      { title: 'Ocultar Congregaciones', kind: 'info' }
+    );
     if (!confirmado) return;
     try { await eliminarTodasLasCongregaciones(circuitoActual.nombre); await cargarDatos(); } 
     catch (error) { alert("Ocurrió un error."); }
   }
+
 </script>
 
 <div class="congregaciones-layout">

@@ -59,6 +59,7 @@ export interface Congregacion {
   longitud?: number | null;
   limite_geojson?: string | null;
   color_poligono?: string | null;
+  activo?: boolean;
 }
 
 export interface Persona {
@@ -151,6 +152,7 @@ export async function initDB(): Promise<Database> {
     longitud REAL,
     limite_geojson TEXT,
     color_poligono TEXT,
+    activo INTEGER DEFAULT 1,
     UNIQUE(circuito, nombre)
   );
 `);
@@ -169,7 +171,12 @@ export async function initDB(): Promise<Database> {
     // 🎨 Color personalizado del polígono (migración segura)
     try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN color_poligono TEXT;`); } catch (e) {}
     
+    // 🗂️ Estado activo/inactivo para archivar sin perder visitas (migración segura)
+    try { await dbInstance.execute(`ALTER TABLE congregaciones ADD COLUMN activo INTEGER DEFAULT 1;`); } catch (e) {}
     
+    // 🔄 Inicializar activo = 1 para congregaciones existentes que quedaron en NULL
+    try { await dbInstance.execute(`UPDATE congregaciones SET activo = 1 WHERE activo IS NULL;`); } catch (e) {}
+
     // TABLA PERSONAS
     await dbInstance.execute(`
       CREATE TABLE IF NOT EXISTS personas (
@@ -476,7 +483,10 @@ export async function eliminarTodasLasPersonas(circuitoId: number) {
 
 export async function eliminarTodasLasCongregaciones(circuito: string) {
   const db = await Database.load('sqlite:av_database.db');
-  await db.execute('DELETE FROM congregaciones WHERE circuito = $1', [circuito]);
+  // 🗂️ En vez de borrar, ARCHIVAMOS: preserva las visitas y demás datos vinculados.
+  // Las congregaciones desaparecen de la lista (porque el SELECT filtra por activo = 1),
+  // pero siguen en la BD vinculadas a sus visitas, rutas, etc.
+  await db.execute('UPDATE congregaciones SET activo = 0 WHERE circuito = $1', [circuito]);
   notificarCambioLocal(); // ⏰ AVISAMOS MEDIANTE EVENTO
 }
 
@@ -827,4 +837,54 @@ export async function guardarRutaSync(ruta: string | null) {
     console.error("Error guardando ruta de sincronización:", error);
     throw error;
   }
+}
+
+
+// ==================================================
+// --- 13. PURGA DE CONGREGACIONES ARCHIVADAS ---
+// ==================================================
+
+/**
+ * Elimina permanentemente de la BD las congregaciones archivadas (activo = 0)
+ * que NO estén en la lista de nombres proporcionada.
+ * Se usa al reimportar un CSV para limpiar congregaciones que ya no existen.
+ * 
+ * ⚠️ CUIDADO: Esta función borra congregaciones y, por CASCADE, sus visitas asociadas.
+ * Solo se debe llamar tras importar un CSV, con la lista de nombres válidos.
+ */
+export async function purgarCongregacionesArchivadas(circuito: string, nombresActivos: string[]) {
+  const db = await Database.load('sqlite:av_database.db');
+  
+  // Si no hay nombres activos, no purgamos nada por seguridad
+  if (!nombresActivos || nombresActivos.length === 0) {
+    console.log('⚠️ [Purga] No hay nombres activos, se cancela la purga por seguridad.');
+    return 0;
+  }
+  
+  // Construimos los placeholders para el IN (...)
+  const placeholders = nombresActivos.map((_, i) => `$${i + 2}`).join(', ');
+  
+  // Contamos cuántas se van a borrar (para informar al usuario)
+  const conteo = await db.select<{total: number}[]>(
+    `SELECT COUNT(*) as total FROM congregaciones 
+     WHERE circuito = $1 AND activo = 0 AND nombre NOT IN (${placeholders})`,
+    [circuito, ...nombresActivos]
+  );
+  const totalABorrar = conteo[0]?.total || 0;
+  
+  if (totalABorrar === 0) {
+    console.log('✅ [Purga] No hay congregaciones archivadas que purgar.');
+    return 0;
+  }
+  
+  // Ejecutamos la purga
+  await db.execute(
+    `DELETE FROM congregaciones 
+     WHERE circuito = $1 AND activo = 0 AND nombre NOT IN (${placeholders})`,
+    [circuito, ...nombresActivos]
+  );
+  
+  console.log(`🗑️ [Purga] Se eliminaron ${totalABorrar} congregaciones archivadas que no estaban en el CSV.`);
+  notificarCambioLocal();
+  return totalABorrar;
 }

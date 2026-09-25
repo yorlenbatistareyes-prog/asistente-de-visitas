@@ -38,6 +38,7 @@ pub fn inicializar_bd() -> Result<()> {
             esLenguaSenas BOOLEAN DEFAULT 0, telefono TEXT, horaSemana TEXT, horaFinSemana TEXT, 
             diaSemana TEXT, diaFinSemana TEXT,
             numero_congregacion TEXT, direccion_salon TEXT, enlace_mapa TEXT, latitud REAL, longitud REAL, limite_geojson TEXT, color_poligono TEXT,
+            activo INTEGER DEFAULT 1,
             UNIQUE(circuito, nombre))",
         [],
     )?;
@@ -53,6 +54,8 @@ pub fn inicializar_bd() -> Result<()> {
     let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN limite_geojson TEXT", []);
     let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN color_poligono TEXT", []);
    
+    let _ = conn.execute("ALTER TABLE congregaciones ADD COLUMN activo INTEGER DEFAULT 1", []);
+    let _ = conn.execute("UPDATE congregaciones SET activo = 1 WHERE activo IS NULL", []);
    
     conn.execute(
         "CREATE TABLE IF NOT EXISTS personas (
