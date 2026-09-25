@@ -120,12 +120,29 @@
     flex-shrink: 0;
   }
 
-  .btn-back {
-    display: inline-flex; align-items: center; gap: 6px;
-    text-decoration: none; color: var(--text-muted); font-weight: 600;
-    font-size: 0.85rem; transition: 0.2s;
+.btn-back {
+    display: inline-flex; 
+    align-items: center; 
+    gap: 6px;
+    text-decoration: none; 
+    color: var(--text-main); 
+    background-color: rgba(100, 116, 139, 0.15); /* Gris más fuerte y visible */
+    padding: 6px 14px; 
+    border-radius: 20px; 
+    font-weight: 700;
+    font-size: 0.85rem; 
+    transition: all 0.2s ease;
+    border: 1px solid rgba(100, 116, 139, 0.3); /* Borde sutil para enmarcarlo */
+    width: fit-content;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); /* Sombra ligera de profundidad */
   }
-  .btn-back:hover { color: var(--text-main); }
+  
+  .btn-back:hover { 
+    background-color: rgba(100, 116, 139, 0.25); 
+    border-color: rgba(100, 116, 139, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
 
   .title-area {
     display: flex; align-items: center; gap: 15px; margin-bottom: 15px;
@@ -171,45 +188,60 @@
   @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
   /* =============================================
-     DISEÑO RESPONSIVO
+     DISEÑO RESPONSIVO MÓVIL OPTIMIZADO
      ============================================= */
 
   @media (max-width: 768px) {
+    /* 1. Reducir padding global de la tarjeta blanca */
     .circuito-header {
-      padding: 15px 15px 0 15px; 
-      gap: 10px;
+      padding: 12px 15px 0 15px !important; 
+      margin-bottom: 5px !important;
+      gap: 0px !important; /* Quitamos gap para controlar márgenes manualmente */
     }
 
+    /* 2. Reducir margen del botón de volver, pero manteniendo su forma */
     .btn-back {
-      padding: 8px 0;
-      font-size: 0.9rem;
+      padding: 6px 12px !important;
+      font-size: 0.8rem;
+      margin-bottom: 4px !important;
     }
 
+    /* 3. Alinear Título y Etiqueta en la misma fila */
     .title-area {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 8px;
+      flex-direction: row !important; /* Forzamos horizontal */
+      align-items: center !important; /* Centrados verticalmente */
+      gap: 10px !important;
+      margin-bottom: 8px !important; /* Reducimos espacio antes de pestañas */
     }
 
     .title-area h2 {
-      font-size: 1.5rem; 
-      line-height: 1.2;
+      font-size: 1.4rem; 
+      line-height: 1.1;
+      margin: 0 !important;
+    }
+    
+    .badge {
+      margin: 0 !important;
+      padding: 3px 8px;
     }
 
+    /* 4. Ajustar pestañas para que sean más compactas */
     .tabs-container {
       gap: 15px; 
       justify-content: flex-start;
+      margin-top: 0 !important;
     }
 
     .tab {
-      padding: 15px 5px; 
+      padding: 10px 4px 8px 4px !important; 
       font-size: 0.85rem;
     }
   }
 
   @media (max-width: 480px) {
     .title-area h2 {
-      font-size: 1.3rem;
+      font-size: 1.25rem;
     }
   }
+
 </style>
