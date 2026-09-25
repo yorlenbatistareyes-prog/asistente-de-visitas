@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { Plus, MapPin, Calendar, Users, Trash2, ArrowRight, Map, Search } from "lucide-svelte";
+  import { Plus, MapPin, Calendar, Users, Trash2, ArrowRight, Map, Search, Filter } from "lucide-svelte";
   import { confirm } from '@tauri-apps/plugin-dialog';
 
   import { 
@@ -18,6 +18,7 @@
 
   let circuitos: CircuitoVisual[] = [];
   let mostrandoModal = false;
+  let mostrarFiltrosMobile = false; // <-- Nueva variable para los filtros en móvil
 
   let busqueda = "";
   let filtroEstado = "todos";
@@ -122,25 +123,34 @@
   <div class="header-section">
     <div>
       <h1>Listas de circuitos</h1>
-      <p>Administrar todos los circuitos en un solo lugar.</p>
+      <p class="subtitle-desktop">Administrar todos los circuitos en un solo lugar.</p>
     </div>
-    <button class="btn-global btn-primary" on:click={() => (mostrandoModal = true)}>
+    <!-- Botón de escritorio -->
+    <button class="btn-global btn-primary btn-add-desktop" on:click={() => (mostrandoModal = true)}>
       <Plus size={18} /> Añadir Circuito
     </button>
   </div>
 
   <div class="toolbar-modular">
-    <div class="search-pill card-global">
-      <Search size={18} class="search-icon" />
-      <input 
-        type="text" 
-        placeholder="Buscar circuitos por nombre, ubicación o fecha..." 
-        bind:value={busqueda}
-        class="search-input"
-      />
+    
+    <div class="search-row-mobile">
+      <div class="search-pill card-global">
+        <Search size={18} class="search-icon" />
+        <input 
+          type="text" 
+          placeholder="Buscar circuitos por nombre o fecha..." 
+          bind:value={busqueda}
+          class="search-input"
+        />
+      </div>
+      <!-- Botón de filtros para móvil -->
+      <button class="btn-filter-mobile" on:click={() => mostrarFiltrosMobile = !mostrarFiltrosMobile} class:activo={mostrarFiltrosMobile}>
+        <Filter size={20} />
+      </button>
     </div>
 
-    <div class="filters-aside">
+    <!-- Menú de filtros (Oculto en móvil por defecto) -->
+    <div class="filters-aside" class:show-mobile={mostrarFiltrosMobile}>
       <div class="filter-item card-global">
         <select bind:value={filtroEstado} class="minimal-select">
           <option value="todos">Todos los circuitos</option>
@@ -208,11 +218,13 @@
 
         <div class="actions-wrapper">
           <div class="card-actions">
-            <button class="btn-delete" on:click={() => eliminar(circuito.id!, circuito.nombre)} title="Eliminar">
-              <Trash2 size={18} />
+            <!-- Fíjate que aquí adentro ya NO está la palabra "Eliminar", solo el icono -->
+            <button class="btn-delete" on:click={() => eliminar(circuito.id!, circuito.nombre)}>
+               <Trash2 size={24} />
             </button>
+            
             <button class="btn-manage" on:click={() => entrarAlCircuito(circuito.id!)}>
-              Gestionar Circuito <ArrowRight size={16} />
+              Gestionar Circuito <ArrowRight size={18} />
             </button>
           </div>
         </div>
@@ -220,6 +232,11 @@
     {/each}
   </div>
 </div>
+
+<!-- Botón de acción flotante (FAB) Exclusivo para móviles -->
+<button class="fab-mobile" on:click={() => (mostrandoModal = true)}>
+  <Plus size={26} strokeWidth={2.5} />
+</button>
 
 {#if mostrandoModal}
   <div class="modal-backdrop">
@@ -265,14 +282,22 @@
   .header-section h1 { margin: 0; font-size: 2rem; font-weight: 800; color: var(--text-main); }
   .btn-primary { background-color: #5c0a1f !important; color: white !important; border: none; padding: 10px 24px; font-weight: 700; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(92, 10, 31, 0.2); }
   .btn-primary:hover { background-color: #3a0411 !important; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(92, 10, 31, 0.3); }
+  
   .toolbar-modular { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 35px; }
+  .search-row-mobile { flex: 1; display: flex; gap: 10px; }
   .search-pill { flex: 1; display: flex; align-items: center; padding: 0 20px; height: 44px; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 50px; transition: all 0.2s ease; }
   .search-pill:focus-within { border-color: #5c0a1f; box-shadow: 0 0 0 3px rgba(92, 10, 31, 0.1); }
   .search-input { width: 100%; border: none; background: transparent; color: var(--text-main); outline: none; font-size: 0.9rem; margin-left: 10px; }
+  
   .filters-aside { display: flex; gap: 12px; }
   .filter-item { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 12px; padding: 0 15px; height: 44px; display: flex; align-items: center; }
   .filter-item:hover { border-color: #5c0a1f; } 
   .minimal-select { background: transparent; color: var(--text-main); border: none; font-size: 0.85rem; font-weight: 600; outline: none; cursor: pointer; }
+  
+  /* Elementos Exclusivos de Móvil ocultos por defecto en PC */
+  .btn-filter-mobile { display: none; }
+  .fab-mobile { display: none; }
+
   .grid-circuitos { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 30px; }
   .rassembly-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; min-height: 320px; position: relative; transition: all 0.3s ease; border: 1px solid var(--border-color); border-top: 4px solid #5c0a1f; background: var(--bg-panel); border-radius: var(--radius-lg); }
   .rassembly-card:hover { transform: translateY(-8px); box-shadow: var(--shadow-3d); }
@@ -294,6 +319,7 @@
   :global(.dark) .btn-delete { background: rgba(239, 68, 68, 0.15); }
   .btn-manage { flex: 1; height: 40px; border-radius: 10px; border: none; background: #5c0a1f; color: white; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .btn-manage:hover { background: #3a0411; }
+  
   .modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 20px; }
   .modal-content { width: 100%; max-width: 500px; background: var(--bg-panel); border-radius: var(--radius-lg); padding: 35px; box-shadow: var(--shadow-3d); animation: scaleIn 0.2s ease-out; border-top: 5px solid #5c0a1f; }
   .form-group { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
@@ -303,25 +329,105 @@
   .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px; }
   @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
   
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
   @media (max-width: 1024px) { .grid-circuitos { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); } }
+  
   @media (max-width: 768px) {
-    .header-section { flex-direction: column; align-items: flex-start; gap: 15px; margin-bottom: 25px; }
-    .header-section button { width: 100%; justify-content: center; min-height: 52px !important; }
-    .toolbar-modular { flex-direction: column; align-items: stretch; gap: 12px; width: 100%; box-sizing: border-box; }
-    .search-pill { width: 100%; box-sizing: border-box; min-height: 52px !important; padding: 0 20px; border-radius: 12px; }
-    .search-input { font-size: 1rem; }
-    .filters-aside { flex-direction: column; width: 100%; gap: 12px; }
-    .filter-item { width: 100%; box-sizing: border-box; min-height: 52px !important; }
-    .minimal-select { width: 100%; font-size: 0.95rem; }
+    /* Optimización de cabecera */
+    .header-section { margin-bottom: 20px; }
+    .subtitle-desktop { display: none; }
+    .btn-add-desktop { display: none !important; }
+
+    /* Optimización de la barra de búsqueda y filtros */
+    .toolbar-modular { flex-direction: column; gap: 12px; margin-bottom: 25px; }
+    .search-row-mobile { width: 100%; display: flex; gap: 10px; }
+    .search-pill { min-height: 48px !important; padding: 0 15px; border-radius: 12px; }
+    
+    .btn-filter-mobile {
+      display: flex; justify-content: center; align-items: center;
+      width: 48px; height: 48px; border-radius: 12px;
+      background: var(--bg-panel); border: 1px solid var(--border-color);
+      color: var(--text-muted); cursor: pointer; flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .btn-filter-mobile.activo {
+      background: rgba(92, 10, 31, 0.08); color: #5c0a1f; border-color: #5c0a1f;
+    }
+
+    .filters-aside { display: none; flex-direction: column; width: 100%; gap: 10px; }
+    .filters-aside.show-mobile { display: flex; animation: slideDown 0.2s ease-out; }
+    .filter-item { width: 100%; box-sizing: border-box; min-height: 48px !important; border-radius: 12px; }
+    
+    /* Configuración de las tarjetas */
     .grid-circuitos { grid-template-columns: 1fr; }
     .rassembly-card { min-height: auto; }
     .card-content { padding-bottom: 10px; }
     .actions-wrapper { position: static; opacity: 1; transform: translateY(0); pointer-events: auto; height: auto; padding: 0 25px 25px 25px; border-top: none; background: transparent; }
-    .card-actions { flex-direction: column; gap: 12px; width: 100%; box-sizing: border-box; }
-    .btn-delete, .btn-manage { width: 100%; min-height: 52px !important; padding: 12px 20px !important; justify-content: center; border-radius: 12px !important; font-size: 1rem !important; }
+   /* --- BOTONES EN LA MISMA FILA PARA MÓVIL --- */
+    .card-actions { 
+      flex-direction: row !important; /* Fuerza a que estén uno al lado del otro */
+      gap: 12px; 
+      width: 100%; 
+    }
+    
+    /* --- BOTÓN DE ELIMINAR BLINDADO CONTRA TEXTO FANTASMA --- */
+    .btn-delete { 
+      width: 52px !important; 
+      min-width: 52px !important; 
+      min-height: 52px !important; 
+      height: 52px !important;
+      padding: 0 !important; 
+      display: flex !important;
+      justify-content: center !important;
+      align-items: center !important;
+      border-radius: 12px !important; 
+      flex-shrink: 0 !important;
+      
+      /* ESTO DESTRUYE CUALQUIER TEXTO (HTML o CSS) */
+      font-size: 0 !important; 
+      color: transparent !important; 
+    }
+    
+    /* BLOQUEA INYECCIONES DE TEXTO GLOBALES */
+    .btn-delete::before, 
+    .btn-delete::after {
+      content: none !important;
+      display: none !important;
+    }
+    
+    /* FUERZA AL ÍCONO A MOSTRARSE ROJO Y CENTRADO */
+    .btn-delete :global(svg) {
+      display: block !important;
+      width: 24px !important;
+      height: 24px !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      color: #ef4444 !important; /* Color rojo solo para el cesto */
+    }
+    
+    .btn-manage { 
+      flex: 1 !important; /* Ocupa todo el espacio restante */
+      min-height: 52px !important; 
+      height: 52px !important;
+      border-radius: 12px !important; 
+      font-size: 1rem !important; 
+    }
+
+    /* Botón flotante Android-style */
+    .fab-mobile {
+      display: flex; justify-content: center; align-items: center;
+      position: fixed; bottom: 25px; right: 25px;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: #5c0a1f; color: white; border: none;
+      box-shadow: 0 4px 15px rgba(92, 10, 31, 0.4);
+      z-index: 1000; cursor: pointer; transition: transform 0.2s;
+    }
+    .fab-mobile:active { transform: scale(0.95); }
   }
+  
   @media (max-width: 480px) {
-    .header-section h1 { font-size: 1.6rem; }
+    .header-section h1 { font-size: 1.8rem; }
     .card-header, .card-content, .actions-wrapper { padding-left: 20px; padding-right: 20px; }
     .modal-content { padding: 20px; }
     .form-row { flex-direction: column; gap: 15px; margin-bottom: 15px; }
