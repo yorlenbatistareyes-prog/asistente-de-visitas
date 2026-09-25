@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { slide } from 'svelte/transition'; 
-  import { Filter, Search, Upload, Plus, Trash2, Phone, Mail, User, Edit, Users, ChevronDown, ChevronUp } from "lucide-svelte";
+  import {Shield, BookOpen, FileText, Award, Filter, Search, Upload, Plus, Trash2, Phone, Mail, User, Edit, Users, ChevronDown, ChevronUp } from "lucide-svelte";
   import Papa from 'papaparse';
   import { open as openDialog, confirm as confirmDialog, message as messageDialog } from '@tauri-apps/plugin-dialog';
   import { readFile } from '@tauri-apps/plugin-fs';
@@ -31,6 +31,13 @@
   let filtrosSeleccionados: string[] = []; 
   let mostrarMenuFiltros = false;
   let categoriasFiltroExpandidas: Record<string, boolean> = {};
+
+  // --- ESTADÍSTICAS DINÁMICAS ---
+  // Calculamos los totales basados en la lista "filtradas" para que reaccionen a la búsqueda
+  $: totalAncianos = filtradas.filter(p => (p.privilegio || '').toUpperCase().includes('ANCIANO')).length;
+  $: totalSM = filtradas.filter(p => (p.privilegio || '').toUpperCase().includes('SIERVO MINISTERIAL') || (p.privilegio || '').toUpperCase() === 'SM').length;
+  $: totalPrecursores = filtradas.filter(p => (p.privilegio || '').toUpperCase().includes('PRECURSOR') || (p.privilegio || '').toUpperCase() === 'PR' || (p.privilegio || '').toUpperCase() === 'PE').length;
+  $: totalSolicitudes = filtradas.filter(p => (p.privilegio || '').toUpperCase().includes('A-19') || (p.privilegio || '').toUpperCase().includes('A-2')).length;
 
   const categoriasFiltro = [
     { nombre: 'Designaciones', opciones: ['PUBLICADOR', 'BETEL', 'VOLUNTARIO A DISTANCIA', 'LDC - SIERVO CONSTRUCCIÓN', 'LDC - VOLUNTARIO CONSTRUCCIÓN', 'PE', 'PET', 'PR'] },
@@ -164,8 +171,31 @@
 
 <div class="seccion-personas">
   <div class="header-registro">
-    <h1>Directorio</h1>
+    <h1>Resumen del circuito</h1>
     <p>{personas.length} hermanos registrados en este circuito</p>
+  </div>
+
+  <!-- RESUMEN DEL CIRCUITO -->
+  <div class="resumen-section">
+    <h3 class="resumen-titulo">ESTADÍSTICAS</h3>
+    <div class="estadisticas-grid">
+      <div class="stat-card">
+        <div class="stat-header"><span class="stat-label">Ancianos</span><Shield size={18} class="stat-icon" color="#3b82f6" /></div>
+        <span class="stat-number">{totalAncianos}</span>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header"><span class="stat-label">Siervos ministeriales</span><BookOpen size={18} class="stat-icon" color="#10b981" /></div>
+        <span class="stat-number">{totalSM}</span>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header"><span class="stat-label">Precursores</span><Award size={18} class="stat-icon" color="#8b5cf6" /></div>
+        <span class="stat-number">{totalPrecursores}</span>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header"><span class="stat-label">Solicitudes vigentes</span><FileText size={18} class="stat-icon" color="#f59e0b" /></div>
+        <span class="stat-number">{totalSolicitudes}</span>
+      </div>
+    </div>
   </div>
 
   <div class="toolbar-modular">
@@ -292,6 +322,16 @@
   .header-registro h1 { font-size: 2.2rem; font-weight: 850; color: var(--text-main); margin: 0; }
   .header-registro p { color: var(--text-muted); margin-top: 5px; }
 
+  .resumen-section { margin-bottom: 25px; background: var(--bg-panel); padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); }
+  .resumen-titulo { margin: 0 0 15px 0; font-size: 1.1rem; font-weight: 700; color: var(--text-main); text-transform: uppercase; letter-spacing: 0.5px; }
+  .estadisticas-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+  .stat-card { background: var(--bg-app); border: 1px solid var(--border-color); border-radius: 12px; padding: 15px; display: flex; flex-direction: column; justify-content: center; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+  .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-color: rgba(59, 130, 246, 0.3); }
+  .stat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .stat-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
+  .stat-icon { opacity: 0.8; }
+  .stat-number { font-size: 2rem; font-weight: 800; color: var(--text-main); line-height: 1; }
+
   .toolbar-modular { display: flex; gap: 15px; align-items: center; margin-bottom: 25px; }
   .search-pill { flex: 1; height: 44px; border-radius: 50px; display: flex; align-items: center; padding: 0 20px; background: var(--bg-panel); border: 1px solid var(--border-color); box-sizing: border-box; }
   .search-input { background: transparent; border: none; outline: none; color: var(--text-main); width: 100%; margin-left: 10px; font-size: 0.9rem; }
@@ -342,6 +382,11 @@
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 768px) {
+
+    .resumen-section { padding: 15px; }
+    .estadisticas-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .stat-number { font-size: 1.6rem; }
+
     .toolbar-modular { 
         flex-direction: column; 
         align-items: stretch; 
