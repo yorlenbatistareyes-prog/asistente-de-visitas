@@ -66,12 +66,10 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "2.0.20": [
-      { texto: "Se ha añadido uns sección de Mapa que permite ver los límites del territorios de las congregaciones. En la sección de ayuda encontrará una guía para configurar el mapa del circuito", tipo: "mejora: Zap" },
-      { texto: "Se ha rediseñado la sección de las congregaciones. Ahora muestra una vista de tarjetas que muestra informacion de la congregación y estadísticas.", tipo: "mejora: Zap" },
-      { texto: "Ahora desde la lista de personas es posible hacer llamadas por WhatsApp y enviar email mediante jwpub.org.", tipo: "mejora: Zap" },
-      { texto: "Se ha corregido un error que causaba que en registro de personas se mostraran números de teléfonos repetidos.", tipo: "error: Bug" },
-      { texto: "Después de actualizar, vaya a la lista de congregaciones, y elimine todas, después vuelva a importar un archivo CSV descargado de antemano de JW HUb. Haga lo mismo con la lista de Ancianos que tiene en Registro de personas.", tipo: "info: Info" },
+    "2.0.21": [
+     
+      { texto: "Se ha mejorado el diseño de botones en poantallas móviles", tipo: "mejora: Zap" },
+   
     ]
   };
 
