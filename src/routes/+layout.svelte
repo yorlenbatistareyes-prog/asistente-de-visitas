@@ -66,10 +66,10 @@
   };
 
   const historialCambios: Record<string, { texto: string, tipo: string }[]> = {
-    "2.0.21": [
+    "2.0.22": [
      
-      { texto: "Se ha mejorado el diseño de botones en poantallas móviles", tipo: "mejora: Zap" },
-   
+      { texto: "En el registro de personas, al hacer clic sobre una congregación, se abre una vista dedicada y sin distracciones.", tipo: "mejora: Zap" },
+      { texto: "Diseño Responsivo Perfecto: Tienes una cuadrícula de 2 columnas estructurada para la computadora que se adapta automáticamente a 1 columna en la pantalla de tu móvil.", tipo: "mejora: Zap" },
     ]
   };
 
