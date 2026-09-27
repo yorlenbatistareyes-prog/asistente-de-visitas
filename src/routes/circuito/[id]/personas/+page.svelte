@@ -198,113 +198,20 @@
     </div>
   </div>
 
-  <div class="toolbar-modular">
-    <div class="search-pill card-global">
-      <Search size={18} class="search-icon" />
-      <input type="text" placeholder="Buscar por nombre o congregación..." bind:value={busqueda} class="search-input" />
-    </div>
-
-    <div class="filter-select card-global relativo">
-      <button class="btn-abrir-filtro-main" on:click={() => mostrarMenuFiltros = !mostrarMenuFiltros}>
-        <Filter size={18} color="var(--text-muted)" />
-        <span class="texto-filtro">{filtrosSeleccionados.length === 0 ? 'Filtrar...' : filtrosSeleccionados.length === 1 ? filtrosSeleccionados[0] : `Filtros (${filtrosSeleccionados.length})`}</span>
-        <ChevronDown size={16} color="var(--text-muted)" />
-      </button>
-
-      {#if mostrarMenuFiltros}
-        <div class="menu-flotante-checkboxes menu-filtros">
-          <div class="header-menu-filtros">
-            <span class="titulo-f">Filtros</span>
-            {#if filtrosSeleccionados.length > 0}<button class="btn-limpiar-filtros" on:click={() => filtrosSeleccionados = []}>Limpiar</button>{/if}
-          </div>
-          <div class="scroll-filtros">
-            {#each categoriasFiltro as cat}
-              <div class="categoria-privilegio">
-                <div class="categoria-header" role="button" tabindex="0" on:click={() => toggleCategoriaFiltro(cat.nombre)}>
-                  <span class="cat-titulo">{cat.nombre}</span>
-                  {#if categoriasFiltroExpandidas[cat.nombre]}<ChevronUp size={16} />{:else}<ChevronDown size={16} />{/if}
-                </div>
-                {#if categoriasFiltroExpandidas[cat.nombre]}
-                  <div class="categoria-opciones" transition:slide={{ duration: 200 }}>
-                    {#each cat.opciones as priv}
-                      <label class="opcion-checkbox">
-                        <input type="checkbox" checked={filtrosSeleccionados.includes(priv)} on:change={() => toggleFiltroCheckbox(priv)} />
-                        <span class="check-texto">{priv}</span>
-                      </label>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-            {/each}
-          </div>
-          <button type="button" class="btn-cerrar-menu" on:click={() => mostrarMenuFiltros = false}>Aplicar y cerrar</button>
-        </div>
-      {/if}
-    </div>
-
-    <div class="filters-aside">
-      <button class="btn-importar card-global" on:click={importarCSV}><Upload size={18} /> <span>Importar CSV</span></button>
-      <button class="btn-primary-fino" on:click={() => abrirEdicion(null)}><Plus size={18} /> Añadir Persona</button>
-      <button class="btn-danger-fino" on:click={borrarTodo} title="Limpiar todo"><Trash2 size={18} /> <span class="texto-btn-danger">Limpiar</span></button>
-    </div>
-  </div>
-
-  <div class="lista-agrupada">
+<div class="lista-agrupada">
     {#each congregacionesOrdenadas as nombreCongregacion}
-      <div class="grupo-congregacion card-global">
-        
-        <div class="header-congregacion" role="button" tabindex="0" on:click={() => toggleExpandir(nombreCongregacion)}>
+      <!-- ENLACE A LA NUEVA PÁGINA -->
+      <a href="/circuito/{circuitoId}/personas/{encodeURIComponent(nombreCongregacion)}" class="grupo-congregacion card-global enlace-congregacion">
+        <div class="header-congregacion">
           <div class="titulo-cong">
-            <h2 class="nombre-cong-negro">{nombreCongregacion}</h2>
+            <h2 class="nombre-cong-negro text-link">{nombreCongregacion}</h2>
           </div>
           <div class="header-acciones">
-            {#if expandidas[nombreCongregacion]}<ChevronUp size={20} color="var(--text-muted)" />{:else}<ChevronDown size={20} color="var(--text-muted)" />{/if}
+             <span class="badge-resultados">{personasAgrupadas[nombreCongregacion].length} registrados</span>
+             <span class="ver-detalles">Ver lista &rarr;</span>
           </div>
         </div>
-
-       {#if expandidas[nombreCongregacion]}
-          <div class="tabla-personas" transition:slide={{ duration: 250 }}>
-            
-            <!-- TEXTO ACTUALIZADO EN MINÚSCULA -->
-            <div class="info-total-desplegado">
-              Resultados: {personasAgrupadas[nombreCongregacion].length}
-            </div>
-
-            {#each personasAgrupadas[nombreCongregacion] as p}
-              <div class="persona-row">
-
-                <div class="p-info" role="button" tabindex="0" on:click={() => abrirEdicion(p)}>
-                  <span class="p-nombre">{p.apellidos}, {p.nombre}</span>
-                  <span class="p-meta">{p.privilegio || 'Publicador'}</span>
-                </div>
-                
-                <div class="p-contacto" style="flex: 2.5; gap: 10px;">
-                  
-                  {#if p.telefono_celular}
-                    <span class="clickable-contact" role="button" tabindex="0" title="Celular (WhatsApp)" on:click={() => abrirWhatsApp(p.telefono_celular, "Hola hermano...")} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && abrirWhatsApp(p.telefono_celular, "Hola hermano...")}>
-                      <Phone size={14}/> {p.telefono_celular}
-                    </span>
-                  {/if}
-
-                  {#if p.telefono_fijo}<span title="Fijo"><Phone size={14} style="opacity: 0.5;"/> {p.telefono_fijo}</span>{/if}
-                  
-                  {#if p.email}
-                    <span class="clickable-contact" role="button" tabindex="0" title="Correo jwpub" on:click={() => abrirCorreoJWPub(p.email, "Asunto", "Mensaje...")} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && abrirCorreoJWPub(p.email, "Asunto", "Mensaje...")}>
-                      <Mail size={14}/> {p.email}
-                    </span>
-                  {/if}
-                </div>
-                
-                <div class="p-acciones">
-                   <button class="btn-icon-edit" title="Editar" on:click|stopPropagation={() => abrirEdicion(p)}><Edit size={16} /></button>
-                   <button class="btn-icon-delete" title="Eliminar" on:click|stopPropagation={() => borrar(p.id, p.nombre)}><Trash2 size={16} /></button>
-                </div>
-              </div>
-            {/each}
-          </div>
-        {/if}
-
-      </div>
+      </a>
     {:else}
       <div class="vacio card-global">
         <User size={48} color="var(--border-color)" style="margin-bottom: 15px;" />
@@ -354,8 +261,7 @@
   .btn-importar { background-color: #14532d; color: white; border: none; height: 38px; padding: 0 24px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; box-shadow: 0 2px 4px rgba(20, 83, 45, 0.2); }
   .btn-danger-fino { background-color: transparent; color: #ef4444; border: 1px solid #ef4444; height: 38px; padding: 0 16px; border-radius: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; }
 
-  /* Diseño en Grid a 2 columnas */
-  /* Forzamos el Grid a 2 columnas */
+ /* Diseño en 2 columnas para escritorio */
   .lista-agrupada { 
     display: grid !important; 
     grid-template-columns: repeat(2, 1fr) !important; 
@@ -477,4 +383,9 @@
     text-decoration: underline;
   }
 
+  .enlace-congregacion { text-decoration: none; display: block; transition: all 0.2s ease; }
+  .enlace-congregacion:hover { transform: translateY(-2px); border-color: #1e3a8a; box-shadow: 0 4px 12px rgba(30, 58, 138, 0.1); }
+  .text-link { color: #1e3a8a !important; margin: 0; font-size: 1rem; font-weight: 700; text-transform: uppercase; }
+  .ver-detalles { font-size: 0.85rem; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 5px; }
+  .badge-resultados { background: rgba(100, 116, 139, 0.1); color: var(--text-muted); padding: 2px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 700; margin-right: 15px; }
 </style>

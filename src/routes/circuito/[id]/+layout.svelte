@@ -31,7 +31,7 @@
   <header class="card-global circuito-header">
     <div class="top-area">
       <a href="/" class="btn-back">
-        <ArrowLeft size={16} /> Volver a Circuitos
+        <ArrowLeft size={16} /> Volver
       </a>
     </div>
 
