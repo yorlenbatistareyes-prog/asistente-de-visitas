@@ -32,12 +32,27 @@
   let mostrarMenuFiltros = false;
   let categoriasFiltroExpandidas: Record<string, boolean> = {};
 
-  // --- ESTADÍSTICAS DINÁMICAS ---
-  // Calculamos los totales basados en la lista "filtradas" para que reaccionen a la búsqueda
-  $: totalAncianos = filtradas.filter(p => (p.privilegio || '').toUpperCase().includes('ANCIANO')).length;
-  $: totalSM = filtradas.filter(p => (p.privilegio || '').toUpperCase().includes('SIERVO MINISTERIAL') || (p.privilegio || '').toUpperCase() === 'SM').length;
-  $: totalPrecursores = filtradas.filter(p => (p.privilegio || '').toUpperCase().includes('PRECURSOR') || (p.privilegio || '').toUpperCase() === 'PR' || (p.privilegio || '').toUpperCase() === 'PE').length;
-  $: totalSolicitudes = filtradas.filter(p => (p.privilegio || '').toUpperCase().includes('A-19') || (p.privilegio || '').toUpperCase().includes('A-2')).length;
+  // --- ESTADÍSTICAS DINÁMICAS (PÁGINA DE PERSONAS) ---
+  // Calculamos los totales separando los privilegios por comas para contar bien a quienes tienen múltiples asignaciones (Ej: "ANCIANO, PR, A-19")
+  $: totalAncianos = filtradas.filter(p => {
+    const privs = p.privilegio ? p.privilegio.toUpperCase().split(',').map(x => x.trim()) : [];
+    return privs.includes('ANCIANO');
+  }).length;
+
+  $: totalSM = filtradas.filter(p => {
+    const privs = p.privilegio ? p.privilegio.toUpperCase().split(',').map(x => x.trim()) : [];
+    return privs.includes('SIERVO MINISTERIAL') || privs.includes('SM');
+  }).length;
+
+  $: totalPrecursores = filtradas.filter(p => {
+    const privs = p.privilegio ? p.privilegio.toUpperCase().split(',').map(x => x.trim()) : [];
+    return privs.some(priv => priv.includes('PRECURSOR') || priv === 'PR' || priv === 'PE' || priv === 'PET');
+  }).length;
+
+  $: totalSolicitudes = filtradas.filter(p => {
+    const privs = p.privilegio ? p.privilegio.toUpperCase().split(',').map(x => x.trim()) : [];
+    return privs.includes('A-19') || privs.includes('A-2');
+  }).length;
 
   const categoriasFiltro = [
     { nombre: 'Designaciones', opciones: ['PUBLICADOR', 'BETEL', 'VOLUNTARIO A DISTANCIA', 'LDC - SIERVO CONSTRUCCIÓN', 'LDC - VOLUNTARIO CONSTRUCCIÓN', 'PE', 'PET', 'PR'] },
