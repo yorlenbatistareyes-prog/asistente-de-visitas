@@ -198,6 +198,73 @@
     </div>
   </div>
 
+  <!-- BARRA DE HERRAMIENTAS (Búsqueda, Filtros y Botones) -->
+  <div class="toolbar-modular">
+    <!-- Buscador -->
+    <div class="search-pill">
+      <Search size={18} color="var(--text-muted)" />
+      <input type="text" bind:value={busqueda} placeholder="Buscar persona o congregación..." class="search-input" />
+    </div>
+
+    <!-- Menú de Filtros -->
+    <div class="filter-select" on:mouseleave={() => mostrarMenuFiltros = false}>
+      <button class="btn-abrir-filtro-main" on:click={() => mostrarMenuFiltros = !mostrarMenuFiltros}>
+        <Filter size={18} color="var(--text-muted)" />
+        <span class="texto-filtro">
+          {filtrosSeleccionados.length > 0 ? `${filtrosSeleccionados.length} filtros` : 'Filtrar por...'}
+        </span>
+        <ChevronDown size={18} color="var(--text-muted)" />
+      </button>
+      
+      {#if mostrarMenuFiltros}
+        <div class="menu-filtros" transition:slide={{ duration: 200 }}>
+          <div class="header-menu-filtros">
+            <span class="titulo-f">Filtros</span>
+            {#if filtrosSeleccionados.length > 0}
+              <button class="btn-limpiar-filtros" on:click={() => filtrosSeleccionados = []}>Limpiar</button>
+            {/if}
+          </div>
+          <div class="scroll-filtros">
+            {#each categoriasFiltro as cat}
+              <div class="categoria-privilegio">
+                <div class="categoria-header" on:click={() => toggleCategoriaFiltro(cat.nombre)}>
+                  <span class="cat-titulo">{cat.nombre}</span>
+                  {#if categoriasFiltroExpandidas[cat.nombre]} <ChevronUp size={16} /> {:else} <ChevronDown size={16} /> {/if}
+                </div>
+                {#if categoriasFiltroExpandidas[cat.nombre]}
+                  <div transition:slide={{ duration: 150 }}>
+                    {#each cat.opciones as opcion}
+                      <label class="opcion-checkbox">
+                        <input type="checkbox" checked={filtrosSeleccionados.includes(opcion)} on:change={() => toggleFiltroCheckbox(opcion)} />
+                        <span class="check-texto">{opcion}</span>
+                      </label>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+          <div class="btn-cerrar-menu" on:click={() => mostrarMenuFiltros = false}>Cerrar</div>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Botones de Acción -->
+    <div class="filters-aside">
+      <button class="btn-primary-fino" on:click={() => abrirEdicion()}>
+        <Plus size={16} /> Nueva Persona
+      </button>
+      <button class="btn-importar" on:click={importarCSV}>
+        <Upload size={16} /> Importar CSV
+      </button>
+      {#if personas.length > 0}
+        <button class="btn-danger-fino" on:click={borrarTodo}>
+          <Trash2 size={16} /> Vaciar
+        </button>
+      {/if}
+    </div>
+  </div>
+
 <div class="lista-agrupada">
     {#each congregacionesOrdenadas as nombreCongregacion}
       <!-- ENLACE A LA NUEVA PÁGINA -->

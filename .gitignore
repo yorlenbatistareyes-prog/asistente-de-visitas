@@ -14,6 +14,9 @@ vite.config.ts.timestamp-*
 src-tauri/target
 src-tauri/gen
 
+# --- CACHÉ DE ANDROID / GRADLE ---
+**/.gradle/
+
 # Ignorar tokens de Google Drive
 drive_token.json
 src-tauri/drive_token.json
